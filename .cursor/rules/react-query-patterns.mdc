@@ -40,6 +40,25 @@ const mutation = useMutation({
 // Use: mutation.isPending, mutation.isError, mutation.error
 ```
 
+## Global spinner (button / API loading)
+
+Root layout mein `<QueryProvider />` ke andar `<GlobalSpinner />` auto-mount hota hai (`useIsMutating()` se).
+
+**Rule:** Button click se jo bhi API call jaye → hamesha `useMutation` + `apiClient` use karo. Inline button loading text ya local spinner **mat** lagao — global spinner khud dikhega.
+
+```typescript
+// ❌ BAD — inline loading on button
+<Button disabled={mutation.isPending}>
+  {mutation.isPending ? 'Saving...' : 'Save'}
+</Button>
+
+// ✅ GOOD — button text same; global spinner handles loading
+<Button type="submit" disabled={mutation.isPending}>Save</Button>
+```
+
+- Mutations: `mutation.isPending` sirf `disabled` ke liye — text change nahi.
+- Queries: route-level `loading.tsx` skeleton use karo; global spinner sirf mutations ke liye.
+
 ## Query keys
 
 Centralized in `lib/query/keys.ts`:

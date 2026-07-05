@@ -96,6 +96,7 @@ page.tsx (RSC fetch via lib/services)
 
 ### Loading & Errors
 - Loading/error **kabhi useState se nahi** — sirf React Query (`isPending`, `isError`, `error`).
+- Button-triggered API calls → `useMutation` + `apiClient`; global `<GlobalSpinner />` root mein auto (via `QueryProvider` / `useIsMutating`). Button par inline loading text mat lagao.
 - Generic `<ErrorAlert />` / `<WarningAlert />` in `components/feedback/` — error object pass karo.
 
 ---
@@ -109,7 +110,7 @@ page.tsx (RSC fetch via lib/services)
 | Route | Purpose | page.tsx | loading.tsx | _components | Status |
 |-------|---------|----------|-------------|-------------|--------|
 | `/` | Home / landing | `app/page.tsx` | — (add when refactored) | — | 🟡 placeholder |
-| `/login` | User login | — | — | — | ⚪ not started |
+| `/login` | User login | `app/(auth)/login/page.tsx` | `app/(auth)/login/loading.tsx` | `login-form` | ✅ ready |
 | `/sign-up` | Registration | — | — | — | ⚪ not started |
 | `/forget-password` | Password reset request | — | — | — | ⚪ not started |
 | `/change-password` | Password change | — | — | — | ⚪ not started |
@@ -120,33 +121,40 @@ page.tsx (RSC fetch via lib/services)
 |-----------|------|---------|---------|--------|
 | Button | `components/ui/button.tsx` | shadcn button | global | ✅ ready |
 | Card | `components/ui/card.tsx` | shadcn card | global | ✅ ready |
+| Input | `components/ui/input.tsx` | shadcn input + icon slots + brand styling | auth forms | ✅ ready |
+| Label | `components/ui/label.tsx` | shadcn label | forms | ✅ ready |
+| Field | `components/ui/field.tsx` | shadcn field group + errors | forms | ✅ ready |
+| Skeleton | `components/ui/skeleton.tsx` | Loading placeholder | loading states | ✅ ready |
+| Spinner | `components/feedback/spinner.tsx` | Brand dual-ring spinner | global overlay | ✅ ready |
+| GlobalSpinner | `components/feedback/global-spinner.tsx` | Full-screen mutation loader | root via QueryProvider | ✅ ready |
 | ErrorAlert | `components/feedback/error-alert.tsx` | Generic error display | — | ⚪ not started |
-| QueryProvider | `components/providers/query-provider.tsx` | React Query context | root layout | ⚪ not started |
+| QueryProvider | `components/providers/query-provider.tsx` | React Query context | root layout | ✅ ready |
 
 ### Services (`lib/services/`)
 
 | Service | File | Purpose | Called From | Status |
 |---------|------|---------|-------------|--------|
-| — | — | — | — | ⚪ not started |
+| loginUser | `lib/services/auth/login.ts` | Stub login — returns success | `/api/auth/login` | ✅ ready (stub) |
 
 ### API Routes (`app/api/`)
 
 | Endpoint | Method | Service | Schema | Status |
 |----------|--------|---------|--------|--------|
-| — | — | — | — | ⚪ not started |
+| `/api/auth/login` | POST | `loginUser` | `loginSchema` | ✅ ready (stub) |
 
 ### Schemas (`schemas/`)
 
 | Schema | File | Used In | Status |
 |--------|------|---------|--------|
-| — | — | — | ⚪ not started |
+| `loginSchema` | `schemas/auth/login.ts` | Login form + `/api/auth/login` | ✅ ready |
 
 ### Generic Validators (`schemas/generic/`)
 
 | Validator | Purpose | Status |
 |-----------|---------|--------|
+| `emailField` | Email format + required | ✅ ready |
+| `passwordField` | Min 8 chars + required | ✅ ready |
 | `nonEmptyString` | Trim + min 1 char | ⚪ not started |
-| `email` | Email format | ⚪ not started |
 | `personName` | Name fields | ⚪ not started |
 | `positiveNumber` | Numeric fields > 0 | ⚪ not started |
 
@@ -156,6 +164,8 @@ page.tsx (RSC fetch via lib/services)
 
 | Date | Change | Updated By |
 |------|--------|------------|
+| 2026-07-05 | Global Spinner + MutationSpinner in QueryProvider; react-query loading rules | Agent |
+| 2026-07-05 | Brand CSS tokens in `globals.css`; login page + API stub; shadcn Input/Field; QueryProvider | Agent |
 | 2026-07-05 | Initial PROJECT.md + Cursor rules created | Agent |
 
 ---

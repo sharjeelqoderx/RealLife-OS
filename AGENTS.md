@@ -17,4 +17,5 @@ Detailed rules: `.cursor/rules/` (auto-applied by Cursor).
 - Supabase → server-only via `lib/services/` | Client → `lib/api/client.ts` + React Query
 - Forms → shadcn + Zod from `schemas/` (shared API + frontend)
 - Loading/error → React Query states only, never `useState`
+- Button API calls → `useMutation` + global `<GlobalSpinner />` (no inline "Loading..." text)
 - Har change ke baad → `PROJECT.md` update karo
