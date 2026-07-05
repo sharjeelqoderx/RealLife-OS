@@ -1,0 +1,63 @@
+---
+description: Supabase, services, and API route patterns
+globs: app/api/**,lib/**,types/**
+alwaysApply: false
+---
+
+# Data Layer
+
+## Supabase — server only
+
+```typescript
+// ❌ NEVER in client components or 'use client' files
+import { createClient } from '@/lib/supabase/server'
+
+// ✅ API route or Server Component only
+const supabase = await createClient()
+```
+
+- Types: always from `types/supabase.ts` (generated).
+- Frontend field names MUST match Supabase column names.
+
+## Layer separation
+
+```
+app/api/[resource]/route.ts   → thin handler (validate + call service)
+lib/services/[resource].ts    → all Supabase queries & business logic
+lib/api/client.ts             → generic fetch wrapper (client-side, for React Query)
+```
+
+API route example:
+
+```typescript
+// app/api/users/route.ts
+export async function GET() {
+  const data = await getUsers() // from lib/services/users.ts
+  return NextResponse.json(data)
+}
+```
+
+Service reusable in both API routes AND Server Components:
+
+```typescript
+// lib/services/users.ts
+export async function getUsers() { /* supabase query */ }
+```
+
+## Generic fetch client
+
+All client-side API calls go through `lib/api/client.ts` — never raw `fetch()` scattered in components.
+
+```typescript
+// lib/api/client.ts
+export async function apiClient<T>(path: string, options?: RequestInit): Promise<T>
+```
+
+## API response shape
+
+Consistent JSON responses:
+
+```typescript
+// success: { data: T }
+// error:   { error: string, code?: string }
+```

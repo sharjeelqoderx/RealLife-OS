@@ -1,0 +1,57 @@
+---
+description: shadcn forms, Zod schemas, shared validation
+globs: schemas/**,**/*form*,app/**/_components/**
+alwaysApply: false
+---
+
+# Forms & Validation
+
+## Rules
+
+- Forms: shadcn `<Form>` + `react-hook-form` + `@hookform/resolvers/zod`.
+- Every form field validated via Zod — no manual validation in handlers.
+- Same schema used in API route AND frontend form.
+
+## Schema location
+
+```
+schemas/
+  generic/          # Reusable primitives — import everywhere
+    strings.ts      # nonEmptyString, optionalString, etc.
+    numbers.ts      # positiveNumber, optionalNumber, etc.
+    common.ts       # email, personName, phone, etc.
+  [feature]/
+    login.ts        # Composes generic validators
+```
+
+## Generic validators (reuse, don't duplicate)
+
+```typescript
+// schemas/generic/strings.ts
+export const nonEmptyString = z.string().trim().min(1, 'Required')
+
+// schemas/generic/common.ts
+export const email = z.string().trim().email('Invalid email')
+export const personName = nonEmptyString.min(2, 'Name too short')
+
+// Feature schema composes generics
+export const loginSchema = z.object({
+  email,
+  password: nonEmptyString,
+})
+```
+
+## API validation
+
+```typescript
+// app/api/auth/login/route.ts
+const parsed = loginSchema.safeParse(body)
+if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
+```
+
+## Form component pattern
+
+```typescript
+const form = useForm({ resolver: zodResolver(loginSchema), defaultValues: { ... } })
+// Submit via useMutation — NOT useState for loading/error
+```

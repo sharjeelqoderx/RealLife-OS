@@ -1,0 +1,41 @@
+---
+description: TypeScript, naming, env, and code quality standards
+alwaysApply: true
+---
+
+# Best Practices (Extra)
+
+## TypeScript
+- Strict mode always. No `any` — use `unknown` + type guards.
+- Props interfaces named `[Component]Props`.
+- Supabase row types: `Database['public']['Tables']['users']['Row']`.
+
+## Naming
+- Files: kebab-case (`user-profile.tsx`, `get-users.ts`).
+- Components: PascalCase. Hooks: `use` prefix. Services: verb-first (`getUsers`, `createTask`).
+- Query keys: noun-based arrays in `lib/query/keys.ts`.
+
+## Environment
+- Supabase keys in `.env.local` — never commit.
+- `NEXT_PUBLIC_*` only for truly public values. Supabase anon key OK public; service role NEVER public.
+
+## Client vs Server
+- `'use client'` only when needed (hooks, events, browser APIs).
+- Keep client components small — pass server-fetched data as props.
+
+## Imports
+- Use `@/` path alias consistently.
+- No circular imports between `lib/services` and `components`.
+
+## Error handling
+- Services throw typed errors; API routes catch and return `{ error }`.
+- Use `<ErrorAlert />` for errors, `<WarningAlert />` for warnings — both in `components/feedback/`.
+
+## Next.js
+- Read `node_modules/next/dist/docs/` before using Next.js APIs — this is Next.js 16 with breaking changes.
+- Prefer Server Actions only when they fit; default pattern is API route + service + React Query.
+
+## Code quality
+- No dead code or commented-out blocks.
+- Match existing file style (quotes, semicolons, indentation).
+- Minimal diff — only change what's needed.

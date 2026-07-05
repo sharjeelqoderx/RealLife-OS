@@ -1,0 +1,41 @@
+---
+description: Route, component, and folder structure conventions
+alwaysApply: true
+---
+
+# Project Structure
+
+Read `PROJECT.md` at the start of every task for current element registry and status.
+
+## Route folders (mandatory files)
+
+Every route under `app/` MUST have:
+
+```
+app/(group)/[route]/
+  page.tsx        # Server Component — initial data fetch here
+  loading.tsx     # REQUIRED — Suspense fallback
+  _components/    # Page-only components (not reusable elsewhere)
+```
+
+## Component placement
+
+| Situation | Location |
+|-----------|----------|
+| Reusable now or likely later | `components/` |
+| Single page, no future reuse | `app/.../ _components/` |
+| shadcn primitives | `components/ui/` |
+| Generic error/warning UI | `components/feedback/` |
+| Providers (Query, etc.) | `components/providers/` |
+
+**Promotion rule:** Agar `_components/` wala component doosri jagah chahiye → `components/` mein move karo, dono jagah import karo.
+
+## Pages
+
+- `page.tsx` = Server Component (default). `'use client'` sirf jab interaction/state chahiye.
+- Initial data fetch `page.tsx` mein via `lib/services/*` — Supabase directly mat call karo page se; service function use karo.
+- Client interactivity ke liye alag client component banao (`_components/` ya `components/`).
+
+## After every change
+
+Update `PROJECT.md` element registry + changelog.

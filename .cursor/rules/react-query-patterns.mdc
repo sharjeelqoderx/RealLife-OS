@@ -1,0 +1,61 @@
+---
+description: React Query, SSR initial data, no useState loading/error
+globs: **/*.tsx,lib/query/**
+alwaysApply: false
+---
+
+# React Query & Client Data
+
+## SSR + instant render
+
+```typescript
+// page.tsx (Server Component)
+export default async function UsersPage() {
+  const initialData = await getUsers() // lib/services
+  return <UsersList initialData={initialData} />
+}
+
+// _components/users-list.tsx ('use client')
+export function UsersList({ initialData }: { initialData: User[] }) {
+  const { data } = useQuery({
+    queryKey: queryKeys.users.list(),
+    queryFn: () => apiClient<User[]>('/api/users'),
+    initialData,
+  })
+}
+```
+
+## Mutations — always useMutation
+
+```typescript
+// ❌ BAD
+const [loading, setLoading] = useState(false)
+const [error, setError] = useState<string | null>(null)
+
+// ✅ GOOD
+const mutation = useMutation({
+  mutationFn: (data: LoginInput) => apiClient('/api/auth/login', { method: 'POST', body: JSON.stringify(data) }),
+  onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.auth.all }),
+})
+// Use: mutation.isPending, mutation.isError, mutation.error
+```
+
+## Query keys
+
+Centralized in `lib/query/keys.ts`:
+
+```typescript
+export const queryKeys = {
+  users: { all: ['users'] as const, list: () => [...queryKeys.users.all, 'list'] as const },
+}
+```
+
+## Error display
+
+Pass errors to generic components — never inline error JSX:
+
+```typescript
+{mutation.isError && <ErrorAlert error={mutation.error} />}
+```
+
+Hooks live in `lib/query/hooks/` — not inside page components.
