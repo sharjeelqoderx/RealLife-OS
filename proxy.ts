@@ -7,9 +7,16 @@ import {
   isAuthRoute,
   isProtectedRoute,
 } from "@/lib/auth/routes"
+import { buildAuthConfirmRedirectUrl } from "@/lib/auth/confirm-redirect"
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/env"
 
 export async function proxy(request: NextRequest) {
+  const confirmRedirectUrl = buildAuthConfirmRedirectUrl(request.nextUrl)
+
+  if (confirmRedirectUrl) {
+    return NextResponse.redirect(confirmRedirectUrl)
+  }
+
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(getSupabaseUrl(), getSupabaseAnonKey(), {
