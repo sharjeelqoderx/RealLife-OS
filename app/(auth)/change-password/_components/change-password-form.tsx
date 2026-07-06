@@ -4,7 +4,8 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { ArrowLeft, ArrowRight, Eye, EyeOff, Lock } from "lucide-react"
 import Link from "next/link"
-import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 
 import { Button } from "@/components/ui/button"
@@ -19,6 +20,7 @@ import { Field, FieldError, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ApiError, apiClient } from "@/lib/api/client"
+import { parseImplicitAuthHash } from "@/lib/auth/implicit-auth-hash"
 import { queryKeys } from "@/lib/query/keys"
 import {
   changePasswordSchema,
@@ -26,10 +28,7 @@ import {
   type ChangePasswordResponse,
   type ValidateResetTokenResponse,
 } from "@/schemas/auth/change-password"
-
-export interface ChangePasswordFormProps {
-  resetId: string
-}
+import type { RecoverySessionResponse } from "@/schemas/auth/recovery-session"
 
 function AuthCardShell({ children }: { children: React.ReactNode }) {
   return (
@@ -132,28 +131,85 @@ function getValidationError(error: unknown): { title: string; message: string } 
 
   return {
     title: "Validation Failed",
-    message: "Unable to validate this reset link. Please try again.",
+    message:
+      "Unable to validate your reset session. Please use the link from your email.",
   }
 }
 
-export function ChangePasswordForm({ resetId }: ChangePasswordFormProps) {
+export function ChangePasswordForm() {
+  const router = useRouter()
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [sessionReady, setSessionReady] = useState(false)
+  const [bootstrapError, setBootstrapError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function bootstrapRecoverySession() {
+      const parsed = parseImplicitAuthHash(window.location.hash)
+
+      if (!parsed) {
+        if (!cancelled) {
+          setSessionReady(true)
+        }
+        return
+      }
+
+      if (parsed.type !== "recovery") {
+        if (!cancelled) {
+          setBootstrapError(
+            "This link is invalid. Please request a new password reset."
+          )
+          setSessionReady(true)
+        }
+        return
+      }
+
+      try {
+        await apiClient<RecoverySessionResponse>("/api/auth/recovery-session", {
+          method: "POST",
+          body: JSON.stringify({
+            access_token: parsed.access_token,
+            refresh_token: parsed.refresh_token,
+          }),
+        })
+        window.history.replaceState(null, "", window.location.pathname)
+      } catch (error) {
+        if (!cancelled) {
+          setBootstrapError(
+            error instanceof Error
+              ? error.message
+              : "Unable to verify your reset link. Please try again."
+          )
+        }
+      }
+
+      if (!cancelled) {
+        setSessionReady(true)
+      }
+    }
+
+    void bootstrapRecoverySession()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const validationQuery = useQuery({
-    queryKey: queryKeys.auth.resetToken(resetId),
+    queryKey: queryKeys.auth.recoverySession(),
     queryFn: () =>
       apiClient<ValidateResetTokenResponse>(
-        `/api/auth/change-password/validate?id=${encodeURIComponent(resetId)}`
+        "/api/auth/change-password/validate"
       ),
-    enabled: resetId.length > 0,
+    enabled: sessionReady && !bootstrapError,
     retry: false,
   })
 
   const form = useForm<ChangePasswordInput>({
     resolver: zodResolver(changePasswordSchema),
     defaultValues: {
-      id: resetId,
       password: "",
       confirmPassword: "",
     },
@@ -167,6 +223,7 @@ export function ChangePasswordForm({ resetId }: ChangePasswordFormProps) {
       }),
     onSuccess: () => {
       form.clearErrors("root")
+      router.push("/dashboard")
     },
     onError: (error) => {
       form.setError("root", {
@@ -180,17 +237,17 @@ export function ChangePasswordForm({ resetId }: ChangePasswordFormProps) {
     changePasswordMutation.mutate(values)
   }
 
-  if (!resetId) {
-    return (
-      <ChangePasswordErrorCard
-        title="Missing Reset Link"
-        message="No reset token was provided. Please use the link from your email."
-      />
-    )
+  if (!sessionReady || validationQuery.isPending) {
+    return <ValidationLoadingCard />
   }
 
-  if (validationQuery.isPending) {
-    return <ValidationLoadingCard />
+  if (bootstrapError) {
+    return (
+      <ChangePasswordErrorCard
+        title="Invalid Link"
+        message={bootstrapError}
+      />
+    )
   }
 
   if (validationQuery.isError) {
@@ -207,8 +264,6 @@ export function ChangePasswordForm({ resetId }: ChangePasswordFormProps) {
           className="flex flex-col gap-5"
           noValidate
         >
-          <input type="hidden" {...form.register("id")} />
-
           <Field data-invalid={!!form.formState.errors.password}>
             <FieldLabel
               htmlFor="password"
@@ -282,15 +337,6 @@ export function ChangePasswordForm({ resetId }: ChangePasswordFormProps) {
           {form.formState.errors.root?.message && (
             <p role="alert" className="text-sm text-destructive">
               {form.formState.errors.root.message}
-            </p>
-          )}
-
-          {changePasswordMutation.isSuccess && (
-            <p
-              role="status"
-              className="rounded-lg bg-brand-primary/10 px-3 py-2 text-sm text-brand-primary"
-            >
-              {changePasswordMutation.data.message}
             </p>
           )}
 

@@ -2,13 +2,8 @@ import { z } from "zod"
 
 import { passwordField } from "@/schemas/generic/password"
 
-export const validateResetTokenSchema = z.object({
-  id: z.string().trim().min(1, "Reset token is required"),
-})
-
 export const changePasswordSchema = z
   .object({
-    id: z.string().trim().min(1, "Reset token is required"),
     password: passwordField,
     confirmPassword: passwordField,
   })
@@ -17,7 +12,6 @@ export const changePasswordSchema = z
     path: ["confirmPassword"],
   })
 
-export type ValidateResetTokenInput = z.infer<typeof validateResetTokenSchema>
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>
 
 export type ValidateResetTokenResponse = {

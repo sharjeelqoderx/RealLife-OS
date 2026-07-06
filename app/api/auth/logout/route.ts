@@ -1,9 +1,9 @@
 import { handleAuthRouteError } from "@/lib/api/auth-route"
-import { validateRecoverySession } from "@/lib/services/auth/change-password"
+import { logoutUser } from "@/lib/services/auth/logout"
 
-export async function GET() {
+export async function POST() {
   try {
-    const result = await validateRecoverySession()
+    const result = await logoutUser()
     return Response.json(result)
   } catch (error) {
     return handleAuthRouteError(error)

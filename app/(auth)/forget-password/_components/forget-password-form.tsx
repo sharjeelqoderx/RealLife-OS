@@ -11,11 +11,14 @@ import {
   Card,
   CardContent,
   CardFooter,
+  CardHeader,
+  CardTitle,
 } from "@/components/ui/card"
 import { Field, FieldError, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { apiClient } from "@/lib/api/client"
+import { ApiError, apiClient } from "@/lib/api/client"
 import { buildAuthHref } from "@/lib/auth/email-search-param"
+import { getForgetPasswordErrorMessage } from "@/lib/auth/forget-password-errors"
 import {
   forgetPasswordSchema,
   type ForgetPasswordInput,
@@ -48,9 +51,15 @@ export function ForgetPasswordForm({
       form.clearErrors("root")
     },
     onError: (error) => {
+      if (error instanceof ApiError && error.code === "USER_NOT_FOUND") {
+        form.setError("email", {
+          message: getForgetPasswordErrorMessage(error),
+        })
+        return
+      }
+
       form.setError("root", {
-        message:
-          error instanceof Error ? error.message : "Something went wrong",
+        message: getForgetPasswordErrorMessage(error),
       })
     },
   })
@@ -70,17 +79,17 @@ export function ForgetPasswordForm({
         }}
       />
 
-      <CardContent className="px-8 pt-8 pb-8">
-        <div className="mb-6 rounded-xl border border-brand-input-border bg-brand-input/40 px-5 py-5 text-center">
-          <h1 className="text-xl font-bold text-brand-text-heading">
-            Forgot Password
-          </h1>
-          <p className="mt-2 text-sm text-brand-text-muted">
-            Enter your email address and we&apos;ll send you a link to reset
-            your password.
-          </p>
-        </div>
+      <CardHeader className="items-center gap-2 border-b-0 px-8 pt-8 pb-0 text-center">
+        <CardTitle className="text-xl font-bold text-brand-text-heading">
+          Forgot Password
+        </CardTitle>
+        <p className="text-sm text-brand-text-muted">
+          Enter your email address and we&apos;ll send you a link to reset your
+          password.
+        </p>
+      </CardHeader>
 
+      <CardContent className="px-8 pt-6 pb-8">
         <form
           onSubmit={form.handleSubmit(onSubmit)}
           className="flex flex-col gap-5"

@@ -1,3 +1,4 @@
+import { handleAuthRouteError } from "@/lib/api/auth-route"
 import { signUpSchema } from "@/schemas/auth/sign-up"
 import { signUpUser } from "@/lib/services/auth/sign-up"
 
@@ -23,8 +24,6 @@ export async function POST(request: Request) {
     const result = await signUpUser(parsed.data)
     return Response.json(result)
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Sign up failed"
-    return Response.json({ error: message }, { status: 500 })
+    return handleAuthRouteError(error)
   }
 }

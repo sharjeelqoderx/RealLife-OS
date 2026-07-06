@@ -1,3 +1,4 @@
+import { handleAuthRouteError } from "@/lib/api/auth-route"
 import { loginSchema } from "@/schemas/auth/login"
 import { loginUser } from "@/lib/services/auth/login"
 
@@ -23,8 +24,6 @@ export async function POST(request: Request) {
     const result = await loginUser(parsed.data)
     return Response.json(result)
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Login failed"
-    return Response.json({ error: message }, { status: 500 })
+    return handleAuthRouteError(error)
   }
 }

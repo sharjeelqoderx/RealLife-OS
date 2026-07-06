@@ -19,7 +19,7 @@ import {
 import { Field, FieldError, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { buildAuthHref } from "@/lib/auth/email-search-param"
-import { apiClient } from "@/lib/api/client"
+import { ApiError, apiClient } from "@/lib/api/client"
 import {
   signUpSchema,
   type SignUpInput,
@@ -55,6 +55,11 @@ export function SignUpForm({ defaultEmail = "" }: SignUpFormProps) {
       form.clearErrors("root")
     },
     onError: (error) => {
+      if (error instanceof ApiError && error.code === "EMAIL_ALREADY_EXISTS") {
+        form.setError("email", { message: error.message })
+        return
+      }
+
       form.setError("root", {
         message:
           error instanceof Error ? error.message : "Something went wrong",

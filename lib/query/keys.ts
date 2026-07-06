@@ -1,6 +1,7 @@
 export const queryKeys = {
   auth: {
     all: ["auth"] as const,
-    resetToken: (id: string) => [...queryKeys.auth.all, "reset-token", id] as const,
+    recoverySession: () =>
+      [...queryKeys.auth.all, "recovery-session"] as const,
   },
 } as const

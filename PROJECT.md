@@ -110,6 +110,7 @@ page.tsx (RSC fetch via lib/services)
 | Route | Purpose | page.tsx | loading.tsx | _components | Status |
 |-------|---------|----------|-------------|-------------|--------|
 | `/` | Home / landing | `app/page.tsx` | — (add when refactored) | — | 🟡 placeholder |
+| `/dashboard` | Protected dashboard | `app/(protected)/dashboard/page.tsx` | `app/(protected)/dashboard/loading.tsx` | `logout-button` | ✅ ready |
 | `/login` | User login | `app/(auth)/login/page.tsx` | `app/(auth)/login/loading.tsx` | `login-form` | ✅ ready |
 | `/sign-up` | Registration | `app/(auth)/sign-up/page.tsx` | `app/(auth)/sign-up/loading.tsx` | `sign-up-form`, `password-strength-indicator` | ✅ ready |
 | `/forget-password` | Password reset request | `app/(auth)/forget-password/page.tsx` | `app/(auth)/forget-password/loading.tsx` | `forget-password-form` | ✅ ready |
@@ -130,24 +131,39 @@ page.tsx (RSC fetch via lib/services)
 | ErrorAlert | `components/feedback/error-alert.tsx` | Generic error display | — | ⚪ not started |
 | QueryProvider | `components/providers/query-provider.tsx` | React Query context | root layout | ✅ ready |
 
+### Supabase (`lib/supabase/`)
+
+| Module | Path | Purpose | Status |
+|--------|------|---------|--------|
+| Server client | `lib/supabase/server.ts` | Cookie-based SSR auth client | ✅ ready |
+| Admin client | `lib/supabase/admin.ts` | Service role client (server only) | ✅ ready |
+| Stateless client | `lib/supabase/stateless.ts` | No-session client for one-off auth calls | ✅ ready |
+| GoTrue fetch | `lib/supabase/gotrue.ts` | Direct `/auth/v1/recover` with full error parsing | ✅ ready |
+| Env helpers | `lib/env.ts` | `SUPABASE_*`, `getSiteUrl`, confirm URLs | ✅ ready |
+| Proxy | `proxy.ts` | Session refresh + auth route guards | ✅ ready |
+
 ### Services (`lib/services/`)
 
 | Service | File | Purpose | Called From | Status |
 |---------|------|---------|-------------|--------|
-| loginUser | `lib/services/auth/login.ts` | Stub login — returns success | `/api/auth/login` | ✅ ready (stub) |
-| signUpUser | `lib/services/auth/sign-up.ts` | Stub sign-up — returns success | `/api/auth/sign-up` | ✅ ready (stub) |
-| requestPasswordReset | `lib/services/auth/forget-password.ts` | Stub reset email — returns success | `/api/auth/forget-password` | ✅ ready (stub) |
-| validateResetToken / changePassword | `lib/services/auth/change-password.ts` | Validate reset `id` + change password | change-password APIs | ✅ ready (stub) |
+| loginUser | `lib/services/auth/login.ts` | Supabase `signInWithPassword` | `/api/auth/login` | ✅ ready |
+| signUpUser | `lib/services/auth/sign-up.ts` | Supabase `signUp` + email confirm | `/api/auth/sign-up` | ✅ ready |
+| requestPasswordReset | `lib/services/auth/forget-password.ts` | User lookup + GoTrue recover | `/api/auth/forget-password` | ✅ ready |
+| getUserByEmail | `lib/services/auth/get-user-by-email.ts` | Admin API email lookup | forget-password | ✅ ready |
+| validateRecoverySession / changePassword | `lib/services/auth/change-password.ts` | Session validate + `updateUser` | change-password APIs | ✅ ready |
+| logoutUser | `lib/services/auth/logout.ts` | Supabase `signOut` | `/api/auth/logout` | ✅ ready |
 
 ### API Routes (`app/api/`)
 
 | Endpoint | Method | Service | Schema | Status |
 |----------|--------|---------|--------|--------|
-| `/api/auth/login` | POST | `loginUser` | `loginSchema` | ✅ ready (stub) |
-| `/api/auth/sign-up` | POST | `signUpUser` | `signUpSchema` | ✅ ready (stub) |
-| `/api/auth/forget-password` | POST | `requestPasswordReset` | `forgetPasswordSchema` | ✅ ready (stub) |
-| `/api/auth/change-password/validate` | GET | `validateResetToken` | `validateResetTokenSchema` | ✅ ready (stub) |
-| `/api/auth/change-password` | POST | `changePassword` | `changePasswordSchema` | ✅ ready (stub) |
+| `/api/auth/login` | POST | `loginUser` | `loginSchema` | ✅ ready |
+| `/api/auth/sign-up` | POST | `signUpUser` | `signUpSchema` | ✅ ready |
+| `/api/auth/forget-password` | POST | `requestPasswordReset` | `forgetPasswordSchema` | ✅ ready |
+| `/api/auth/confirm` | GET | Supabase OTP/code exchange | — | ✅ ready |
+| `/api/auth/change-password/validate` | GET | `validateRecoverySession` | — | ✅ ready |
+| `/api/auth/change-password` | POST | `changePassword` | `changePasswordSchema` | ✅ ready |
+| `/api/auth/logout` | POST | `logoutUser` | — | ✅ ready |
 
 ### Schemas (`schemas/`)
 
@@ -174,7 +190,8 @@ page.tsx (RSC fetch via lib/services)
 
 | Date | Change | Updated By |
 |------|--------|------------|
-| 2026-07-06 | Change-password page with `?id=` validation + password form | Agent |
+| 2026-07-06 | Password reset: handle implicit-flow hash on `/change-password` | Agent |
+| 2026-07-06 | Migrated `middleware.ts` → `proxy.ts` (Next.js 16) | Agent |
 | 2026-07-05 | Brand CSS tokens in `globals.css`; login page + API stub; shadcn Input/Field; QueryProvider | Agent |
 | 2026-07-05 | Initial PROJECT.md + Cursor rules created | Agent |
 

@@ -4,7 +4,8 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useMutation } from "@tanstack/react-query"
 import { ArrowRight, AtSign, Eye, EyeOff, Lock } from "lucide-react"
 import Link from "next/link"
-import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 
 import { Button } from "@/components/ui/button"
@@ -18,6 +19,7 @@ import {
 import { Field, FieldError, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { buildAuthHref } from "@/lib/auth/email-search-param"
+import { parseImplicitAuthHash } from "@/lib/auth/implicit-auth-hash"
 import { apiClient } from "@/lib/api/client"
 import {
   loginSchema,
@@ -27,10 +29,20 @@ import {
 
 export interface LoginFormProps {
   defaultEmail?: string
+  authError?: string
 }
 
-export function LoginForm({ defaultEmail = "" }: LoginFormProps) {
+export function LoginForm({ defaultEmail = "", authError }: LoginFormProps) {
+  const router = useRouter()
   const [showPassword, setShowPassword] = useState(false)
+
+  useEffect(() => {
+    const parsed = parseImplicitAuthHash(window.location.hash)
+
+    if (parsed?.type === "recovery") {
+      router.replace(`/change-password${window.location.hash}`)
+    }
+  }, [router])
 
   const form = useForm<LoginInput>({
     resolver: zodResolver(loginSchema),
@@ -50,6 +62,7 @@ export function LoginForm({ defaultEmail = "" }: LoginFormProps) {
       }),
     onSuccess: () => {
       form.clearErrors("root")
+      router.push("/dashboard")
     },
     onError: (error) => {
       form.setError("root", {
@@ -88,6 +101,12 @@ export function LoginForm({ defaultEmail = "" }: LoginFormProps) {
           className="flex flex-col gap-5"
           noValidate
         >
+          {authError && (
+            <p role="alert" className="text-sm text-destructive">
+              {authError}
+            </p>
+          )}
+
           <Field data-invalid={!!form.formState.errors.email}>
             <FieldLabel
               htmlFor="email"
