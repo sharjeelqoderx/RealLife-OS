@@ -1,6 +1,6 @@
 import { handleAuthRouteError } from "@/lib/api/auth-route"
-import { loginSchema } from "@/schemas/auth/login"
-import { loginUser } from "@/lib/services/auth/login"
+import { forgetPasswordSchema } from "@/schemas/auth/forget-password"
+import { requestPasswordReset } from "@/lib/services/auth/forget-password"
 
 export async function POST(request: Request) {
   let body: unknown
@@ -11,7 +11,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "Invalid JSON body" }, { status: 400 })
   }
 
-  const parsed = loginSchema.safeParse(body)
+  const parsed = forgetPasswordSchema.safeParse(body)
 
   if (!parsed.success) {
     return Response.json(
@@ -21,7 +21,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = await loginUser(parsed.data)
+    const result = await requestPasswordReset(parsed.data)
     return Response.json(result)
   } catch (error) {
     return handleAuthRouteError(error)

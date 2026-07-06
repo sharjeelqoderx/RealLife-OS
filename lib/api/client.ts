@@ -1,16 +1,22 @@
 type ApiErrorBody = {
   error?: string | Record<string, string[] | undefined>
+  code?: string
+  details?: string
 }
 
 export class ApiError extends Error {
   status: number
   body: ApiErrorBody
+  code?: string
+  details?: string
 
   constructor(status: number, body: ApiErrorBody) {
     super(typeof body.error === "string" ? body.error : "Request failed")
     this.name = "ApiError"
     this.status = status
     this.body = body
+    this.code = body.code
+    this.details = body.details
   }
 }
 
