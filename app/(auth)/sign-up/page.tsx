@@ -1,7 +1,7 @@
-import { LoginForm } from "./_components/login-form"
+import { SignUpForm } from "./_components/sign-up-form"
 import { getEmailFromSearchParam } from "@/lib/auth/email-search-param"
 
-export default async function LoginPage({
+export default async function SignUpPage({
   searchParams,
 }: {
   searchParams: Promise<{ email?: string | string[] }>
@@ -9,5 +9,5 @@ export default async function LoginPage({
   const params = await searchParams
   const defaultEmail = getEmailFromSearchParam(params.email)
 
-  return <LoginForm defaultEmail={defaultEmail} />
+  return <SignUpForm defaultEmail={defaultEmail} />
 }

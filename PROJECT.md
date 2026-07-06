@@ -111,9 +111,9 @@ page.tsx (RSC fetch via lib/services)
 |-------|---------|----------|-------------|-------------|--------|
 | `/` | Home / landing | `app/page.tsx` | — (add when refactored) | — | 🟡 placeholder |
 | `/login` | User login | `app/(auth)/login/page.tsx` | `app/(auth)/login/loading.tsx` | `login-form` | ✅ ready |
-| `/sign-up` | Registration | — | — | — | ⚪ not started |
-| `/forget-password` | Password reset request | — | — | — | ⚪ not started |
-| `/change-password` | Password change | — | — | — | ⚪ not started |
+| `/sign-up` | Registration | `app/(auth)/sign-up/page.tsx` | `app/(auth)/sign-up/loading.tsx` | `sign-up-form`, `password-strength-indicator` | ✅ ready |
+| `/forget-password` | Password reset request | `app/(auth)/forget-password/page.tsx` | `app/(auth)/forget-password/loading.tsx` | `forget-password-form` | ✅ ready |
+| `/change-password` | Password change via reset token | `app/(auth)/change-password/page.tsx` | `app/(auth)/change-password/loading.tsx` | `change-password-form` | ✅ ready |
 
 ### Shared Components
 
@@ -135,18 +135,28 @@ page.tsx (RSC fetch via lib/services)
 | Service | File | Purpose | Called From | Status |
 |---------|------|---------|-------------|--------|
 | loginUser | `lib/services/auth/login.ts` | Stub login — returns success | `/api/auth/login` | ✅ ready (stub) |
+| signUpUser | `lib/services/auth/sign-up.ts` | Stub sign-up — returns success | `/api/auth/sign-up` | ✅ ready (stub) |
+| requestPasswordReset | `lib/services/auth/forget-password.ts` | Stub reset email — returns success | `/api/auth/forget-password` | ✅ ready (stub) |
+| validateResetToken / changePassword | `lib/services/auth/change-password.ts` | Validate reset `id` + change password | change-password APIs | ✅ ready (stub) |
 
 ### API Routes (`app/api/`)
 
 | Endpoint | Method | Service | Schema | Status |
 |----------|--------|---------|--------|--------|
 | `/api/auth/login` | POST | `loginUser` | `loginSchema` | ✅ ready (stub) |
+| `/api/auth/sign-up` | POST | `signUpUser` | `signUpSchema` | ✅ ready (stub) |
+| `/api/auth/forget-password` | POST | `requestPasswordReset` | `forgetPasswordSchema` | ✅ ready (stub) |
+| `/api/auth/change-password/validate` | GET | `validateResetToken` | `validateResetTokenSchema` | ✅ ready (stub) |
+| `/api/auth/change-password` | POST | `changePassword` | `changePasswordSchema` | ✅ ready (stub) |
 
 ### Schemas (`schemas/`)
 
 | Schema | File | Used In | Status |
 |--------|------|---------|--------|
 | `loginSchema` | `schemas/auth/login.ts` | Login form + `/api/auth/login` | ✅ ready |
+| `signUpSchema` | `schemas/auth/sign-up.ts` | Sign-up form + `/api/auth/sign-up` | ✅ ready |
+| `forgetPasswordSchema` | `schemas/auth/forget-password.ts` | Forget-password form + API | ✅ ready |
+| `changePasswordSchema` | `schemas/auth/change-password.ts` | Change-password form + API | ✅ ready |
 
 ### Generic Validators (`schemas/generic/`)
 
@@ -154,8 +164,8 @@ page.tsx (RSC fetch via lib/services)
 |-----------|---------|--------|
 | `emailField` | Email format + required | ✅ ready |
 | `passwordField` | Min 8 chars + required | ✅ ready |
+| `personNameField` | Full name fields | ✅ ready |
 | `nonEmptyString` | Trim + min 1 char | ⚪ not started |
-| `personName` | Name fields | ⚪ not started |
 | `positiveNumber` | Numeric fields > 0 | ⚪ not started |
 
 ---
@@ -164,7 +174,7 @@ page.tsx (RSC fetch via lib/services)
 
 | Date | Change | Updated By |
 |------|--------|------------|
-| 2026-07-05 | Global Spinner + MutationSpinner in QueryProvider; react-query loading rules | Agent |
+| 2026-07-06 | Change-password page with `?id=` validation + password form | Agent |
 | 2026-07-05 | Brand CSS tokens in `globals.css`; login page + API stub; shadcn Input/Field; QueryProvider | Agent |
 | 2026-07-05 | Initial PROJECT.md + Cursor rules created | Agent |
 
