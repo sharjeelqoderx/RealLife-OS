@@ -190,7 +190,7 @@ page.tsx (RSC fetch via lib/services)
 
 | Date | Change | Updated By |
 |------|--------|------------|
-| 2026-07-06 | Password reset: handle implicit-flow hash on `/change-password` | Agent |
+| 2026-07-06 | Proxy: redirect `?code=` / OTP params to `/api/auth/confirm` | Agent |
 | 2026-07-06 | Migrated `middleware.ts` → `proxy.ts` (Next.js 16) | Agent |
 | 2026-07-05 | Brand CSS tokens in `globals.css`; login page + API stub; shadcn Input/Field; QueryProvider | Agent |
 | 2026-07-05 | Initial PROJECT.md + Cursor rules created | Agent |
