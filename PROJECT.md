@@ -110,7 +110,7 @@ page.tsx (RSC fetch via lib/services)
 | Route | Purpose | page.tsx | loading.tsx | _components | Status |
 |-------|---------|----------|-------------|-------------|--------|
 | `/` | Home / landing | `app/page.tsx` | — (add when refactored) | — | 🟡 placeholder |
-| `/dashboard` | Protected dashboard | `app/(protected)/dashboard/page.tsx` | `app/(protected)/dashboard/loading.tsx` | `logout-button` | ✅ ready |
+| `/dashboard` | Protected dashboard | `app/(protected)/dashboard/page.tsx` | `app/(protected)/dashboard/loading.tsx` | — | ✅ ready |
 | `/login` | User login | `app/(auth)/login/page.tsx` | `app/(auth)/login/loading.tsx` | `login-form` | ✅ ready |
 | `/sign-up` | Registration | `app/(auth)/sign-up/page.tsx` | `app/(auth)/sign-up/loading.tsx` | `sign-up-form`, `password-strength-indicator` | ✅ ready |
 | `/forget-password` | Password reset request | `app/(auth)/forget-password/page.tsx` | `app/(auth)/forget-password/loading.tsx` | `forget-password-form` | ✅ ready |
@@ -128,6 +128,14 @@ page.tsx (RSC fetch via lib/services)
 | Skeleton | `components/ui/skeleton.tsx` | Loading placeholder | loading states | ✅ ready |
 | Spinner | `components/feedback/spinner.tsx` | Brand dual-ring spinner | global overlay | ✅ ready |
 | GlobalSpinner | `components/feedback/global-spinner.tsx` | Full-screen mutation loader | root via QueryProvider | ✅ ready |
+| DashboardShell | `components/layout/dashboard-shell.tsx` | Protected app shell (sidebar + navbar) | `(protected)/layout` | ✅ ready |
+| AppSidebar | `components/layout/app-sidebar.tsx` | Collapsible sidebar navigation | DashboardShell | ✅ ready |
+| AppNavbar | `components/layout/app-navbar.tsx` | Top navbar with search + actions | DashboardShell | ✅ ready |
+| Sidebar | `components/ui/sidebar.tsx` | shadcn collapsible sidebar primitive | AppSidebar | ✅ ready |
+| Sheet | `components/ui/sheet.tsx` | Mobile sidebar drawer | Sidebar | ✅ ready |
+| Avatar | `components/ui/avatar.tsx` | User avatar | navbar, sidebar | ✅ ready |
+| DropdownMenu | `components/ui/dropdown-menu.tsx` | User menu in sidebar | AppSidebar | ✅ ready |
+| Tooltip | `components/ui/tooltip.tsx` | Collapsed sidebar tooltips | Sidebar | ✅ ready |
 | ErrorAlert | `components/feedback/error-alert.tsx` | Generic error display | — | ⚪ not started |
 | QueryProvider | `components/providers/query-provider.tsx` | React Query context | root layout | ✅ ready |
 
@@ -141,6 +149,12 @@ page.tsx (RSC fetch via lib/services)
 | GoTrue fetch | `lib/supabase/gotrue.ts` | Direct `/auth/v1/recover` with full error parsing | ✅ ready |
 | Env helpers | `lib/env.ts` | `SUPABASE_*`, `getSiteUrl`, confirm URLs | ✅ ready |
 | Proxy | `proxy.ts` | Session refresh + auth route guards | ✅ ready |
+
+### Navigation (`lib/navigation/`)
+
+| Module | Path | Purpose | Status |
+|--------|------|---------|--------|
+| App nav config | `lib/navigation/app-navigation.ts` | Sidebar links + user labels | ✅ ready |
 
 ### Services (`lib/services/`)
 
@@ -190,6 +204,8 @@ page.tsx (RSC fetch via lib/services)
 
 | Date | Change | Updated By |
 |------|--------|------------|
+| 2026-07-07 | Sidebar: standard shadcn menu buttons — fixed icon size, centered when collapsed, text hidden only | Agent |
+| 2026-07-07 | Protected dashboard shell: shadcn sidebar + navbar layout | Agent |
 | 2026-07-06 | Proxy: redirect `?code=` / OTP params to `/api/auth/confirm` | Agent |
 | 2026-07-06 | Migrated `middleware.ts` → `proxy.ts` (Next.js 16) | Agent |
 | 2026-07-05 | Brand CSS tokens in `globals.css`; login page + API stub; shadcn Input/Field; QueryProvider | Agent |
