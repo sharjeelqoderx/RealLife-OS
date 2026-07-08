@@ -28,7 +28,7 @@ export function LogoutButton() {
       className="gap-2"
     >
       <LogOut aria-hidden className="size-4" />
-      Logout
+      Sign out
     </Button>
   )
 }

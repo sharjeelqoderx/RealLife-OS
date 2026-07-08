@@ -109,7 +109,7 @@ page.tsx (RSC fetch via lib/services)
 
 | Route | Purpose | page.tsx | loading.tsx | _components | Status |
 |-------|---------|----------|-------------|-------------|--------|
-| `/` | Home / landing | `app/page.tsx` | — (add when refactored) | — | 🟡 placeholder |
+| `/` | Home / landing | `app/(public)/page.tsx` | `app/(public)/loading.tsx` | — | ✅ ready |
 | `/dashboard` | Protected dashboard | `app/(protected)/dashboard/page.tsx` | `app/(protected)/dashboard/loading.tsx` | — | ✅ ready |
 | `/login` | User login | `app/(auth)/login/page.tsx` | `app/(auth)/login/loading.tsx` | `login-form` | ✅ ready |
 | `/sign-up` | Registration | `app/(auth)/sign-up/page.tsx` | `app/(auth)/sign-up/loading.tsx` | `sign-up-form`, `password-strength-indicator` | ✅ ready |
@@ -204,6 +204,8 @@ page.tsx (RSC fetch via lib/services)
 
 | Date | Change | Updated By |
 |------|--------|------------|
+| 2026-07-08 | Landing moved to `app/(public)/`; site-wide Inter font; sidebar sign-out wired | Agent |
+| 2026-07-08 | Landing page: full marketing page in `app/page.tsx` (hero, features, pricing, testimonials, footer) | Agent |
 | 2026-07-07 | Sidebar: standard shadcn menu buttons — fixed icon size, centered when collapsed, text hidden only | Agent |
 | 2026-07-07 | Protected dashboard shell: shadcn sidebar + navbar layout | Agent |
 | 2026-07-06 | Proxy: redirect `?code=` / OTP params to `/api/auth/confirm` | Agent |

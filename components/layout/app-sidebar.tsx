@@ -2,8 +2,9 @@
 
 import Image from "next/image"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
-import { ChevronDown, HelpCircle, Layers, User } from "lucide-react"
+import { usePathname, useRouter } from "next/navigation"
+import { useMutation } from "@tanstack/react-query"
+import { ChevronDown, HelpCircle, User } from "lucide-react"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
@@ -27,13 +28,24 @@ import {
   SidebarRail,
   SidebarSeparator,
 } from "@/components/ui/sidebar"
+import { apiClient } from "@/lib/api/client"
 import { mainNavItems, sidebarUser } from "@/lib/navigation/app-navigation"
+import type { LogoutResponse } from "@/schemas/auth/logout"
 
 const activeItemClassName =
   "data-[active=true]:bg-brand-primary/10 data-[active=true]:font-semibold data-[active=true]:text-brand-primary"
 
 export function AppSidebar() {
   const pathname = usePathname()
+  const router = useRouter()
+
+  const logoutMutation = useMutation({
+    mutationFn: () =>
+      apiClient<LogoutResponse>("/api/auth/logout", { method: "POST" }),
+    onSuccess: () => {
+      router.push("/login")
+    },
+  })
 
   return (
     <Sidebar collapsible="icon" className="border-sidebar-border bg-white">
@@ -141,7 +153,12 @@ export function AppSidebar() {
                 <DropdownMenuItem>Profile</DropdownMenuItem>
                 <DropdownMenuItem>Account settings</DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem>Sign out</DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={logoutMutation.isPending}
+                  onClick={() => logoutMutation.mutate()}
+                >
+                  Sign out
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </SidebarMenuItem>
