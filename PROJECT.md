@@ -204,6 +204,7 @@ page.tsx (RSC fetch via lib/services)
 
 | Date | Change | Updated By |
 |------|--------|------------|
+| 2026-07-09 | Supabase Auth SMTP: fixed Gmail port `586` → `587` on project `nmggxddqxeoylsmqwpmn` (password reset / signup emails were timing out with `EMAIL_SEND_FAILED`) | Agent |
 | 2026-07-09 | Landing glows: viewport `clamp()` sizing/position so blobs scale with screen | Agent |
 | 2026-07-09 | Landing page mobile: overflow-x clip, responsive glows, hamburger nav, tighter header/hero/CTA | Agent |
 | 2026-07-08 | Landing moved to `app/(public)/`; site-wide Inter font; sidebar sign-out wired | Agent |
