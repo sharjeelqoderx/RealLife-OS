@@ -38,3 +38,15 @@ export function getAuthConfirmUrl(next: string): string {
 export function getPasswordRecoveryConfirmUrl(): string {
   return `${getSiteUrl()}/change-password`
 }
+
+export function getStripeSecretKey(): string {
+  return requireEnv("STRIPE_SECRET_KEY")
+}
+
+export function getStripeWebhookSecret(): string {
+  return requireEnv("STRIPE_WEBHOOK_SECRET")
+}
+
+export function getStripePriceBasicMonthly(): string {
+  return requireEnv("STRIPE_PRICE_BASIC_MONTHLY")
+}
