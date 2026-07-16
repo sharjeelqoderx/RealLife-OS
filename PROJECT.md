@@ -136,6 +136,8 @@ page.tsx (RSC fetch via lib/services)
 | Avatar | `components/ui/avatar.tsx` | User avatar | navbar, sidebar | ✅ ready |
 | DropdownMenu | `components/ui/dropdown-menu.tsx` | User menu in sidebar | AppSidebar | ✅ ready |
 | Tooltip | `components/ui/tooltip.tsx` | Collapsed sidebar tooltips | Sidebar | ✅ ready |
+| Dialog | `components/ui/dialog.tsx` | Modal primitive | PaywallGate | ✅ ready |
+| PaywallGate | `components/billing/paywall-gate.tsx` | Blocking pricing modal until active subscription | `(protected)/layout` | ✅ ready |
 | ErrorAlert | `components/feedback/error-alert.tsx` | Generic error display | — | ⚪ not started |
 | QueryProvider | `components/providers/query-provider.tsx` | React Query context | root layout | ✅ ready |
 
@@ -147,8 +149,15 @@ page.tsx (RSC fetch via lib/services)
 | Admin client | `lib/supabase/admin.ts` | Service role client (server only) | ✅ ready |
 | Stateless client | `lib/supabase/stateless.ts` | No-session client for one-off auth calls | ✅ ready |
 | GoTrue fetch | `lib/supabase/gotrue.ts` | Direct `/auth/v1/recover` with full error parsing | ✅ ready |
-| Env helpers | `lib/env.ts` | `SUPABASE_*`, `getSiteUrl`, confirm URLs | ✅ ready |
+| Env helpers | `lib/env.ts` | `SUPABASE_*`, Stripe env, `getSiteUrl`, confirm URLs | ✅ ready |
 | Proxy | `proxy.ts` | Session refresh + auth route guards | ✅ ready |
+
+### Stripe (`lib/stripe/`)
+
+| Module | Path | Purpose | Status |
+|--------|------|---------|--------|
+| Stripe client | `lib/stripe/client.ts` | Server-only Stripe SDK singleton | ✅ ready |
+| Plans | `lib/stripe/plans.ts` | Client-safe plan catalog (Willpower Pro) | ✅ ready |
 
 ### Navigation (`lib/navigation/`)
 
@@ -166,6 +175,9 @@ page.tsx (RSC fetch via lib/services)
 | getUserByEmail | `lib/services/auth/get-user-by-email.ts` | Admin API email lookup | forget-password | ✅ ready |
 | validateRecoverySession / changePassword | `lib/services/auth/change-password.ts` | Session validate + `updateUser` | change-password APIs | ✅ ready |
 | logoutUser | `lib/services/auth/logout.ts` | Supabase `signOut` | `/api/auth/logout` | ✅ ready |
+| createCheckoutSession | `lib/services/billing/checkout.ts` | Stripe Checkout session only (DB via webhooks) | `/api/stripe/checkout` | ✅ ready |
+| getBillingStatus / upsertSubscription | `lib/services/billing/subscriptions.ts` | Thin subscription DB helpers | billing-status + webhook | ✅ ready |
+| processStripeWebhookEvent | `lib/services/billing/webhook.ts` | One handler per Stripe event + switch router | `/api/stripe/webhook` | ✅ ready |
 
 ### API Routes (`app/api/`)
 
@@ -178,6 +190,9 @@ page.tsx (RSC fetch via lib/services)
 | `/api/auth/change-password/validate` | GET | `validateRecoverySession` | — | ✅ ready |
 | `/api/auth/change-password` | POST | `changePassword` | `changePasswordSchema` | ✅ ready |
 | `/api/auth/logout` | POST | `logoutUser` | — | ✅ ready |
+| `/api/stripe/webhook` | POST | `processStripeWebhookEvent` | Stripe signature | ✅ ready |
+| `/api/stripe/checkout` | POST | `createCheckoutSession` | `createCheckoutSessionSchema` | ✅ ready |
+| `/api/stripe/billing-status` | GET | `getBillingStatus` | — | ✅ ready |
 
 ### Schemas (`schemas/`)
 
@@ -187,6 +202,13 @@ page.tsx (RSC fetch via lib/services)
 | `signUpSchema` | `schemas/auth/sign-up.ts` | Sign-up form + `/api/auth/sign-up` | ✅ ready |
 | `forgetPasswordSchema` | `schemas/auth/forget-password.ts` | Forget-password form + API | ✅ ready |
 | `changePasswordSchema` | `schemas/auth/change-password.ts` | Change-password form + API | ✅ ready |
+| `createCheckoutSessionSchema` | `schemas/billing/checkout.ts` | Checkout API + paywall | ✅ ready |
+
+### DB migrations (`supabase/migrations/`)
+
+| Migration | Purpose | Status |
+|-----------|---------|--------|
+| `20260716120000_user_subscriptions.sql` | `user_subscriptions` + `stripe_webhook_events` tables + RLS | ✅ applied to Reallife-OS [Production] |
 
 ### Generic Validators (`schemas/generic/`)
 
@@ -204,6 +226,11 @@ page.tsx (RSC fetch via lib/services)
 
 | Date | Change | Updated By |
 |------|--------|------------|
+| 2026-07-16 | Billing simplified: checkout creates session only; single webhook file with one handler per event | Agent |
+| 2026-07-16 | Webhook: read `current_period_end` from subscription item (Stripe API 2026.dahlia moved it off subscription root) | Agent |
+| 2026-07-16 | Simplified billing: webhook is sole writer of full subscription rows; removed sync-checkout backfill path | Agent |
+| 2026-07-16 | Applied `user_subscriptions` migration to linked Supabase project `nmggxddqxeoylsmqwpmn` | Agent |
+| 2026-07-16 | Stripe billing: webhook (`/api/stripe/webhook`), checkout, billing-status, paywall modal after auth until `active`/`trialing` | Agent |
 | 2026-07-09 | Supabase Auth SMTP: fixed Gmail port `586` → `587` on project `nmggxddqxeoylsmqwpmn` (password reset / signup emails were timing out with `EMAIL_SEND_FAILED`) | Agent |
 | 2026-07-09 | Landing glows: viewport `clamp()` sizing/position so blobs scale with screen | Agent |
 | 2026-07-09 | Landing page mobile: overflow-x clip, responsive glows, hamburger nav, tighter header/hero/CTA | Agent |

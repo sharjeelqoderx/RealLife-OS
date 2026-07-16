@@ -4,4 +4,8 @@ export const queryKeys = {
     recoverySession: () =>
       [...queryKeys.auth.all, "recovery-session"] as const,
   },
+  billing: {
+    all: ["billing"] as const,
+    status: () => [...queryKeys.billing.all, "status"] as const,
+  },
 } as const
