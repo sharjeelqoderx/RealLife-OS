@@ -9,6 +9,7 @@ import { useForm } from "react-hook-form"
 
 import { PasswordStrengthIndicator } from "@/app/(auth)/sign-up/_components/password-strength-indicator"
 import { Button } from "@/components/ui/button"
+import { CustomSpinner } from "@/components/feedback/custom-spinner"
 import {
   Card,
   CardContent,
@@ -188,8 +189,9 @@ export function SignUpForm({ defaultEmail = "" }: SignUpFormProps) {
             disabled={signUpMutation.isPending}
             className="h-11 w-full bg-brand-primary text-brand-primary-foreground hover:bg-brand-primary/90"
           >
+            {signUpMutation.isPending ? <CustomSpinner /> : null}
             Create Account
-            <ArrowRight aria-hidden />
+            {signUpMutation.isPending ? null : <ArrowRight aria-hidden />}
           </Button>
         </form>
       </CardContent>

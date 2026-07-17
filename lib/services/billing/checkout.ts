@@ -1,7 +1,18 @@
-import { getStripePriceBasicMonthly } from "@/lib/env"
-import { getSiteUrl } from "@/lib/env"
+import type { User } from "@supabase/supabase-js"
+
+import { getSiteUrl, getStripePriceForPlan } from "@/lib/env"
 import { getStripe } from "@/lib/stripe/client"
-import { getSubscriptionByUserId } from "@/lib/services/billing/subscriptions"
+import {
+  FREE_TRIAL_DAYS,
+  getBillingPlan,
+  type BillingPlanId,
+} from "@/lib/stripe/plans"
+import {
+  getBillingStatus,
+  getSubscriptionByUserId,
+  saveCustomerId,
+  saveSubscription,
+} from "@/lib/services/billing/subscriptions"
 import { createClient } from "@/lib/supabase/server"
 
 export class BillingError extends Error {
@@ -15,11 +26,7 @@ export class BillingError extends Error {
   }
 }
 
-/**
- * Creates a Stripe Checkout session for the logged-in user.
- * Does not write to our DB — webhooks own subscription rows.
- */
-export async function createCheckoutSession(returnOrigin?: string) {
+async function getAuthUser() {
   const supabase = await createClient()
   const {
     data: { user },
@@ -29,36 +36,87 @@ export async function createCheckoutSession(returnOrigin?: string) {
     throw new BillingError("Unauthorized", 401, "UNAUTHORIZED")
   }
 
-  const stripe = getStripe()
-  const existing = await getSubscriptionByUserId(user.id)
+  return user
+}
 
-  // Reuse Stripe customer if webhook already stored one; otherwise create once.
-  let customerId = existing?.stripe_customer_id ?? null
-  if (!customerId) {
-    const customer = await stripe.customers.create({
-      email: user.email,
-      metadata: { user_id: user.id },
-    })
-    customerId = customer.id
+/** Use DB customer, else existing Stripe customer by email, else create once. */
+async function getStripeCustomerId(user: User): Promise<string> {
+  const stripe = getStripe()
+  const email = user.email!
+  const row = await getSubscriptionByUserId(user.id)
+
+  if (row?.stripe_customer_id) {
+    return row.stripe_customer_id
   }
 
+  const existing = await stripe.customers.list({ email, limit: 1 })
+  if (existing.data[0]) {
+    await saveCustomerId(user.id, existing.data[0].id)
+    return existing.data[0].id
+  }
+
+  const customer = await stripe.customers.create({
+    email,
+    metadata: { user_id: user.id },
+  })
+  await saveCustomerId(user.id, customer.id)
+  return customer.id
+}
+
+export async function startFreeTrial() {
+  const user = await getAuthUser()
+  const status = await getBillingStatus(user.id)
+
+  if (status.hasAccess) {
+    throw new BillingError("You already have access", 409, "ALREADY_ACTIVE")
+  }
+
+  const row = await getSubscriptionByUserId(user.id)
+  const endsAt = new Date()
+  endsAt.setDate(endsAt.getDate() + FREE_TRIAL_DAYS)
+
+  await saveSubscription({
+    userId: user.id,
+    stripeCustomerId: row?.stripe_customer_id ?? null,
+    stripeSubscriptionId: null,
+    stripePriceId: "personal_trial",
+    status: "trialing",
+    currentPeriodEnd: endsAt.toISOString(),
+    cancelAtPeriodEnd: true,
+  })
+
+  return getBillingStatus(user.id)
+}
+
+export async function createCheckoutSession(
+  planId: Extract<BillingPlanId, "willpower_pro" | "family_pack">,
+  returnOrigin?: string
+) {
+  const user = await getAuthUser()
+  const plan = getBillingPlan(planId)
+
+  if (plan.kind !== "paid") {
+    throw new BillingError("Invalid paid plan", 400, "INVALID_PLAN")
+  }
+
+  const customerId = await getStripeCustomerId(user)
   const origin = (returnOrigin ?? getSiteUrl()).replace(/\/$/, "")
 
-  const session = await stripe.checkout.sessions.create({
+  const session = await getStripe().checkout.sessions.create({
     mode: "subscription",
     customer: customerId,
-    line_items: [{ price: getStripePriceBasicMonthly(), quantity: 1 }],
+    line_items: [{ price: getStripePriceForPlan(planId), quantity: 1 }],
     success_url: `${origin}/dashboard?checkout=success`,
     cancel_url: `${origin}/dashboard?checkout=canceled`,
     client_reference_id: user.id,
-    metadata: { user_id: user.id },
+    metadata: { user_id: user.id, plan_id: planId },
     subscription_data: {
-      metadata: { user_id: user.id },
+      metadata: { user_id: user.id, plan_id: planId },
     },
   })
 
   if (!session.url) {
-    throw new BillingError("No checkout URL from Stripe", 502, "NO_CHECKOUT_URL")
+    throw new BillingError("No checkout URL", 502, "NO_CHECKOUT_URL")
   }
 
   return { url: session.url }

@@ -26,6 +26,21 @@ export const ACTIVE_SUBSCRIPTION_STATUSES: SubscriptionStatus[] = [
   "trialing",
 ]
 
-export function hasActiveAccess(status: SubscriptionStatus): boolean {
-  return ACTIVE_SUBSCRIPTION_STATUSES.includes(status)
+export function hasActiveAccess(
+  status: SubscriptionStatus,
+  currentPeriodEnd?: string | null
+): boolean {
+  if (!ACTIVE_SUBSCRIPTION_STATUSES.includes(status)) {
+    return false
+  }
+
+  if (currentPeriodEnd) {
+    const endsAt = new Date(currentPeriodEnd).getTime()
+    if (!Number.isNaN(endsAt) && endsAt <= Date.now()) {
+      return false
+    }
+  }
+
+  return true
 }
+

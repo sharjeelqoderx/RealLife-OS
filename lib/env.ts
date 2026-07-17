@@ -50,3 +50,16 @@ export function getStripeWebhookSecret(): string {
 export function getStripePriceBasicMonthly(): string {
   return requireEnv("STRIPE_PRICE_BASIC_MONTHLY")
 }
+
+export function getStripePriceFamilyMonthly(): string {
+  return requireEnv("STRIPE_PRICE_FAMILY_MONTHLY")
+}
+
+export function getStripePriceForPlan(
+  planId: "willpower_pro" | "family_pack"
+): string {
+  return planId === "family_pack"
+    ? getStripePriceFamilyMonthly()
+    : getStripePriceBasicMonthly()
+}
+

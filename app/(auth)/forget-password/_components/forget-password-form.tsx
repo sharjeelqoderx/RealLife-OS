@@ -7,6 +7,7 @@ import Link from "next/link"
 import { useForm } from "react-hook-form"
 
 import { Button } from "@/components/ui/button"
+import { CustomSpinner } from "@/components/feedback/custom-spinner"
 import {
   Card,
   CardContent,
@@ -134,8 +135,9 @@ export function ForgetPasswordForm({
             disabled={resetMutation.isPending}
             className="h-11 w-full bg-brand-primary text-brand-primary-foreground hover:bg-brand-primary/90"
           >
+            {resetMutation.isPending ? <CustomSpinner /> : null}
             Send Reset Link
-            <ArrowRight aria-hidden />
+            {resetMutation.isPending ? null : <ArrowRight aria-hidden />}
           </Button>
         </form>
       </CardContent>

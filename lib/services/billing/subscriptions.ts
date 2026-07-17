@@ -32,7 +32,7 @@ export async function getBillingStatus(userId: string) {
   const status = (row?.status ?? "none") as SubscriptionStatus
 
   return {
-    hasAccess: hasActiveAccess(status),
+    hasAccess: hasActiveAccess(status, row?.current_period_end),
     status,
     currentPeriodEnd: row?.current_period_end ?? null,
     cancelAtPeriodEnd: row?.cancel_at_period_end ?? false,
@@ -40,7 +40,7 @@ export async function getBillingStatus(userId: string) {
   }
 }
 
-export async function upsertSubscription(row: {
+export async function saveSubscription(row: {
   userId: string
   stripeCustomerId: string | null
   stripeSubscriptionId: string | null
@@ -65,19 +65,47 @@ export async function upsertSubscription(row: {
   if (error) throw new Error(error.message)
 }
 
-export async function claimWebhookEvent(eventId: string, type: string) {
+export async function saveCustomerId(userId: string, stripeCustomerId: string) {
+  const existing = await getSubscriptionByUserId(userId)
+
+  if (!existing) {
+    await saveSubscription({
+      userId,
+      stripeCustomerId,
+      stripeSubscriptionId: null,
+      stripePriceId: null,
+      status: "none",
+      currentPeriodEnd: null,
+      cancelAtPeriodEnd: false,
+    })
+    return
+  }
+
+  if (existing.stripe_customer_id === stripeCustomerId) return
+
+  const { error } = await createAdminClient()
+    .from("user_subscriptions")
+    .update({ stripe_customer_id: stripeCustomerId })
+    .eq("user_id", userId)
+
+  if (error) throw new Error(error.message)
+}
+
+export async function webhookEventExists(eventId: string) {
+  const { data, error } = await createAdminClient()
+    .from("stripe_webhook_events")
+    .select("id")
+    .eq("id", eventId)
+    .maybeSingle()
+
+  if (error) throw new Error(error.message)
+  return Boolean(data)
+}
+
+export async function saveWebhookEvent(eventId: string, type: string) {
   const { error } = await createAdminClient()
     .from("stripe_webhook_events")
     .insert({ id: eventId, type })
 
-  if (error?.code === "23505") return false
-  if (error) throw new Error(error.message)
-  return true
-}
-
-export async function releaseWebhookEvent(eventId: string) {
-  await createAdminClient()
-    .from("stripe_webhook_events")
-    .delete()
-    .eq("id", eventId)
+  if (error && error.code !== "23505") throw new Error(error.message)
 }

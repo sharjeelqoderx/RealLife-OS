@@ -9,6 +9,7 @@ import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 
 import { Button } from "@/components/ui/button"
+import { CustomSpinner } from "@/components/feedback/custom-spinner"
 import {
   Card,
   CardContent,
@@ -345,8 +346,11 @@ export function ChangePasswordForm() {
             disabled={changePasswordMutation.isPending}
             className="h-11 w-full bg-brand-primary text-brand-primary-foreground hover:bg-brand-primary/90"
           >
+            {changePasswordMutation.isPending ? <CustomSpinner /> : null}
             Login and Continue
-            <ArrowRight aria-hidden />
+            {changePasswordMutation.isPending ? null : (
+              <ArrowRight aria-hidden />
+            )}
           </Button>
         </form>
       </CardContent>

@@ -18,6 +18,8 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 
+import { BILLING_PLANS } from "@/lib/stripe/plans";
+
 const pageMaxWidthClass = "mx-auto w-full max-w-7xl";
 const pagePaddingClass = "px-4 sm:px-6 lg:px-8";
 const pageContainerClass = `${pageMaxWidthClass} ${pagePaddingClass}`;
@@ -499,45 +501,9 @@ export default function Home() {
             </div>
 
             <div className="mx-auto mt-12 grid max-w-5xl grid-cols-1 gap-6 lg:grid-cols-3 lg:items-stretch">
-              {[
-                {
-                  tier: "Personal",
-                  price: "free" as const,
-                  features: [
-                    "1 Device",
-                    "Basic DNS Filtering",
-                    "Ad Blocking",
-                  ],
-                  cta: "Start Trial",
-                  highlighted: false,
-                },
-                {
-                  tier: "Willpower Pro",
-                  price: 9,
-                  features: [
-                    "10 Devices",
-                    "Willpower Analytics",
-                    "Custom Block Lists",
-                    "Scheduling & Timers",
-                  ],
-                  cta: "Get Pro",
-                  highlighted: true,
-                },
-                {
-                  tier: "Family Pack",
-                  price: 19,
-                  features: [
-                    "Unlimited Devices",
-                    "Parental Control Dashboard",
-                    "5 Users",
-                    "Priority Support",
-                  ],
-                  cta: "Get Family",
-                  highlighted: false,
-                },
-              ].map((plan) => (
+              {BILLING_PLANS.map((plan) => (
                 <div
-                  key={plan.tier}
+                  key={plan.id}
                   className={`relative flex h-full flex-col rounded-2xl border bg-white p-6 sm:p-8 ${plan.highlighted
                     ? "border-2 border-cyan-400 shadow-lg shadow-cyan-400/25"
                     : "border-slate-200 shadow-sm"

@@ -96,7 +96,7 @@ page.tsx (RSC fetch via lib/services)
 
 ### Loading & Errors
 - Loading/error **kabhi useState se nahi** — sirf React Query (`isPending`, `isError`, `error`).
-- Button-triggered API calls → `useMutation` + `apiClient`; global `<GlobalSpinner />` root mein auto (via `QueryProvider` / `useIsMutating`). Button par inline loading text mat lagao.
+- Button-triggered API calls → `useMutation` + `apiClient`; loading UI on the button (`CustomSpinner`), not a full-page overlay.
 - Generic `<ErrorAlert />` / `<WarningAlert />` in `components/feedback/` — error object pass karo.
 
 ---
@@ -127,7 +127,9 @@ page.tsx (RSC fetch via lib/services)
 | Field | `components/ui/field.tsx` | shadcn field group + errors | forms | ✅ ready |
 | Skeleton | `components/ui/skeleton.tsx` | Loading placeholder | loading states | ✅ ready |
 | Spinner | `components/feedback/spinner.tsx` | Brand dual-ring spinner | global overlay | ✅ ready |
-| GlobalSpinner | `components/feedback/global-spinner.tsx` | Full-screen mutation loader | root via QueryProvider | ✅ ready |
+| CustomSpinner | `components/feedback/custom-spinner.tsx` | Inline submit-button spinner | auth forms | ✅ ready |
+| GlobalSpinner | `components/feedback/global-spinner.tsx` | Full-screen mutation loader | — | ⚪ unused |
+| QueryProvider | `components/providers/query-provider.tsx` | React Query context | root layout | ✅ ready |
 | DashboardShell | `components/layout/dashboard-shell.tsx` | Protected app shell (sidebar + navbar) | `(protected)/layout` | ✅ ready |
 | AppSidebar | `components/layout/app-sidebar.tsx` | Collapsible sidebar navigation | DashboardShell | ✅ ready |
 | AppNavbar | `components/layout/app-navbar.tsx` | Top navbar with search + actions | DashboardShell | ✅ ready |
@@ -139,7 +141,6 @@ page.tsx (RSC fetch via lib/services)
 | Dialog | `components/ui/dialog.tsx` | Modal primitive | PaywallGate | ✅ ready |
 | PaywallGate | `components/billing/paywall-gate.tsx` | Blocking pricing modal until active subscription | `(protected)/layout` | ✅ ready |
 | ErrorAlert | `components/feedback/error-alert.tsx` | Generic error display | — | ⚪ not started |
-| QueryProvider | `components/providers/query-provider.tsx` | React Query context | root layout | ✅ ready |
 
 ### Supabase (`lib/supabase/`)
 
@@ -175,9 +176,9 @@ page.tsx (RSC fetch via lib/services)
 | getUserByEmail | `lib/services/auth/get-user-by-email.ts` | Admin API email lookup | forget-password | ✅ ready |
 | validateRecoverySession / changePassword | `lib/services/auth/change-password.ts` | Session validate + `updateUser` | change-password APIs | ✅ ready |
 | logoutUser | `lib/services/auth/logout.ts` | Supabase `signOut` | `/api/auth/logout` | ✅ ready |
-| createCheckoutSession | `lib/services/billing/checkout.ts` | Stripe Checkout session only (DB via webhooks) | `/api/stripe/checkout` | ✅ ready |
-| getBillingStatus / upsertSubscription | `lib/services/billing/subscriptions.ts` | Thin subscription DB helpers | billing-status + webhook | ✅ ready |
-| processStripeWebhookEvent | `lib/services/billing/webhook.ts` | One handler per Stripe event + switch router | `/api/stripe/webhook` | ✅ ready |
+| createCheckoutSession / startFreeTrial | `lib/services/billing/checkout.ts` | Trial + Checkout (reuse Stripe customer) | checkout / start-trial APIs | ✅ ready |
+| getBillingStatus / saveSubscription | `lib/services/billing/subscriptions.ts` | Subscription DB | billing-status + webhook | ✅ ready |
+| processStripeWebhookEvent | `lib/services/billing/webhook.ts` | Event → handler → DB | `/api/stripe/webhook` | ✅ ready |
 
 ### API Routes (`app/api/`)
 
@@ -192,6 +193,7 @@ page.tsx (RSC fetch via lib/services)
 | `/api/auth/logout` | POST | `logoutUser` | — | ✅ ready |
 | `/api/stripe/webhook` | POST | `processStripeWebhookEvent` | Stripe signature | ✅ ready |
 | `/api/stripe/checkout` | POST | `createCheckoutSession` | `createCheckoutSessionSchema` | ✅ ready |
+| `/api/stripe/start-trial` | POST | `startFreeTrial` | personal trial | ✅ ready |
 | `/api/stripe/billing-status` | GET | `getBillingStatus` | — | ✅ ready |
 
 ### Schemas (`schemas/`)
@@ -226,6 +228,11 @@ page.tsx (RSC fetch via lib/services)
 
 | Date | Change | Updated By |
 |------|--------|------------|
+| 2026-07-17 | Billing rewritten as straight feature flow: trial, checkout (reuse customer), webhook event → DB | Agent |
+| 2026-07-17 | Webhook fix: claim after success; invoice subscription id for API 2026; customer events no longer wipe paid rows | Agent |
+| 2026-07-17 | Paywall matches home Pricing (3 cards); Personal = 7-day free trial; Pro/Family → Stripe Checkout | Agent |
+| 2026-07-17 | Removed full-page GlobalSpinner from QueryProvider; auth uses in-button spinner only | Agent |
+| 2026-07-17 | Auth forms: inline `CustomSpinner` on submit + disabled while pending (UI only) | Agent |
 | 2026-07-16 | Billing simplified: checkout creates session only; single webhook file with one handler per event | Agent |
 | 2026-07-16 | Webhook: read `current_period_end` from subscription item (Stripe API 2026.dahlia moved it off subscription root) | Agent |
 | 2026-07-16 | Simplified billing: webhook is sole writer of full subscription rows; removed sync-checkout backfill path | Agent |
