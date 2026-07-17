@@ -9,6 +9,7 @@ import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 
 import { Button } from "@/components/ui/button"
+import { CustomSpinner } from "@/components/feedback/custom-spinner"
 import {
   Card,
   CardContent,
@@ -190,8 +191,9 @@ export function LoginForm({ defaultEmail = "", authError }: LoginFormProps) {
             disabled={loginMutation.isPending}
             className="h-11 w-full bg-brand-primary text-brand-primary-foreground hover:bg-brand-primary/90"
           >
+            {loginMutation.isPending ? <CustomSpinner /> : null}
             Login
-            <ArrowRight aria-hidden />
+            {loginMutation.isPending ? null : <ArrowRight aria-hidden />}
           </Button>
         </form>
       </CardContent>

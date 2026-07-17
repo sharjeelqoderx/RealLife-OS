@@ -1,7 +1,7 @@
 import { z } from "zod"
 
 export const createCheckoutSessionSchema = z.object({
-  planId: z.enum(["basic_monthly"]).optional(),
+  planId: z.enum(["willpower_pro", "family_pack"]),
 })
 
 export type CreateCheckoutSessionResponse = {
