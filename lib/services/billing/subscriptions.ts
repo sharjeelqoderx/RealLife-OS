@@ -5,117 +5,79 @@ import {
   type UserSubscription,
 } from "@/types/billing"
 
-export async function getSubscriptionByUserId(
-  userId: string
-): Promise<UserSubscription | null> {
-  const supabase = createAdminClient()
-
-  const { data, error } = await supabase
+export async function getSubscriptionByUserId(userId: string) {
+  const { data, error } = await createAdminClient()
     .from("user_subscriptions")
     .select("*")
     .eq("user_id", userId)
     .maybeSingle()
 
-  if (error) {
-    throw new Error(`Failed to load subscription: ${error.message}`)
-  }
-
+  if (error) throw new Error(error.message)
   return data as UserSubscription | null
 }
 
-export async function getSubscriptionByStripeCustomerId(
-  stripeCustomerId: string
-): Promise<UserSubscription | null> {
-  const supabase = createAdminClient()
-
-  const { data, error } = await supabase
+export async function getSubscriptionByCustomerId(customerId: string) {
+  const { data, error } = await createAdminClient()
     .from("user_subscriptions")
     .select("*")
-    .eq("stripe_customer_id", stripeCustomerId)
+    .eq("stripe_customer_id", customerId)
     .maybeSingle()
 
-  if (error) {
-    throw new Error(`Failed to load subscription by customer: ${error.message}`)
-  }
-
+  if (error) throw new Error(error.message)
   return data as UserSubscription | null
 }
 
-export async function getBillingStatusForUser(userId: string) {
-  const subscription = await getSubscriptionByUserId(userId)
-  const status = (subscription?.status ?? "none") as SubscriptionStatus
+export async function getBillingStatus(userId: string) {
+  const row = await getSubscriptionByUserId(userId)
+  const status = (row?.status ?? "none") as SubscriptionStatus
 
   return {
     hasAccess: hasActiveAccess(status),
     status,
-    currentPeriodEnd: subscription?.current_period_end ?? null,
-    cancelAtPeriodEnd: subscription?.cancel_at_period_end ?? false,
-    planId: subscription?.stripe_price_id ?? null,
+    currentPeriodEnd: row?.current_period_end ?? null,
+    cancelAtPeriodEnd: row?.cancel_at_period_end ?? false,
+    planId: row?.stripe_price_id ?? null,
   }
 }
 
-export interface UpsertSubscriptionInput {
+export async function upsertSubscription(row: {
   userId: string
-  stripeCustomerId?: string | null
-  stripeSubscriptionId?: string | null
-  stripePriceId?: string | null
+  stripeCustomerId: string | null
+  stripeSubscriptionId: string | null
+  stripePriceId: string | null
   status: SubscriptionStatus
-  currentPeriodEnd?: string | null
-  cancelAtPeriodEnd?: boolean
+  currentPeriodEnd: string | null
+  cancelAtPeriodEnd: boolean
+}) {
+  const { error } = await createAdminClient().from("user_subscriptions").upsert(
+    {
+      user_id: row.userId,
+      stripe_customer_id: row.stripeCustomerId,
+      stripe_subscription_id: row.stripeSubscriptionId,
+      stripe_price_id: row.stripePriceId,
+      status: row.status,
+      current_period_end: row.currentPeriodEnd,
+      cancel_at_period_end: row.cancelAtPeriodEnd,
+    },
+    { onConflict: "user_id" }
+  )
+
+  if (error) throw new Error(error.message)
 }
 
-export async function upsertUserSubscription(
-  input: UpsertSubscriptionInput
-): Promise<void> {
-  const supabase = createAdminClient()
+export async function claimWebhookEvent(eventId: string, type: string) {
+  const { error } = await createAdminClient()
+    .from("stripe_webhook_events")
+    .insert({ id: eventId, type })
 
-  const payload: Record<string, unknown> = {
-    user_id: input.userId,
-    status: input.status,
-  }
-
-  if (input.stripeCustomerId !== undefined) {
-    payload.stripe_customer_id = input.stripeCustomerId
-  }
-  if (input.stripeSubscriptionId !== undefined) {
-    payload.stripe_subscription_id = input.stripeSubscriptionId
-  }
-  if (input.stripePriceId !== undefined) {
-    payload.stripe_price_id = input.stripePriceId
-  }
-  if (input.currentPeriodEnd !== undefined) {
-    payload.current_period_end = input.currentPeriodEnd
-  }
-  if (input.cancelAtPeriodEnd !== undefined) {
-    payload.cancel_at_period_end = input.cancelAtPeriodEnd
-  }
-
-  const { error } = await supabase.from("user_subscriptions").upsert(payload, {
-    onConflict: "user_id",
-  })
-
-  if (error) {
-    throw new Error(`Failed to upsert subscription: ${error.message}`)
-  }
-}
-
-export async function markWebhookEventProcessed(
-  eventId: string,
-  eventType: string
-): Promise<boolean> {
-  const supabase = createAdminClient()
-
-  const { error } = await supabase.from("stripe_webhook_events").insert({
-    id: eventId,
-    type: eventType,
-  })
-
-  if (error) {
-    if (error.code === "23505") {
-      return false
-    }
-    throw new Error(`Failed to record webhook event: ${error.message}`)
-  }
-
+  if (error?.code === "23505") return false
+  if (error) throw new Error(error.message)
   return true
+}
+
+export async function releaseWebhookEvent(eventId: string) {
+  await createAdminClient()
+    .from("stripe_webhook_events")
+    .delete()
+    .eq("id", eventId)
 }

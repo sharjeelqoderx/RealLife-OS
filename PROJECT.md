@@ -158,7 +158,6 @@ page.tsx (RSC fetch via lib/services)
 |--------|------|---------|--------|
 | Stripe client | `lib/stripe/client.ts` | Server-only Stripe SDK singleton | ✅ ready |
 | Plans | `lib/stripe/plans.ts` | Client-safe plan catalog (Willpower Pro) | ✅ ready |
-| Prices | `lib/stripe/prices.ts` | Maps plan IDs → `STRIPE_PRICE_*` env | ✅ ready |
 
 ### Navigation (`lib/navigation/`)
 
@@ -176,9 +175,9 @@ page.tsx (RSC fetch via lib/services)
 | getUserByEmail | `lib/services/auth/get-user-by-email.ts` | Admin API email lookup | forget-password | ✅ ready |
 | validateRecoverySession / changePassword | `lib/services/auth/change-password.ts` | Session validate + `updateUser` | change-password APIs | ✅ ready |
 | logoutUser | `lib/services/auth/logout.ts` | Supabase `signOut` | `/api/auth/logout` | ✅ ready |
-| createCheckoutSession / ensureStripeCustomer | `lib/services/billing/checkout.ts` | Stripe Checkout + customer upsert | `/api/stripe/checkout` | ✅ ready |
-| getBillingStatusForUser / upsertUserSubscription | `lib/services/billing/subscriptions.ts` | Subscription reads/writes | billing-status + webhook | ✅ ready |
-| processStripeWebhookEvent | `lib/services/billing/webhook.ts` | Handles configured Stripe events | `/api/stripe/webhook` | ✅ ready |
+| createCheckoutSession | `lib/services/billing/checkout.ts` | Stripe Checkout session only (DB via webhooks) | `/api/stripe/checkout` | ✅ ready |
+| getBillingStatus / upsertSubscription | `lib/services/billing/subscriptions.ts` | Thin subscription DB helpers | billing-status + webhook | ✅ ready |
+| processStripeWebhookEvent | `lib/services/billing/webhook.ts` | One handler per Stripe event + switch router | `/api/stripe/webhook` | ✅ ready |
 
 ### API Routes (`app/api/`)
 
@@ -193,7 +192,7 @@ page.tsx (RSC fetch via lib/services)
 | `/api/auth/logout` | POST | `logoutUser` | — | ✅ ready |
 | `/api/stripe/webhook` | POST | `processStripeWebhookEvent` | Stripe signature | ✅ ready |
 | `/api/stripe/checkout` | POST | `createCheckoutSession` | `createCheckoutSessionSchema` | ✅ ready |
-| `/api/stripe/billing-status` | GET | `getBillingStatusForUser` | — | ✅ ready |
+| `/api/stripe/billing-status` | GET | `getBillingStatus` | — | ✅ ready |
 
 ### Schemas (`schemas/`)
 
@@ -227,6 +226,8 @@ page.tsx (RSC fetch via lib/services)
 
 | Date | Change | Updated By |
 |------|--------|------------|
+| 2026-07-16 | Billing simplified: checkout creates session only; single webhook file with one handler per event | Agent |
+| 2026-07-16 | Webhook: read `current_period_end` from subscription item (Stripe API 2026.dahlia moved it off subscription root) | Agent |
 | 2026-07-16 | Simplified billing: webhook is sole writer of full subscription rows; removed sync-checkout backfill path | Agent |
 | 2026-07-16 | Applied `user_subscriptions` migration to linked Supabase project `nmggxddqxeoylsmqwpmn` | Agent |
 | 2026-07-16 | Stripe billing: webhook (`/api/stripe/webhook`), checkout, billing-status, paywall modal after auth until `active`/`trialing` | Agent |

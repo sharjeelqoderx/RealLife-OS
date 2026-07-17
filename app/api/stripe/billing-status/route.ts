@@ -1,27 +1,21 @@
-import { getBillingStatusForUser } from "@/lib/services/billing/subscriptions"
+import { getBillingStatus } from "@/lib/services/billing/subscriptions"
 import { createClient } from "@/lib/supabase/server"
 
 export async function GET() {
   const supabase = await createClient()
   const {
     data: { user },
-    error,
   } = await supabase.auth.getUser()
 
-  if (error || !user) {
-    return Response.json(
-      { error: "Unauthorized", code: "UNAUTHORIZED" },
-      { status: 401 }
-    )
+  if (!user) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
 
   try {
-    const status = await getBillingStatusForUser(user.id)
-    return Response.json(status)
-  } catch (err) {
+    return Response.json(await getBillingStatus(user.id))
+  } catch (error) {
     const message =
-      err instanceof Error ? err.message : "Failed to load billing status"
-    console.error("[billing status]", message)
+      error instanceof Error ? error.message : "Billing status failed"
     return Response.json({ error: message }, { status: 500 })
   }
 }

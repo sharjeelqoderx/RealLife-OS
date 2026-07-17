@@ -1,177 +1,147 @@
 import type Stripe from "stripe"
 
 import {
-  getSubscriptionByStripeCustomerId,
+  claimWebhookEvent,
+  getSubscriptionByCustomerId,
   getSubscriptionByUserId,
-  markWebhookEventProcessed,
-  upsertUserSubscription,
+  releaseWebhookEvent,
+  upsertSubscription,
 } from "@/lib/services/billing/subscriptions"
 import { getStripe } from "@/lib/stripe/client"
 import { getStripeWebhookSecret } from "@/lib/env"
 import type { SubscriptionStatus } from "@/types/billing"
 
-function customerIdFrom(
-  customer: string | Stripe.Customer | Stripe.DeletedCustomer | null
+// ─── Stripe → DB mapping (used only by subscription-related handlers) ────────
+
+function customerId(
+  value: string | Stripe.Customer | Stripe.DeletedCustomer | null
 ): string | null {
-  if (!customer) return null
-  return typeof customer === "string" ? customer : customer.id
+  if (!value) return null
+  return typeof value === "string" ? value : value.id
 }
 
-function mapStatus(status: Stripe.Subscription.Status): SubscriptionStatus {
-  switch (status) {
-    case "incomplete":
-    case "incomplete_expired":
-    case "trialing":
-    case "active":
-    case "past_due":
-    case "canceled":
-    case "unpaid":
-    case "paused":
-      return status
-    default:
-      return "none"
-  }
-}
-
-function periodEnd(subscription: Stripe.Subscription): string | null {
-  const value = (
-    subscription as Stripe.Subscription & { current_period_end?: number }
-  ).current_period_end
-
-  return typeof value === "number"
-    ? new Date(value * 1000).toISOString()
-    : null
+function periodEndIso(subscription: Stripe.Subscription): string | null {
+  const item = subscription.items.data[0] as
+    | (Stripe.SubscriptionItem & { current_period_end?: number })
+    | undefined
+  const unix = item?.current_period_end
+  return typeof unix === "number" ? new Date(unix * 1000).toISOString() : null
 }
 
 function priceId(subscription: Stripe.Subscription): string | null {
   return subscription.items.data[0]?.price?.id ?? null
 }
 
-async function resolveUserId(
+function statusOf(subscription: Stripe.Subscription): SubscriptionStatus {
+  return subscription.status as SubscriptionStatus
+}
+
+async function findUserId(
   metadataUserId: string | null | undefined,
   stripeCustomerId: string | null
 ): Promise<string | null> {
   if (metadataUserId) return metadataUserId
   if (!stripeCustomerId) return null
-
-  const row = await getSubscriptionByStripeCustomerId(stripeCustomerId)
+  const row = await getSubscriptionByCustomerId(stripeCustomerId)
   return row?.user_id ?? null
 }
 
-/** Writes the full subscription row from a Stripe Subscription object. */
-async function saveSubscription(
-  subscription: Stripe.Subscription,
-  fallbackUserId?: string | null
+async function upsertFromSubscription(
+  userId: string,
+  subscription: Stripe.Subscription
 ) {
-  const stripeCustomerId = customerIdFrom(subscription.customer)
-  const userId = await resolveUserId(
-    subscription.metadata?.user_id ?? fallbackUserId,
-    stripeCustomerId
-  )
-
-  if (!userId) {
-    console.warn("[stripe webhook] no user for subscription", subscription.id)
-    return
-  }
-
-  await upsertUserSubscription({
+  await upsertSubscription({
     userId,
-    stripeCustomerId,
+    stripeCustomerId: customerId(subscription.customer),
     stripeSubscriptionId: subscription.id,
     stripePriceId: priceId(subscription),
-    status: mapStatus(subscription.status),
-    currentPeriodEnd: periodEnd(subscription),
-    cancelAtPeriodEnd: Boolean(subscription.cancel_at_period_end),
+    status: statusOf(subscription),
+    currentPeriodEnd: periodEndIso(subscription),
+    cancelAtPeriodEnd: subscription.cancel_at_period_end,
   })
 }
 
-async function onCheckoutCompleted(session: Stripe.Checkout.Session) {
+// ─── One handler per Stripe event ────────────────────────────────────────────
+
+async function handleCheckoutSessionCompleted(
+  session: Stripe.Checkout.Session
+) {
   const userId =
     session.metadata?.user_id ?? session.client_reference_id ?? null
-
-  if (!userId) {
-    console.warn("[stripe webhook] checkout missing user_id", session.id)
-    return
-  }
-
-  if (session.mode !== "subscription" || !session.subscription) {
-    await upsertUserSubscription({
-      userId,
-      stripeCustomerId: customerIdFrom(session.customer),
-      status: session.payment_status === "paid" ? "active" : "incomplete",
-    })
-    return
-  }
+  if (!userId || !session.subscription) return
 
   const subscriptionId =
     typeof session.subscription === "string"
       ? session.subscription
       : session.subscription.id
 
-  const subscription = await getStripe().subscriptions.retrieve(subscriptionId)
-  await saveSubscription(subscription, userId)
+  const subscription =
+    await getStripe().subscriptions.retrieve(subscriptionId)
+
+  await upsertFromSubscription(userId, subscription)
 }
 
-async function onCheckoutExpired(session: Stripe.Checkout.Session) {
+async function handleCheckoutSessionExpired(
+  session: Stripe.Checkout.Session
+) {
   const userId =
     session.metadata?.user_id ?? session.client_reference_id ?? null
   if (!userId) return
 
   const existing = await getSubscriptionByUserId(userId)
-  if (
-    existing &&
-    existing.status !== "none" &&
-    existing.status !== "incomplete"
-  ) {
-    return
-  }
+  if (existing?.status === "active" || existing?.status === "trialing") return
 
-  await upsertUserSubscription({
+  await upsertSubscription({
     userId,
-    stripeCustomerId: customerIdFrom(session.customer),
+    stripeCustomerId: customerId(session.customer),
+    stripeSubscriptionId: existing?.stripe_subscription_id ?? null,
+    stripePriceId: existing?.stripe_price_id ?? null,
     status: "incomplete_expired",
+    currentPeriodEnd: null,
+    cancelAtPeriodEnd: false,
   })
 }
 
-async function onCustomerCreated(customer: Stripe.Customer) {
+async function handleCustomerCreated(customer: Stripe.Customer) {
   const userId = customer.metadata?.user_id
   if (!userId) return
 
   const existing = await getSubscriptionByUserId(userId)
-  await upsertUserSubscription({
+
+  await upsertSubscription({
     userId,
     stripeCustomerId: customer.id,
-    status: existing?.status ?? "none",
     stripeSubscriptionId: existing?.stripe_subscription_id ?? null,
     stripePriceId: existing?.stripe_price_id ?? null,
+    status: existing?.status ?? "none",
     currentPeriodEnd: existing?.current_period_end ?? null,
     cancelAtPeriodEnd: existing?.cancel_at_period_end ?? false,
   })
 }
 
-async function onCustomerUpdated(customer: Stripe.Customer) {
-  const existing = await getSubscriptionByStripeCustomerId(customer.id)
+async function handleCustomerUpdated(customer: Stripe.Customer) {
+  const existing = await getSubscriptionByCustomerId(customer.id)
   const userId = customer.metadata?.user_id ?? existing?.user_id
   if (!userId) return
 
-  await upsertUserSubscription({
+  await upsertSubscription({
     userId,
     stripeCustomerId: customer.id,
-    status: (existing?.status ?? "none") as SubscriptionStatus,
     stripeSubscriptionId: existing?.stripe_subscription_id ?? null,
     stripePriceId: existing?.stripe_price_id ?? null,
+    status: existing?.status ?? "none",
     currentPeriodEnd: existing?.current_period_end ?? null,
     cancelAtPeriodEnd: existing?.cancel_at_period_end ?? false,
   })
 }
 
-async function onCustomerDeleted(
+async function handleCustomerDeleted(
   customer: Stripe.Customer | Stripe.DeletedCustomer
 ) {
-  const existing = await getSubscriptionByStripeCustomerId(customer.id)
+  const existing = await getSubscriptionByCustomerId(customer.id)
   if (!existing) return
 
-  await upsertUserSubscription({
+  await upsertSubscription({
     userId: existing.user_id,
     stripeCustomerId: null,
     stripeSubscriptionId: null,
@@ -182,83 +152,183 @@ async function onCustomerDeleted(
   })
 }
 
-async function onInvoice(invoice: Stripe.Invoice) {
-  const subscriptionRef = (
+async function handleCustomerSubscriptionCreated(
+  subscription: Stripe.Subscription
+) {
+  const userId = await findUserId(
+    subscription.metadata?.user_id,
+    customerId(subscription.customer)
+  )
+  if (!userId) return
+  await upsertFromSubscription(userId, subscription)
+}
+
+async function handleCustomerSubscriptionUpdated(
+  subscription: Stripe.Subscription
+) {
+  const userId = await findUserId(
+    subscription.metadata?.user_id,
+    customerId(subscription.customer)
+  )
+  if (!userId) return
+  await upsertFromSubscription(userId, subscription)
+}
+
+async function handleCustomerSubscriptionDeleted(
+  subscription: Stripe.Subscription
+) {
+  const userId = await findUserId(
+    subscription.metadata?.user_id,
+    customerId(subscription.customer)
+  )
+  if (!userId) return
+  await upsertFromSubscription(userId, subscription)
+}
+
+async function handleCustomerSubscriptionPaused(
+  subscription: Stripe.Subscription
+) {
+  const userId = await findUserId(
+    subscription.metadata?.user_id,
+    customerId(subscription.customer)
+  )
+  if (!userId) return
+  await upsertFromSubscription(userId, subscription)
+}
+
+async function handleCustomerSubscriptionResumed(
+  subscription: Stripe.Subscription
+) {
+  const userId = await findUserId(
+    subscription.metadata?.user_id,
+    customerId(subscription.customer)
+  )
+  if (!userId) return
+  await upsertFromSubscription(userId, subscription)
+}
+
+async function handleInvoiceFinalized(invoice: Stripe.Invoice) {
+  const ref = (
     invoice as Stripe.Invoice & {
       subscription?: string | Stripe.Subscription | null
     }
   ).subscription
+  if (!ref) return
 
-  if (!subscriptionRef) return
-
-  const subscriptionId =
-    typeof subscriptionRef === "string" ? subscriptionRef : subscriptionRef.id
-
-  const subscription = await getStripe().subscriptions.retrieve(subscriptionId)
-  await saveSubscription(subscription)
+  const id = typeof ref === "string" ? ref : ref.id
+  const subscription = await getStripe().subscriptions.retrieve(id)
+  const userId = await findUserId(
+    subscription.metadata?.user_id,
+    customerId(subscription.customer)
+  )
+  if (!userId) return
+  await upsertFromSubscription(userId, subscription)
 }
 
-export async function processStripeWebhookEvent(event: Stripe.Event) {
-  const alreadyProcessed = !(await markWebhookEventProcessed(
-    event.id,
-    event.type
-  ))
-  if (alreadyProcessed) {
-    return { received: true, duplicate: true }
-  }
-
-  try {
-    switch (event.type) {
-      case "checkout.session.completed":
-        await onCheckoutCompleted(event.data.object as Stripe.Checkout.Session)
-        break
-      case "checkout.session.expired":
-        await onCheckoutExpired(event.data.object as Stripe.Checkout.Session)
-        break
-      case "customer.created":
-        await onCustomerCreated(event.data.object as Stripe.Customer)
-        break
-      case "customer.updated":
-        await onCustomerUpdated(event.data.object as Stripe.Customer)
-        break
-      case "customer.deleted":
-        await onCustomerDeleted(
-          event.data.object as Stripe.Customer | Stripe.DeletedCustomer
-        )
-        break
-      case "customer.subscription.created":
-      case "customer.subscription.updated":
-      case "customer.subscription.deleted":
-      case "customer.subscription.paused":
-      case "customer.subscription.resumed":
-        await saveSubscription(event.data.object as Stripe.Subscription)
-        break
-      case "invoice.finalized":
-      case "invoice.paid":
-        await onInvoice(event.data.object as Stripe.Invoice)
-        break
-      case "payment_intent.succeeded":
-        break
-      default:
-        break
+async function handleInvoicePaid(invoice: Stripe.Invoice) {
+  const ref = (
+    invoice as Stripe.Invoice & {
+      subscription?: string | Stripe.Subscription | null
     }
-  } catch (error) {
-    // Allow Stripe to retry if handling failed after we reserved the event id.
-    const supabase = (await import("@/lib/supabase/admin")).createAdminClient()
-    await supabase.from("stripe_webhook_events").delete().eq("id", event.id)
-    throw error
-  }
+  ).subscription
+  if (!ref) return
 
-  return { received: true }
+  const id = typeof ref === "string" ? ref : ref.id
+  const subscription = await getStripe().subscriptions.retrieve(id)
+  const userId = await findUserId(
+    subscription.metadata?.user_id,
+    customerId(subscription.customer)
+  )
+  if (!userId) return
+  await upsertFromSubscription(userId, subscription)
 }
 
-export function constructStripeEvent(
-  payload: string,
-  signature: string
-): Stripe.Event {
+async function handlePaymentIntentSucceeded(
+  _paymentIntent: Stripe.PaymentIntent
+) {
+  // Access comes from checkout.session.completed / subscription / invoice events.
+}
+
+// ─── Router ──────────────────────────────────────────────────────────────────
+
+export function constructStripeEvent(payload: string, signature: string) {
   return getStripe().webhooks.constructEvent(
     payload,
     signature,
     getStripeWebhookSecret()
   )
+}
+
+export async function processStripeWebhookEvent(event: Stripe.Event) {
+  const isNew = await claimWebhookEvent(event.id, event.type)
+  if (!isNew) return { received: true, duplicate: true }
+
+  try {
+    switch (event.type) {
+      case "checkout.session.completed":
+        await handleCheckoutSessionCompleted(
+          event.data.object as Stripe.Checkout.Session
+        )
+        break
+      case "checkout.session.expired":
+        await handleCheckoutSessionExpired(
+          event.data.object as Stripe.Checkout.Session
+        )
+        break
+      case "customer.created":
+        await handleCustomerCreated(event.data.object as Stripe.Customer)
+        break
+      case "customer.updated":
+        await handleCustomerUpdated(event.data.object as Stripe.Customer)
+        break
+      case "customer.deleted":
+        await handleCustomerDeleted(
+          event.data.object as Stripe.Customer | Stripe.DeletedCustomer
+        )
+        break
+      case "customer.subscription.created":
+        await handleCustomerSubscriptionCreated(
+          event.data.object as Stripe.Subscription
+        )
+        break
+      case "customer.subscription.updated":
+        await handleCustomerSubscriptionUpdated(
+          event.data.object as Stripe.Subscription
+        )
+        break
+      case "customer.subscription.deleted":
+        await handleCustomerSubscriptionDeleted(
+          event.data.object as Stripe.Subscription
+        )
+        break
+      case "customer.subscription.paused":
+        await handleCustomerSubscriptionPaused(
+          event.data.object as Stripe.Subscription
+        )
+        break
+      case "customer.subscription.resumed":
+        await handleCustomerSubscriptionResumed(
+          event.data.object as Stripe.Subscription
+        )
+        break
+      case "invoice.finalized":
+        await handleInvoiceFinalized(event.data.object as Stripe.Invoice)
+        break
+      case "invoice.paid":
+        await handleInvoicePaid(event.data.object as Stripe.Invoice)
+        break
+      case "payment_intent.succeeded":
+        await handlePaymentIntentSucceeded(
+          event.data.object as Stripe.PaymentIntent
+        )
+        break
+      default:
+        break
+    }
+  } catch (error) {
+    await releaseWebhookEvent(event.id)
+    throw error
+  }
+
+  return { received: true }
 }
