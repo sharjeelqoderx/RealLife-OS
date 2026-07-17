@@ -1,8 +1,5 @@
 import type { ReactNode } from "react"
 import { Suspense } from "react"
-import { Suspense } from "react"
-
-import { PaywallGate } from "@/components/billing/paywall-gate"
 import { PaywallGate } from "@/components/billing/paywall-gate"
 import { DashboardShell } from "@/components/layout/dashboard-shell"
 import { getBillingStatus } from "@/lib/services/billing/subscriptions"
