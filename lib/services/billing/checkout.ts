@@ -3,7 +3,6 @@ import type { User } from "@supabase/supabase-js"
 import { getSiteUrl, getStripePriceForPlan } from "@/lib/env"
 import { getStripe } from "@/lib/stripe/client"
 import {
-  FREE_TRIAL_DAYS,
   getBillingPlan,
   type BillingPlanId,
 } from "@/lib/stripe/plans"
@@ -11,7 +10,6 @@ import {
   getBillingStatus,
   getSubscriptionByUserId,
   saveCustomerId,
-  saveSubscription,
 } from "@/lib/services/billing/subscriptions"
 import { createClient } from "@/lib/supabase/server"
 
@@ -63,7 +61,7 @@ async function getStripeCustomerId(user: User): Promise<string> {
   return customer.id
 }
 
-export async function startFreeTrial() {
+export async function createTrialCheckoutSession(returnOrigin?: string) {
   const user = await getAuthUser()
   const status = await getBillingStatus(user.id)
 
@@ -71,21 +69,46 @@ export async function startFreeTrial() {
     throw new BillingError("You already have access", 409, "ALREADY_ACTIVE")
   }
 
-  const row = await getSubscriptionByUserId(user.id)
-  const endsAt = new Date()
-  endsAt.setDate(endsAt.getDate() + FREE_TRIAL_DAYS)
+  const customerId = await getStripeCustomerId(user)
+  const origin = (returnOrigin ?? getSiteUrl()).replace(/\/$/, "")
 
-  await saveSubscription({
-    userId: user.id,
-    stripeCustomerId: row?.stripe_customer_id ?? null,
-    stripeSubscriptionId: null,
-    stripePriceId: "personal_trial",
-    status: "trialing",
-    currentPeriodEnd: endsAt.toISOString(),
-    cancelAtPeriodEnd: true,
+  const session = await getStripe().checkout.sessions.create({
+    mode: "setup",
+    customer: customerId,
+    payment_method_types: ["card"],
+    success_url: `${origin}/dashboard?checkout=success`,
+    cancel_url: `${origin}/dashboard?checkout=canceled`,
+    client_reference_id: user.id,
+    metadata: { user_id: user.id, plan_id: "personal" },
   })
 
-  return getBillingStatus(user.id)
+  if (!session.url) {
+    throw new BillingError("No checkout URL", 502, "NO_CHECKOUT_URL")
+  }
+
+  return { url: session.url }
+}
+
+export async function createPaymentSetupSession(returnOrigin?: string) {
+  const user = await getAuthUser()
+  const customerId = await getStripeCustomerId(user)
+  const origin = (returnOrigin ?? getSiteUrl()).replace(/\/$/, "")
+
+  const session = await getStripe().checkout.sessions.create({
+    mode: "setup",
+    customer: customerId,
+    payment_method_types: ["card"],
+    success_url: `${origin}/billing?portal=return`,
+    cancel_url: `${origin}/billing`,
+    client_reference_id: user.id,
+    metadata: { user_id: user.id, plan_id: "payment_setup" },
+  })
+
+  if (!session.url) {
+    throw new BillingError("No checkout URL", 502, "NO_CHECKOUT_URL")
+  }
+
+  return { url: session.url }
 }
 
 export async function createCheckoutSession(

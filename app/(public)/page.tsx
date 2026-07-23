@@ -496,7 +496,7 @@ export default function Home() {
                 Choose your level of protection.
               </h2>
               <p className="mt-4 text-base text-slate-500">
-                No credit card required for the 7-day trial.
+                Add a card to start your 7-day free trial.
               </p>
             </div>
 

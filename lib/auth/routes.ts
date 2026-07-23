@@ -5,7 +5,7 @@ export const authRoutes = [
   "/change-password",
 ] as const
 
-export const protectedRoutes = ["/dashboard"] as const
+export const protectedRoutes = ["/dashboard", "/billing"] as const
 
 export const defaultAuthenticatedPath = "/dashboard"
 export const defaultUnauthenticatedPath = "/login"

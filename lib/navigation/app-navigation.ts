@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react"
 import {
   Activity,
   BookOpen,
+  CreditCard,
   FileCode2,
   Layers,
   LayoutDashboard,
@@ -18,6 +19,7 @@ export type AppNavItem = {
 
 export const mainNavItems: AppNavItem[] = [
   { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { title: "Billing", href: "/billing", icon: CreditCard },
   { title: "Content Policies", href: "/content-policies", icon: Layers },
   { title: "Devices", href: "/devices", icon: Monitor },
   { title: "Activity Logs", href: "/activity-logs", icon: Activity },
