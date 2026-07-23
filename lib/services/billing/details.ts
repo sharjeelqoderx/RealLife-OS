@@ -30,6 +30,23 @@ function resolvePlanName(stripePriceId: string | null): string {
   return getPlanDisplayName(stripePriceId)
 }
 
+function formatBillingAddress(
+  address: Stripe.Address | null | undefined
+): string | null {
+  if (!address) return null
+
+  const parts = [
+    address.line1,
+    address.line2,
+    address.city,
+    address.state,
+    address.postal_code,
+    address.country,
+  ].filter((part): part is string => Boolean(part?.trim()))
+
+  return parts.length > 0 ? parts.join(", ") : null
+}
+
 function cardFromPaymentMethod(
   paymentMethod: Stripe.PaymentMethod
 ): PaymentMethodInfo | null {
@@ -43,6 +60,10 @@ function cardFromPaymentMethod(
     expMonth: paymentMethod.card.exp_month,
     expYear: paymentMethod.card.exp_year,
     cardholderName: paymentMethod.billing_details?.name?.trim() || null,
+    funding: paymentMethod.card.funding ?? null,
+    country: paymentMethod.card.country ?? null,
+    billingEmail: paymentMethod.billing_details?.email?.trim() || null,
+    billingAddress: formatBillingAddress(paymentMethod.billing_details?.address),
   }
 }
 

@@ -4,6 +4,10 @@ export type PaymentMethodInfo = {
   expMonth: number
   expYear: number
   cardholderName: string | null
+  funding: string | null
+  country: string | null
+  billingEmail: string | null
+  billingAddress: string | null
 }
 
 export type BillingDetailsResponse = {

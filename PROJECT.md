@@ -147,8 +147,10 @@ page.tsx (RSC fetch via lib/services)
 | Dialog | `components/ui/dialog.tsx` | Modal primitive | PaywallGate | ✅ ready |
 | PaywallGate | `components/billing/paywall-gate.tsx` | Blocking pricing modal until active subscription | `(protected)/layout` | ✅ ready |
 | DashboardContent | `app/(protected)/dashboard/_components/dashboard-content.tsx` | Network security dashboard UI (metrics, chart, table) | `/dashboard` | ✅ ready |
-| BillingContent | `app/(protected)/billing/_components/billing-content.tsx` | Subscription, expiry, card display + portal update | `/billing` | ✅ ready |
+| BillingContent | `app/(protected)/billing/_components/billing-content.tsx` | Premium subscription + payment method layout | `/billing` | ✅ ready |
+| PaymentMethodCard | `app/(protected)/billing/_components/payment-method-card.tsx` | Visual credit card + full billing metadata | `/billing` | ✅ ready |
 | AttachCardPanel | `app/(protected)/billing/_components/attach-card-panel.tsx` | Empty-state card attach UI (Stripe setup checkout) | `/billing` | ✅ ready |
+| BillingActionButton | `app/(protected)/billing/_components/billing-action-button.tsx` | Branded billing CTA button | `/billing` | ✅ ready |
 | ErrorAlert | `components/feedback/error-alert.tsx` | Generic error display | — | ⚪ not started |
 
 ### Supabase (`lib/supabase/`)
@@ -242,6 +244,7 @@ page.tsx (RSC fetch via lib/services)
 
 | Date | Change | Updated By |
 |------|--------|------------|
+| 2026-07-23 | Billing: premium theme UI, visual payment card with full Stripe metadata, attach-card placeholder | Agent |
 | 2026-07-23 | Dashboard: full network-security UI on `/dashboard` — metrics cards, Recharts traffic chart, setup progress, blocked-activity table | Agent |
 | 2026-07-23 | Billing: AttachCardPanel empty state + setup checkout for all users without a card on file | Agent |
 | 2026-07-23 | Billing page: sidebar nav, subscription/expiry/card display, Stripe Customer Portal for card updates | Agent |
