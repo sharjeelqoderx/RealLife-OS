@@ -7,5 +7,6 @@ export const queryKeys = {
   billing: {
     all: ["billing"] as const,
     status: () => [...queryKeys.billing.all, "status"] as const,
+    details: () => [...queryKeys.billing.all, "details"] as const,
   },
 } as const
