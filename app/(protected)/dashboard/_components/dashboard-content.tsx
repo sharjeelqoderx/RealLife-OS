@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import {
   ChevronRight,
   Link2,
@@ -31,6 +32,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -57,7 +59,7 @@ export interface DashboardContentProps {
   userName: string
 }
 
-const cardClassName = "bg-brand-surface ring-0 shadow-none"
+const cardClassName = "rounded-xl bg-brand-surface ring-0 shadow-none"
 
 const trafficChartConfig = {
   allowed: {
@@ -189,11 +191,23 @@ const metricCards = [
   { label: "Protected Devices", value: "8" },
 ]
 
+const chartLegend = [
+  { key: "allowed" as const, label: "Allowed", color: "bg-[#014bc6]" },
+  { key: "blocked" as const, label: "Blocked", color: "bg-red-500" },
+  { key: "safeSearch" as const, label: "SafeSearch", color: "bg-teal-500" },
+]
+
 export function DashboardContent({ userName }: DashboardContentProps) {
+  const [seriesVisibility, setSeriesVisibility] = useState({
+    allowed: true,
+    blocked: true,
+    safeSearch: true,
+  })
+
   return (
     <div className="space-y-6">
       {/* Announcement banner */}
-      <div className="flex flex-col gap-3 rounded-xl bg-brand-primary px-4 py-3 text-brand-primary-foreground sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 rounded-lg bg-brand-primary px-4 py-3 text-brand-primary-foreground sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2 text-sm font-medium">
           <Megaphone className="size-4 shrink-0" />
           <span>New: YouTube Restricted Mode support is now live.</span>
@@ -215,14 +229,17 @@ export function DashboardContent({ userName }: DashboardContentProps) {
             Welcome back, {userName}.
           </h1>
           <div className="flex flex-wrap items-center gap-2 text-sm text-brand-text-muted">
-            <Badge className="border-0 bg-emerald-600 text-white hover:bg-emerald-600">
+            <Badge className="rounded-lg border-0 bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
               <ShieldCheck className="size-3" />
               Status: Protected
             </Badge>
             <span>Your network is 100% protected.</span>
           </div>
         </div>
-        <Button className="shrink-0 bg-brand-primary text-brand-primary-foreground hover:bg-brand-primary/90">
+        <Button
+          size="lg"
+          className="h-11 shrink-0 gap-2 px-5 text-sm font-semibold bg-brand-primary text-brand-primary-foreground shadow-md shadow-brand-primary/20 hover:bg-brand-primary/90"
+        >
           <Plus />
           Add New Device
         </Button>
@@ -231,21 +248,25 @@ export function DashboardContent({ userName }: DashboardContentProps) {
       {/* Device summary row */}
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className={cardClassName}>
-          <CardHeader className="flex-row items-center justify-between space-y-0">
+          <CardHeader>
             <CardTitle className="text-base font-semibold">
               Protected Devices
             </CardTitle>
-            <span className="text-2xl font-bold text-brand-text-heading">7</span>
+            <CardAction>
+              <span className="text-2xl font-bold text-brand-text-heading">
+                7
+              </span>
+            </CardAction>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="rounded-xl bg-blue-50 p-4">
+            <div className="grid gap-3 sm:grid-cols-1">
+              <div className="rounded-lg bg-blue-50 p-4">
                 <p className="text-sm text-brand-text-muted">Android Devices</p>
                 <p className="mt-1 text-3xl font-bold text-brand-text-heading">
                   4
                 </p>
               </div>
-              <div className="rounded-xl bg-blue-50 p-4">
+              <div className="rounded-lg bg-blue-50 p-4">
                 <p className="text-sm text-brand-text-muted">iPhone Devices</p>
                 <p className="mt-1 text-3xl font-bold text-brand-text-heading">
                   3
@@ -268,7 +289,7 @@ export function DashboardContent({ userName }: DashboardContentProps) {
                 className="flex items-center justify-between gap-3 rounded-lg border border-border/60 px-3 py-2.5"
               >
                 <div className="flex items-center gap-3">
-                  <div className="flex size-9 items-center justify-center rounded-lg bg-muted">
+                  <div className="flex size-9 items-center justify-center rounded-md bg-muted">
                     <device.icon className="size-4 text-brand-primary" />
                   </div>
                   <div>
@@ -306,30 +327,38 @@ export function DashboardContent({ userName }: DashboardContentProps) {
       {/* Analytics + setup progress */}
       <div className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,1fr)]">
         <Card className={cardClassName}>
-          <CardHeader>
+          <CardHeader className="items-center">
             <CardTitle className="text-base font-semibold">
               Traffic Analytics
             </CardTitle>
+            <CardAction className="self-center row-span-1">
+              <div className="flex flex-wrap items-center justify-end gap-3 text-xs">
+                {chartLegend.map((item) => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() =>
+                      setSeriesVisibility((prev) => ({
+                        ...prev,
+                        [item.key]: !prev[item.key],
+                      }))
+                    }
+                    className={cn(
+                      "flex cursor-pointer items-center gap-1.5 transition-opacity hover:opacity-80",
+                      !seriesVisibility[item.key] && "opacity-40"
+                    )}
+                  >
+                    <span className={cn("size-2 rounded-full", item.color)} />
+                    <span className="text-brand-text-muted">{item.label}</span>
+                  </button>
+                ))}
+              </div>
+            </CardAction>
             <CardDescription>
               Network activity over the last 24 hours
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex flex-wrap items-center gap-4 text-xs text-brand-text-muted">
-              <span className="flex items-center gap-1.5">
-                <span className="size-2 rounded-full bg-[#014bc6]" />
-                Allowed
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="size-2 rounded-full bg-red-500" />
-                Blocked
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="size-2 rounded-full bg-teal-500" />
-                SafeSearch
-              </span>
-            </div>
-
             <ChartContainer
               config={trafficChartConfig}
               className="aspect-[2.4/1] w-full"
@@ -350,6 +379,7 @@ export function DashboardContent({ userName }: DashboardContentProps) {
                   stroke="var(--color-allowed)"
                   strokeWidth={2}
                   dot={false}
+                  hide={!seriesVisibility.allowed}
                 />
                 <Line
                   type="monotone"
@@ -358,14 +388,15 @@ export function DashboardContent({ userName }: DashboardContentProps) {
                   strokeWidth={2}
                   strokeDasharray="6 4"
                   dot={false}
+                  hide={!seriesVisibility.blocked}
                 />
                 <Line
                   type="monotone"
                   dataKey="safeSearch"
                   stroke="var(--color-safeSearch)"
                   strokeWidth={2}
-                  strokeDasharray="6 4"
                   dot={false}
+                  hide={!seriesVisibility.safeSearch}
                 />
               </LineChart>
             </ChartContainer>
@@ -394,29 +425,34 @@ export function DashboardContent({ userName }: DashboardContentProps) {
         </Card>
 
         <Card className={cardClassName}>
-          <CardHeader>
+          <CardHeader className="items-center">
             <CardTitle className="text-base font-semibold">
               Setup Progress
             </CardTitle>
+            <CardAction className="self-center row-span-1">
+              <span className="cursor-pointer text-sm font-semibold text-brand-primary">
+                60%
+              </span>
+            </CardAction>
             <CardDescription>
               Complete these steps to fully secure your network
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-brand-text-muted">Overall Progress</span>
-                <span className="font-semibold text-brand-text-heading">60%</span>
-              </div>
-              <Progress value={60} className="h-2 bg-muted" />
+              <p className="text-sm text-brand-text-muted">Overall Progress</p>
+              <Progress
+                value={60}
+                className="h-2 bg-brand-primary/10 [&_[data-slot=progress-indicator]]:bg-brand-primary"
+              />
             </div>
 
             <Accordion type="single" collapsible defaultValue="dns">
               {setupTasks.map((task) => (
                 <AccordionItem key={task.id} value={task.id}>
-                  <AccordionTrigger className="py-3 hover:no-underline">
+                  <AccordionTrigger className="py-3 hover:no-underline **:data-[slot=accordion-trigger-icon]:text-brand-text-heading">
                     <span className="flex items-center gap-2.5">
-                      <task.icon className="size-4 shrink-0 text-brand-primary" />
+                      <task.icon className="size-4 shrink-0 text-brand-text-heading" />
                       {task.title}
                     </span>
                   </AccordionTrigger>
@@ -466,7 +502,10 @@ export function DashboardContent({ userName }: DashboardContentProps) {
                   <TableCell>
                     <Badge
                       variant="secondary"
-                      className={cn("border-0 font-medium", row.categoryClass)}
+                      className={cn(
+                        "rounded-lg border-0 font-medium",
+                        row.categoryClass
+                      )}
                     >
                       {row.category}
                     </Badge>
