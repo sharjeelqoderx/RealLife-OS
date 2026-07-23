@@ -111,7 +111,8 @@ page.tsx (RSC fetch via lib/services)
 |-------|---------|----------|-------------|-------------|--------|
 | `/` | Home / landing | `app/(public)/page.tsx` | `app/(public)/loading.tsx` | — | ✅ ready |
 | `/dashboard` | Protected dashboard | `app/(protected)/dashboard/page.tsx` | `app/(protected)/dashboard/loading.tsx` | `dashboard-content` | ✅ ready |
-| `/billing` | Subscription & payment management | `app/(protected)/billing/page.tsx` | `app/(protected)/billing/loading.tsx` | `billing-content` | ✅ ready |
+| `/billing` | Subscription & payment management | `app/(protected)/billing/page.tsx` | `app/(protected)/billing/loading.tsx` | `billing-content`, `payment-method-card`, `attach-card-panel` | ✅ ready |
+| `/content-policies`, `/devices`, `/activity-logs`, `/tools`, `/config-generator`, `/settings`, `/guides` | Under development placeholder | `app/(protected)/[...slug]/page.tsx` | `app/(protected)/[...slug]/loading.tsx` | — | 🟡 placeholder |
 | `/login` | User login | `app/(auth)/login/page.tsx` | `app/(auth)/login/loading.tsx` | `login-form` | ✅ ready |
 | `/sign-up` | Registration | `app/(auth)/sign-up/page.tsx` | `app/(auth)/sign-up/loading.tsx` | `sign-up-form`, `password-strength-indicator` | ✅ ready |
 | `/forget-password` | Password reset request | `app/(auth)/forget-password/page.tsx` | `app/(auth)/forget-password/loading.tsx` | `forget-password-form` | ✅ ready |
@@ -152,6 +153,7 @@ page.tsx (RSC fetch via lib/services)
 | AttachCardPanel | `app/(protected)/billing/_components/attach-card-panel.tsx` | Empty-state card attach UI (Stripe setup checkout) | `/billing` | ✅ ready |
 | BillingActionButton | `app/(protected)/billing/_components/billing-action-button.tsx` | Branded billing CTA button | `/billing` | ✅ ready |
 | ErrorAlert | `components/feedback/error-alert.tsx` | Generic error display | — | ⚪ not started |
+| UnderDevelopment | `components/feedback/under-development.tsx` | Placeholder UI for routes not yet built | `[...slug]` catch-all | ✅ ready |
 
 ### Supabase (`lib/supabase/`)
 
@@ -176,6 +178,7 @@ page.tsx (RSC fetch via lib/services)
 | Module | Path | Purpose | Status |
 |--------|------|---------|--------|
 | App nav config | `lib/navigation/app-navigation.ts` | Sidebar links + user labels | ✅ ready |
+| Ready routes | `lib/navigation/ready-routes.ts` | Which protected routes are shipped (single registry) | `[...slug]` catch-all | ✅ ready |
 
 ### Services (`lib/services/`)
 
@@ -244,6 +247,7 @@ page.tsx (RSC fetch via lib/services)
 
 | Date | Change | Updated By |
 |------|--------|------------|
+| 2026-07-23 | Under development: single `[...slug]` catch-all + `UnderDevelopment` UI + `ready-routes` registry for unbuilt sidebar pages | Agent |
 | 2026-07-23 | Billing: premium theme UI, visual payment card with full Stripe metadata, attach-card placeholder | Agent |
 | 2026-07-23 | Dashboard: full network-security UI on `/dashboard` — metrics cards, Recharts traffic chart, setup progress, blocked-activity table | Agent |
 | 2026-07-23 | Billing: AttachCardPanel empty state + setup checkout for all users without a card on file | Agent |
