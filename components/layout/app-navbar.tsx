@@ -34,7 +34,7 @@ export function AppNavbar() {
           )}
         </Button>
 
-        <div className="relative w-full max-w-2xl flex-1">
+        {/* <div className="relative w-full max-w-2xl flex-1">
           <Search
             aria-hidden
             className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-brand-text-muted"
@@ -44,7 +44,7 @@ export function AppNavbar() {
             placeholder="Search devices or activity..."
             className="h-10 border-transparent bg-brand-input pl-9 py-2 text-sm shadow-none max-w-sm"
           />
-        </div>
+        </div> */}
       </div>
 
 

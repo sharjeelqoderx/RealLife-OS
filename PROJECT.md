@@ -116,14 +116,16 @@ page.tsx (RSC fetch via lib/services)
 | `/sign-up` | Registration | `app/(auth)/sign-up/page.tsx` | `app/(auth)/sign-up/loading.tsx` | `sign-up-form`, `password-strength-indicator` | ✅ ready |
 | `/forget-password` | Password reset request | `app/(auth)/forget-password/page.tsx` | `app/(auth)/forget-password/loading.tsx` | `forget-password-form` | ✅ ready |
 | `/change-password` | Password change via reset token | `app/(auth)/change-password/page.tsx` | `app/(auth)/change-password/loading.tsx` | `change-password-form` | ✅ ready |
-| `/content-policies` | View all content policies list (allowlist/blocklist) | `app/(protected)/content-policies/page.tsx` | `app/(protected)/content-policies/loading.tsx` | `policies-list` | ✅ ready |
-| `/content-policies/[policyId]` | Single policy detail — rules, categories, apps, web addresses, audience, schedules | `app/(protected)/content-policies/[policyId]/page.tsx` | `app/(protected)/content-policies/[policyId]/loading.tsx` | `policy-detail` | ✅ ready |
+| `/content-policies` | View all content policies list (allowlist/blocklist) | `app/(protected)/content-policies/page.tsx` | `app/(protected)/content-policies/loading.tsx` | `page-content`, `policy-table`, `policy-table-loading` | ✅ ready |
+| `/content-policies/new-policy` | Create new content policy — shared editor layout | `app/(protected)/content-policies/(editor)/new-policy/page.tsx` | `app/(protected)/content-policies/(editor)/new-policy/loading.tsx` | `policy-detail` | ✅ ready |
+| `/content-policies/[policyId]` | Edit existing policy — shared editor layout | `app/(protected)/content-policies/(editor)/[policyId]/page.tsx` | `app/(protected)/content-policies/(editor)/[policyId]/loading.tsx` | `policy-detail` | ✅ ready |
 
 ### Shared Components
 
 | Component | Path | Purpose | Used In | Status |
 |-----------|------|---------|---------|--------|
 | Button | `components/ui/button.tsx` | shadcn button | global | ✅ ready |
+| Switch | `components/ui/switch.tsx` | shadcn toggle switch | policy editor | ✅ ready |
 | Card | `components/ui/card.tsx` | shadcn card | global | ✅ ready |
 | Input | `components/ui/input.tsx` | shadcn input + icon slots + brand styling | auth forms | ✅ ready |
 | Label | `components/ui/label.tsx` | shadcn label | forms | ✅ ready |
@@ -153,10 +155,14 @@ page.tsx (RSC fetch via lib/services)
 | PaymentMethodCard | `app/(protected)/billing/_components/payment-method-card.tsx` | Visual credit card + full billing metadata | `/billing` | ✅ ready |
 | AttachCardPanel | `app/(protected)/billing/_components/attach-card-panel.tsx` | Empty-state card attach UI (Stripe setup checkout) | `/billing` | ✅ ready |
 | BillingActionButton | `app/(protected)/billing/_components/billing-action-button.tsx` | Branded billing CTA button | `/billing` | ✅ ready |
-| PoliciesList | `app/(protected)/content-policies/_components/policies-list.tsx` | All policies list view with search, table & mobile cards | `/content-policies` | ✅ ready |
-| PolicyDetail | `app/(protected)/content-policies/[policyId]/_components/policy-detail.tsx` | Single policy rule editor with categories, apps, web, audience, schedules + right-side ScheduleSheet + Category/App/Audience PickerDialogs | `/content-policies/[policyId]` | ✅ ready |
-| ScheduleSheet | `app/(protected)/content-policies/[policyId]/_components/schedule-sheet.tsx` | Right-side Sheet with weekly 24h calendar grid — click-to-add, click-to-remove, drag-to-resize (15-min snap) | PolicyDetail schedules | ✅ ready |
-| PickerDialog | `app/(protected)/content-policies/[policyId]/_components/picker-dialog.tsx` | Centered modal with top search bar, grouped uppercase section headers (ADS, BUSINESS & ECONOMY, LOGIN EMAIL...), list rows with selected dot indicator — Add Category / Add App / Add Member flows | PolicyDetail Categories, Apps, Audience | ✅ ready |
+| PoliciesPage | `app/(protected)/content-policies/_components/page-content.tsx` | Client shell with debounced URL search + filtered table | `/content-policies` | ✅ ready |
+| PoliciesSearchInput | `app/(protected)/content-policies/_components/policies-search-input.tsx` | Debounced search input; updates `?q=` via `history.replaceState` | `/content-policies` | ✅ ready |
+| PolicyTable | `app/(protected)/content-policies/_components/policy-table.tsx` | Desktop table + mobile cards for policies | `/content-policies` | ✅ ready |
+| PolicyTableLoading | `app/(protected)/content-policies/_components/policy-table-loading.tsx` | Table-only loading skeleton | `/content-policies` | ✅ ready |
+| PolicyDetail | `app/(protected)/content-policies/(editor)/_components/policy-detail.tsx` | Policy rule editor (create + edit) with sticky rules sidebar, categories, apps, web, audience, schedules + ScheduleSheet + PickerDialogs | `/content-policies/new-policy`, `/content-policies/[policyId]` | ✅ ready |
+| PolicyEditorLoading | `app/(protected)/content-policies/(editor)/_components/policy-editor-loading.tsx` | Shared editor skeleton (sticky sidebar + detail panel) | editor routes loading.tsx | ✅ ready |
+| ScheduleSheet | `app/(protected)/content-policies/(editor)/_components/schedule-sheet.tsx` | Right-side Sheet with weekly 24h calendar grid — click-to-add, click-to-remove, drag-to-resize (15-min snap) | PolicyDetail schedules | ✅ ready |
+| PickerDialog | `app/(protected)/content-policies/(editor)/_components/picker-dialog.tsx` | Centered modal with top search bar, grouped uppercase section headers (ADS, BUSINESS & ECONOMY, LOGIN EMAIL...), list rows with selected dot indicator — Add Category / Add App / Add Member flows | PolicyDetail Categories, Apps, Audience | ✅ ready |
 | ErrorAlert | `components/feedback/error-alert.tsx` | Generic error display | — | ⚪ not started |
 
 ### Supabase (`lib/supabase/`)
@@ -197,6 +203,7 @@ page.tsx (RSC fetch via lib/services)
 | getBillingStatus / saveSubscription | `lib/services/billing/subscriptions.ts` | Subscription DB | billing-status + webhook | ✅ ready |
 | getBillingDetails / createBillingPortalSession | `lib/services/billing/details.ts` | Subscription + card + Stripe Customer Portal | billing-details + billing-portal APIs | ✅ ready |
 | processStripeWebhookEvent | `lib/services/billing/webhook.ts` | Event → handler → DB | `/api/stripe/webhook` | ✅ ready |
+| getPolicies | `lib/services/content-policies/get-policies.ts` | Content policies list (mock until DB) | `/content-policies` page | ✅ ready |
 
 ### API Routes (`app/api/`)
 
@@ -250,6 +257,8 @@ page.tsx (RSC fetch via lib/services)
 
 | Date | Change | Updated By |
 |------|--------|------------|
+| 2026-07-27 | Policy editor: shared `(editor)` layout for `/content-policies/new-policy` + `/content-policies/[policyId]` — sticky rules sidebar, no card wrapper, create/edit modes in `PolicyDetail` | Agent |
+| 2026-07-27 | Content policies list: server `page.tsx` + `getPolicies` service; client `PoliciesPage` (search shell) + separate `PolicyTable` + `PolicyTableLoading` | Agent |
 | 2026-07-27 | Add Category / Add App / Add Member modal pickers: reusable `PickerDialog` centered modal with top search bar + ✕ close, uppercase section headers (ADS, BUSINESS & ECONOMY, LOGIN EMAIL...), group-labeled list with selected-row indicator. 10+ category groups, 80+ app titles, email/member audience lists. PolicyDetail Categories/Apps/Audience sections now show group-divided pill cards with hover remove action and live counts. | Agent |
 | 2026-07-27 | Schedule: right-side `ScheduleSheet` component with weekly 24h calendar grid (Sun-Sat x 24h, 15-min snap). Click empty space → add block, click block → remove, drag bottom handle → resize. "Add Rule Schedule" / "Edit Rule Schedule" header with subtitle instructions, Close + Save footer. PolicyDetail schedules section now shows day-grouped cards with edit/remove actions and opens sheet on Add/Edit. | Agent |
 | 2026-07-27 | Content Policies: `/content-policies` list page + `/content-policies/[policyId]` detail page with rules sidebar, categories, apps, web addresses, audience, schedules sections + saved-state pill | Agent |

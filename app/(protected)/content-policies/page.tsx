@@ -1,5 +1,24 @@
-import { PoliciesList } from "@/app/(protected)/content-policies/_components/policies-list"
+import { PoliciesPage } from "@/app/(protected)/content-policies/_components/page-content"
+import { parsePolicyListParam } from "@/lib/content-policies/list-params"
+import { getPolicies } from "@/lib/services/content-policies/get-policies"
+import type { PolicyStatus, PolicyType } from "@/schemas/content-policies/policy"
 
-export default function ContentPoliciesPage() {
-  return <PoliciesList />
+interface ContentPoliciesPageProps {
+  searchParams: Promise<{ q?: string; status?: string; type?: string }>
+}
+
+export default async function ContentPoliciesPage({
+  searchParams,
+}: ContentPoliciesPageProps) {
+  const { q = "", status, type } = await searchParams
+  const allPolicies = await getPolicies()
+
+  return (
+    <PoliciesPage
+      allPolicies={allPolicies}
+      searchQuery={q}
+      statusFilters={parsePolicyListParam(status) as PolicyStatus[]}
+      typeFilters={parsePolicyListParam(type) as PolicyType[]}
+    />
+  )
 }

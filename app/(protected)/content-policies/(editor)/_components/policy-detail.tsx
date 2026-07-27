@@ -1,7 +1,6 @@
 "use client"
 
 import Link from "next/link"
-import { useParams, useRouter } from "next/navigation"
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -28,7 +27,9 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
+import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils"
 import {
   ScheduleSheet,
@@ -617,24 +618,31 @@ type PickedItem = {
   groupLabel: string
 }
 
+type PolicyEditorMode = "create" | "edit"
+
 type Props = {
-  policyId: string
+  mode: PolicyEditorMode
+  policyId?: string
 }
 
-export function PolicyDetail({ policyId }: Props) {
-  const router = useRouter()
+export function PolicyDetail({ mode, policyId: _policyId }: Props) {
+  const isCreateMode = mode === "create"
   const idCounterRef = useRef(100)
   const nextId = (prefix: string) => {
     idCounterRef.current += 1
     const c = idCounterRef.current
     return `${prefix}-${c}-${(c * 7919) % 100000}`
   }
-  const [rulesList, setRulesList] = useState<RuleItem[]>(mockRules)
-  const [selectedRuleId, setSelectedRuleId] = useState(mockRules[0].id)
+  const [rulesList, setRulesList] = useState<RuleItem[]>(
+    isCreateMode ? [] : mockRules
+  )
+  const [selectedRuleId, setSelectedRuleId] = useState<string | null>(
+    isCreateMode ? null : (mockRules[0]?.id ?? null)
+  )
   const [isActive, setIsActive] = useState(true)
-  const [webAddresses, setWebAddresses] = useState([
-    { id: "wa-1", tag: "M3 MAIN", url: "reallifeos.com" },
-  ])
+  const [webAddresses, setWebAddresses] = useState(
+    isCreateMode ? [] : [{ id: "wa-1", tag: "M3 MAIN", url: "reallifeos.com" }]
+  )
 
   const [isAddAddressOpen, setIsAddAddressOpen] = useState(false)
   const [addressInput, setAddressInput] = useState(
@@ -647,10 +655,13 @@ export function PolicyDetail({ policyId }: Props) {
     { id: string; url: string; mode: AddAddressMode; selected: boolean }[]
   >([])
 
-  const selectedRule =
-    rulesList.find((r) => r.id === selectedRuleId) ?? rulesList[0] ?? mockRules[0]
+  const selectedRule = selectedRuleId
+    ? rulesList.find((rule) => rule.id === selectedRuleId)
+    : undefined
 
-  const headerBadge = headerBadgeByType[selectedRule.type]
+  const headerBadge = selectedRule
+    ? headerBadgeByType[selectedRule.type]
+    : null
 
   const removeWebAddress = (id: string) => {
     setWebAddresses((prev) => prev.filter((a) => a.id !== id))
@@ -722,9 +733,13 @@ export function PolicyDetail({ policyId }: Props) {
     Record<string, PickedItem[]>
   >({})
 
-  const currentCategories = categoriesByRule[selectedRuleId] ?? []
-  const currentApps = appsByRule[selectedRuleId] ?? []
-  const currentAudience = audienceByRule[selectedRuleId] ?? []
+  const currentCategories = selectedRuleId
+    ? (categoriesByRule[selectedRuleId] ?? [])
+    : []
+  const currentApps = selectedRuleId ? (appsByRule[selectedRuleId] ?? []) : []
+  const currentAudience = selectedRuleId
+    ? (audienceByRule[selectedRuleId] ?? [])
+    : []
 
   // Picker open states
   const [isCategoryPickerOpen, setIsCategoryPickerOpen] = useState(false)
@@ -747,19 +762,23 @@ export function PolicyDetail({ policyId }: Props) {
     label: string
     groupId: CategoryGroupId
   }) => {
+    if (!selectedRuleId) return
+    const ruleId = selectedRuleId
     if (currentCategories.some((c) => c.id === item.id)) return
     setCategoriesByRule((prev) => ({
       ...prev,
-      [selectedRuleId]: [
-        ...(prev[selectedRuleId] ?? []),
+      [ruleId]: [
+        ...(prev[ruleId] ?? []),
         { id: item.id, label: item.label, groupLabel: catGroupLabelById(item.groupId) },
       ],
     }))
   }
   const removeCategory = (id: string) => {
+    if (!selectedRuleId) return
+    const ruleId = selectedRuleId
     setCategoriesByRule((prev) => ({
       ...prev,
-      [selectedRuleId]: (prev[selectedRuleId] ?? []).filter((c) => c.id !== id),
+      [ruleId]: (prev[ruleId] ?? []).filter((c) => c.id !== id),
     }))
   }
 
@@ -768,19 +787,23 @@ export function PolicyDetail({ policyId }: Props) {
     label: string
     groupId: AppGroupId
   }) => {
+    if (!selectedRuleId) return
+    const ruleId = selectedRuleId
     if (currentApps.some((c) => c.id === item.id)) return
     setAppsByRule((prev) => ({
       ...prev,
-      [selectedRuleId]: [
-        ...(prev[selectedRuleId] ?? []),
+      [ruleId]: [
+        ...(prev[ruleId] ?? []),
         { id: item.id, label: item.label, groupLabel: appGroupLabelById(item.groupId) },
       ],
     }))
   }
   const removeApp = (id: string) => {
+    if (!selectedRuleId) return
+    const ruleId = selectedRuleId
     setAppsByRule((prev) => ({
       ...prev,
-      [selectedRuleId]: (prev[selectedRuleId] ?? []).filter((c) => c.id !== id),
+      [ruleId]: (prev[ruleId] ?? []).filter((c) => c.id !== id),
     }))
   }
 
@@ -789,19 +812,23 @@ export function PolicyDetail({ policyId }: Props) {
     label: string
     groupId: AudienceGroupId
   }) => {
+    if (!selectedRuleId) return
+    const ruleId = selectedRuleId
     if (currentAudience.some((c) => c.id === item.id)) return
     setAudienceByRule((prev) => ({
       ...prev,
-      [selectedRuleId]: [
-        ...(prev[selectedRuleId] ?? []),
+      [ruleId]: [
+        ...(prev[ruleId] ?? []),
         { id: item.id, label: item.label, groupLabel: audGroupLabelById(item.groupId) },
       ],
     }))
   }
   const removeAudience = (id: string) => {
+    if (!selectedRuleId) return
+    const ruleId = selectedRuleId
     setAudienceByRule((prev) => ({
       ...prev,
-      [selectedRuleId]: (prev[selectedRuleId] ?? []).filter((c) => c.id !== id),
+      [ruleId]: (prev[ruleId] ?? []).filter((c) => c.id !== id),
     }))
   }
 
@@ -814,7 +841,9 @@ export function PolicyDetail({ policyId }: Props) {
   const [editingScheduleId, setEditingScheduleId] = useState<string | null>(null)
   const [scheduleSheetKey, setScheduleSheetKey] = useState(0)
 
-  const currentSchedules = schedulesByRule[selectedRuleId] ?? []
+  const currentSchedules = selectedRuleId
+    ? (schedulesByRule[selectedRuleId] ?? [])
+    : []
 
   const openAddSchedule = () => {
     setScheduleMode("add")
@@ -831,17 +860,20 @@ export function PolicyDetail({ policyId }: Props) {
   }
 
   const handleSaveSchedules = (blocks: ScheduleBlock[]) => {
+    if (!selectedRuleId) return
+    const ruleId = selectedRuleId
     setSchedulesByRule((prev) => ({
       ...prev,
-      [selectedRuleId]: blocks,
+      [ruleId]: blocks,
     }))
   }
 
   const removeScheduleItem = (scheduleId: string) => {
+    if (!selectedRuleId) return
+    const ruleId = selectedRuleId
     setSchedulesByRule((prev) => ({
       ...prev,
-      [selectedRuleId]:
-        prev[selectedRuleId]?.filter((s) => s.id !== scheduleId) ?? [],
+      [ruleId]: prev[ruleId]?.filter((s) => s.id !== scheduleId) ?? [],
     }))
   }
 
@@ -887,31 +919,32 @@ export function PolicyDetail({ policyId }: Props) {
   })
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
+      <div className="flex items-center gap-3">
         <Button
           variant="ghost"
-          size="sm"
-          className="gap-1 text-brand-text-muted hover:text-brand-text-heading"
-          onClick={() => router.push("/content-policies")}
+          size="icon-sm"
+          className="shrink-0 text-brand-text-muted hover:text-brand-primary"
+          asChild
         >
-          <ArrowLeft className="size-4" />
-          All Policies
+          <Link href="/content-policies" aria-label="Back to content policies">
+            <ArrowLeft className="size-5" />
+          </Link>
         </Button>
-      </div>
-
-      <div className="flex flex-col gap-4">
-        <div className="space-y-1.5">
-          <h1 className="text-2xl font-bold tracking-tight text-brand-text-heading md:text-[28px] md:leading-tight">
-            Content Policy
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold tracking-tight text-brand-text-heading md:text-3xl">
+            {isCreateMode ? "New Policy" : "Edit Policy"}
           </h1>
+          {!isCreateMode && _policyId ? (
+            <p className="mt-1 text-sm text-brand-text-muted">{_policyId}</p>
+          ) : null}
         </div>
       </div>
 
-      <div className="grid gap-0 rounded-xl border border-border/60 bg-white lg:grid-cols-[320px_minmax(0,1fr)] lg:overflow-hidden">
+      <div className="grid min-h-0 flex-1 gap-0 lg:grid-cols-[320px_minmax(0,1fr)]">
         {/* Left sidebar: Rules list */}
-        <div className="border-b border-border/60 lg:border-b-0 lg:border-r">
-          <div className="flex items-center justify-between gap-3 border-b border-border/60 px-5 py-4">
+        <aside className="border-border/60 lg:sticky lg:top-20 lg:z-10 lg:max-h-[calc(100svh-7rem)] lg:self-start lg:overflow-y-auto lg:border-b-0 lg:border-r lg:border-border/60">
+          <div className="flex items-center justify-between gap-3 border-border/60 px-5 py-4">
             <span className="text-sm font-semibold uppercase tracking-wider text-brand-text-muted">
               Rules
             </span>
@@ -1106,10 +1139,12 @@ export function PolicyDetail({ policyId }: Props) {
               )
             })}
           </div>
-        </div>
+        </aside>
 
         {/* Right side: Rule detail */}
         <div className="min-w-0">
+          {selectedRule && headerBadge ? (
+            <>
           {/* Rule header */}
           <div className="flex items-start justify-between gap-4 border-b border-border/60 px-5 py-4">
             <div className="flex items-center gap-3">
@@ -1132,31 +1167,21 @@ export function PolicyDetail({ policyId }: Props) {
                 <MoreHorizontal className="size-4" />
               </Button>
             </div>
-            <div className="flex items-center gap-2.5">
-              <span className="text-sm font-medium text-brand-text-heading">
-                Active
-              </span>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={isActive}
-                onClick={() => setIsActive((v) => !v)}
-                className={cn(
-                  "relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
-                  isActive ? "bg-brand-primary" : "bg-gray-200"
-                )}
+            <div className="flex items-center gap-3 rounded-md border border-border/60 bg-muted/20 px-3 py-2">
+              <Label
+                htmlFor="rule-active-switch"
+                className="cursor-pointer text-sm font-medium text-brand-text-heading"
               >
-                <span
-                  className={cn(
-                    "pointer-events-none inline-block size-5 rounded-full bg-white shadow ring-0 transition-transform",
-                    isActive ? "translate-x-5" : "translate-x-0.5"
-                  )}
-                >
-                  {isActive && (
-                    <Check className="absolute inset-0 m-auto size-3.5 text-brand-primary" />
-                  )}
-                </span>
-              </button>
+                Active
+              </Label>
+              <Switch
+                id="rule-active-switch"
+                size="lg"
+                showCheckedIcon
+                checked={isActive}
+                onCheckedChange={setIsActive}
+                className="data-checked:bg-brand-primary data-unchecked:bg-gray-200 focus-visible:ring-brand-primary/20 [&_[data-slot=switch-thumb]]:bg-white [&_[data-slot=switch-thumb]]:shadow-sm"
+              />
             </div>
           </div>
 
@@ -1892,6 +1917,19 @@ export function PolicyDetail({ policyId }: Props) {
 
           {/* Footer spacer */}
           <div className="h-4" />
+            </>
+          ) : (
+            <div className="flex min-h-[420px] flex-col items-center justify-center px-5 py-16 text-center">
+              <p className="text-base font-semibold text-brand-text-heading">
+                {isCreateMode ? "Create your first rule" : "Select a rule"}
+              </p>
+              <p className="mt-2 max-w-sm text-sm leading-relaxed text-brand-text-muted">
+                {isCreateMode
+                  ? "Add a rule from the left panel to start building this policy."
+                  : "Choose a rule from the list to view and edit its settings."}
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>
