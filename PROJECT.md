@@ -116,6 +116,8 @@ page.tsx (RSC fetch via lib/services)
 | `/sign-up` | Registration | `app/(auth)/sign-up/page.tsx` | `app/(auth)/sign-up/loading.tsx` | `sign-up-form`, `password-strength-indicator` | ✅ ready |
 | `/forget-password` | Password reset request | `app/(auth)/forget-password/page.tsx` | `app/(auth)/forget-password/loading.tsx` | `forget-password-form` | ✅ ready |
 | `/change-password` | Password change via reset token | `app/(auth)/change-password/page.tsx` | `app/(auth)/change-password/loading.tsx` | `change-password-form` | ✅ ready |
+| `/content-policies` | View all content policies list (allowlist/blocklist) | `app/(protected)/content-policies/page.tsx` | `app/(protected)/content-policies/loading.tsx` | `policies-list` | ✅ ready |
+| `/content-policies/[policyId]` | Single policy detail — rules, categories, apps, web addresses, audience, schedules | `app/(protected)/content-policies/[policyId]/page.tsx` | `app/(protected)/content-policies/[policyId]/loading.tsx` | `policy-detail` | ✅ ready |
 
 ### Shared Components
 
@@ -151,6 +153,10 @@ page.tsx (RSC fetch via lib/services)
 | PaymentMethodCard | `app/(protected)/billing/_components/payment-method-card.tsx` | Visual credit card + full billing metadata | `/billing` | ✅ ready |
 | AttachCardPanel | `app/(protected)/billing/_components/attach-card-panel.tsx` | Empty-state card attach UI (Stripe setup checkout) | `/billing` | ✅ ready |
 | BillingActionButton | `app/(protected)/billing/_components/billing-action-button.tsx` | Branded billing CTA button | `/billing` | ✅ ready |
+| PoliciesList | `app/(protected)/content-policies/_components/policies-list.tsx` | All policies list view with search, table & mobile cards | `/content-policies` | ✅ ready |
+| PolicyDetail | `app/(protected)/content-policies/[policyId]/_components/policy-detail.tsx` | Single policy rule editor with categories, apps, web, audience, schedules + right-side ScheduleSheet + Category/App/Audience PickerDialogs | `/content-policies/[policyId]` | ✅ ready |
+| ScheduleSheet | `app/(protected)/content-policies/[policyId]/_components/schedule-sheet.tsx` | Right-side Sheet with weekly 24h calendar grid — click-to-add, click-to-remove, drag-to-resize (15-min snap) | PolicyDetail schedules | ✅ ready |
+| PickerDialog | `app/(protected)/content-policies/[policyId]/_components/picker-dialog.tsx` | Centered modal with top search bar, grouped uppercase section headers (ADS, BUSINESS & ECONOMY, LOGIN EMAIL...), list rows with selected dot indicator — Add Category / Add App / Add Member flows | PolicyDetail Categories, Apps, Audience | ✅ ready |
 | ErrorAlert | `components/feedback/error-alert.tsx` | Generic error display | — | ⚪ not started |
 
 ### Supabase (`lib/supabase/`)
@@ -244,6 +250,9 @@ page.tsx (RSC fetch via lib/services)
 
 | Date | Change | Updated By |
 |------|--------|------------|
+| 2026-07-27 | Add Category / Add App / Add Member modal pickers: reusable `PickerDialog` centered modal with top search bar + ✕ close, uppercase section headers (ADS, BUSINESS & ECONOMY, LOGIN EMAIL...), group-labeled list with selected-row indicator. 10+ category groups, 80+ app titles, email/member audience lists. PolicyDetail Categories/Apps/Audience sections now show group-divided pill cards with hover remove action and live counts. | Agent |
+| 2026-07-27 | Schedule: right-side `ScheduleSheet` component with weekly 24h calendar grid (Sun-Sat x 24h, 15-min snap). Click empty space → add block, click block → remove, drag bottom handle → resize. "Add Rule Schedule" / "Edit Rule Schedule" header with subtitle instructions, Close + Save footer. PolicyDetail schedules section now shows day-grouped cards with edit/remove actions and opens sheet on Add/Edit. | Agent |
+| 2026-07-27 | Content Policies: `/content-policies` list page + `/content-policies/[policyId]` detail page with rules sidebar, categories, apps, web addresses, audience, schedules sections + saved-state pill | Agent |
 | 2026-07-23 | Billing: premium theme UI, visual payment card with full Stripe metadata, attach-card placeholder | Agent |
 | 2026-07-23 | Dashboard: full network-security UI on `/dashboard` — metrics cards, Recharts traffic chart, setup progress, blocked-activity table | Agent |
 | 2026-07-23 | Billing: AttachCardPanel empty state + setup checkout for all users without a card on file | Agent |
