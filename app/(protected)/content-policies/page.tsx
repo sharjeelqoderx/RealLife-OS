@@ -1,6 +1,6 @@
 import { PoliciesPage } from "@/app/(protected)/content-policies/_components/page-content"
 import { parsePolicyListParam } from "@/lib/content-policies/list-params"
-import { getPolicies } from "@/lib/services/content-policies/get-policies"
+import { listAccessPolicies } from "@/lib/services/content-policies/access-policies"
 import type { PolicyStatus, PolicyType } from "@/schemas/content-policies/policy"
 
 interface ContentPoliciesPageProps {
@@ -11,7 +11,13 @@ export default async function ContentPoliciesPage({
   searchParams,
 }: ContentPoliciesPageProps) {
   const { q = "", status, type } = await searchParams
-  const allPolicies = await getPolicies()
+
+  let allPolicies: Awaited<ReturnType<typeof listAccessPolicies>> = []
+  try {
+    allPolicies = await listAccessPolicies()
+  } catch (error) {
+    console.error("Failed to load access policies on server:", error)
+  }
 
   return (
     <PoliciesPage

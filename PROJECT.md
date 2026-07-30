@@ -117,7 +117,7 @@ page.tsx (RSC fetch via lib/services)
 | `/forget-password` | Password reset request | `app/(auth)/forget-password/page.tsx` | `app/(auth)/forget-password/loading.tsx` | `forget-password-form` | ✅ ready |
 | `/change-password` | Password change via reset token | `app/(auth)/change-password/page.tsx` | `app/(auth)/change-password/loading.tsx` | `change-password-form` | ✅ ready |
 | `/content-policies` | View all content policies list (allowlist/blocklist) | `app/(protected)/content-policies/page.tsx` | `app/(protected)/content-policies/loading.tsx` | `page-content`, `policy-table`, `policy-table-loading` | ✅ ready |
-| `/content-policies/new-policy` | Create new content policy — shared editor layout | `app/(protected)/content-policies/(editor)/new-policy/page.tsx` | `app/(protected)/content-policies/(editor)/new-policy/loading.tsx` | `policy-detail` | ✅ ready |
+| `/content-policies/new-policy` | Create Cloudflare Access policy (name, action, Include/Require/Exclude rules) | `app/(protected)/content-policies/(editor)/new-policy/page.tsx` | `app/(protected)/content-policies/(editor)/new-policy/loading.tsx` | `access-policy-form` | ✅ ready |
 | `/content-policies/[policyId]` | Edit existing policy — shared editor layout | `app/(protected)/content-policies/(editor)/[policyId]/page.tsx` | `app/(protected)/content-policies/(editor)/[policyId]/loading.tsx` | `policy-detail` | ✅ ready |
 
 ### Shared Components
@@ -155,11 +155,12 @@ page.tsx (RSC fetch via lib/services)
 | PaymentMethodCard | `app/(protected)/billing/_components/payment-method-card.tsx` | Visual credit card + full billing metadata | `/billing` | ✅ ready |
 | AttachCardPanel | `app/(protected)/billing/_components/attach-card-panel.tsx` | Empty-state card attach UI (Stripe setup checkout) | `/billing` | ✅ ready |
 | BillingActionButton | `app/(protected)/billing/_components/billing-action-button.tsx` | Branded billing CTA button | `/billing` | ✅ ready |
-| PoliciesPage | `app/(protected)/content-policies/_components/page-content.tsx` | Client shell with debounced URL search + filtered table | `/content-policies` | ✅ ready |
+| PoliciesPage | `app/(protected)/content-policies/_components/page-content.tsx` | Client shell with URL search/filters + Access policies table via React Query | `/content-policies` | ✅ ready |
 | PoliciesSearchInput | `app/(protected)/content-policies/_components/policies-search-input.tsx` | Debounced search input; updates `?q=` via `history.replaceState` | `/content-policies` | ✅ ready |
 | PolicyTable | `app/(protected)/content-policies/_components/policy-table.tsx` | Desktop table + mobile cards for policies | `/content-policies` | ✅ ready |
 | PolicyTableLoading | `app/(protected)/content-policies/_components/policy-table-loading.tsx` | Table-only loading skeleton | `/content-policies` | ✅ ready |
-| PolicyDetail | `app/(protected)/content-policies/(editor)/_components/policy-detail.tsx` | Policy rule editor (create + edit) with sticky rules sidebar, categories, apps, web, audience, schedules + ScheduleSheet + PickerDialogs | `/content-policies/new-policy`, `/content-policies/[policyId]` | ✅ ready |
+| AccessPolicyForm | `app/(protected)/content-policies/(editor)/new-policy/_components/access-policy-form.tsx` | Cloudflare-style Access policy create form (action + Include/Require/Exclude selectors) | `/content-policies/new-policy` | ✅ ready |
+| PolicyDetail | `app/(protected)/content-policies/(editor)/_components/policy-detail.tsx` | Legacy content-filter rule editor (edit route) with sticky rules sidebar, categories, apps, web, audience, schedules + ScheduleSheet + PickerDialogs | `/content-policies/[policyId]` | 🟡 legacy mock UI |
 | PolicyEditorLoading | `app/(protected)/content-policies/(editor)/_components/policy-editor-loading.tsx` | Shared editor skeleton (sticky sidebar + detail panel) | editor routes loading.tsx | ✅ ready |
 | ScheduleSheet | `app/(protected)/content-policies/(editor)/_components/schedule-sheet.tsx` | Right-side Sheet with weekly 24h calendar grid — click-to-add, click-to-remove, drag-to-resize (15-min snap) | PolicyDetail schedules | ✅ ready |
 | PickerDialog | `app/(protected)/content-policies/(editor)/_components/picker-dialog.tsx` | Centered modal with top search bar, grouped uppercase section headers (ADS, BUSINESS & ECONOMY, LOGIN EMAIL...), list rows with selected dot indicator — Add Category / Add App / Add Member flows | PolicyDetail Categories, Apps, Audience | ✅ ready |
@@ -203,7 +204,8 @@ page.tsx (RSC fetch via lib/services)
 | getBillingStatus / saveSubscription | `lib/services/billing/subscriptions.ts` | Subscription DB | billing-status + webhook | ✅ ready |
 | getBillingDetails / createBillingPortalSession | `lib/services/billing/details.ts` | Subscription + card + Stripe Customer Portal | billing-details + billing-portal APIs | ✅ ready |
 | processStripeWebhookEvent | `lib/services/billing/webhook.ts` | Event → handler → DB | `/api/stripe/webhook` | ✅ ready |
-| getPolicies | `lib/services/content-policies/get-policies.ts` | Content policies list (mock until DB) | `/content-policies` page | ✅ ready |
+| getPolicies | `lib/services/content-policies/get-policies.ts` | Content policies list helpers / mock filter | `/content-policies` client filter | ✅ ready |
+| listAccessPolicies / createAccessPolicy | `lib/services/content-policies/access-policies.ts` | Cloudflare Access app policies list + create | `/api/access-policies`, content-policies page | ✅ ready |
 
 ### API Routes (`app/api/`)
 
@@ -223,6 +225,8 @@ page.tsx (RSC fetch via lib/services)
 | `/api/stripe/billing-status` | GET | `getBillingStatus` | — | ✅ ready |
 | `/api/stripe/billing-details` | GET | `getBillingDetails` | — | ✅ ready |
 | `/api/stripe/billing-portal` | POST | `createBillingPortalSession` | — | ✅ ready |
+| `/api/access-policies` | GET | `listAccessPolicies` | — | ✅ ready |
+| `/api/access-policies` | POST | `createAccessPolicy` | `createAccessPolicySchema` | ✅ ready |
 
 ### Schemas (`schemas/`)
 
@@ -234,6 +238,7 @@ page.tsx (RSC fetch via lib/services)
 | `changePasswordSchema` | `schemas/auth/change-password.ts` | Change-password form + API | ✅ ready |
 | `createCheckoutSessionSchema` | `schemas/billing/checkout.ts` | Checkout API + paywall | ✅ ready |
 | `BillingDetailsResponse` | `schemas/billing/details.ts` | Billing page + APIs | ✅ ready |
+| `createAccessPolicySchema` | `schemas/content-policies/access-policy.ts` | Access policy form + `/api/access-policies` POST | ✅ ready |
 
 ### DB migrations (`supabase/migrations/`)
 
@@ -257,6 +262,7 @@ page.tsx (RSC fetch via lib/services)
 
 | Date | Change | Updated By |
 |------|--------|------------|
+| 2026-07-30 | Content Policies: Cloudflare-style Add Rule flow — `/content-policies/new-policy` form (name, Allow/Block/Bypass, Include/Require/Exclude selectors), Zod + service + POST `/api/access-policies`; list Add Rule navigates to form instead of dummy JSON | Agent |
 | 2026-07-27 | Policy editor: shared `(editor)` layout for `/content-policies/new-policy` + `/content-policies/[policyId]` — sticky rules sidebar, no card wrapper, create/edit modes in `PolicyDetail` | Agent |
 | 2026-07-27 | Content policies list: server `page.tsx` + `getPolicies` service; client `PoliciesPage` (search shell) + separate `PolicyTable` + `PolicyTableLoading` | Agent |
 | 2026-07-27 | Add Category / Add App / Add Member modal pickers: reusable `PickerDialog` centered modal with top search bar + ✕ close, uppercase section headers (ADS, BUSINESS & ECONOMY, LOGIN EMAIL...), group-labeled list with selected-row indicator. 10+ category groups, 80+ app titles, email/member audience lists. PolicyDetail Categories/Apps/Audience sections now show group-divided pill cards with hover remove action and live counts. | Agent |

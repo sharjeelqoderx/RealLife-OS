@@ -2,12 +2,15 @@
 
 import Link from "next/link"
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { useQuery } from "@tanstack/react-query"
 import { Plus } from "lucide-react"
 
 import { PoliciesMultiSelectFilter } from "@/app/(protected)/content-policies/_components/policies-multi-select-filter"
 import { PoliciesSearchInput } from "@/app/(protected)/content-policies/_components/policies-search-input"
 import { PolicyTable } from "@/app/(protected)/content-policies/_components/policy-table"
+import { PolicyTableLoading } from "@/app/(protected)/content-policies/_components/policy-table-loading"
 import { Button } from "@/components/ui/button"
+import { apiClient } from "@/lib/api/client"
 import {
   POLICY_STATUS_OPTIONS,
   POLICY_TYPE_OPTIONS,
@@ -15,6 +18,7 @@ import {
   serializePolicyListParam,
   updatePolicyListUrlParam,
 } from "@/lib/content-policies/list-params"
+import { queryKeys } from "@/lib/query/keys"
 import { filterPolicies } from "@/lib/services/content-policies/get-policies"
 import type {
   PolicyListItem,
@@ -39,6 +43,12 @@ export function PoliciesPage({
   const [statusFilters, setStatusFilters] =
     useState<PolicyStatus[]>(initialStatusFilters)
   const [typeFilters, setTypeFilters] = useState<PolicyType[]>(initialTypeFilters)
+
+  const policiesQuery = useQuery({
+    queryKey: queryKeys.accessPolicies.list(),
+    queryFn: () => apiClient<PolicyListItem[]>("/api/access-policies"),
+    initialData: allPolicies.length > 0 ? allPolicies : undefined,
+  })
 
   const handleQueryChange = useCallback((nextQuery: string) => {
     setQuery(nextQuery)
@@ -69,18 +79,20 @@ export function PoliciesPage({
     return () => window.removeEventListener("popstate", handlePopState)
   }, [])
 
+  const sourcePolicies = policiesQuery.data ?? []
+
   const policies = useMemo(
     () =>
-      filterPolicies(allPolicies, {
+      filterPolicies(sourcePolicies, {
         query,
         statuses: statusFilters,
         types: typeFilters,
       }),
-    [allPolicies, query, statusFilters, typeFilters]
+    [sourcePolicies, query, statusFilters, typeFilters]
   )
 
   const statusFilterCount = useMemo(() => {
-    const basePolicies = filterPolicies(allPolicies, {
+    const basePolicies = filterPolicies(sourcePolicies, {
       query,
       types: typeFilters,
     })
@@ -92,10 +104,10 @@ export function PoliciesPage({
     return basePolicies.filter((policy) =>
       statusFilters.includes(policy.status)
     ).length
-  }, [allPolicies, query, statusFilters, typeFilters])
+  }, [sourcePolicies, query, statusFilters, typeFilters])
 
   const typeFilterCount = useMemo(() => {
-    const basePolicies = filterPolicies(allPolicies, {
+    const basePolicies = filterPolicies(sourcePolicies, {
       query,
       statuses: statusFilters,
     })
@@ -106,7 +118,7 @@ export function PoliciesPage({
 
     return basePolicies.filter((policy) => typeFilters.includes(policy.type))
       .length
-  }, [allPolicies, query, statusFilters, typeFilters])
+  }, [sourcePolicies, query, statusFilters, typeFilters])
 
   return (
     <div className="flex min-h-[calc(100svh-8rem)] flex-col gap-6">
@@ -116,8 +128,8 @@ export function PoliciesPage({
             Content Policies
           </h1>
           <p className="text-sm text-brand-text-muted">
-            Manage allowlists, blocklists, and content filtering rules for your
-            network.
+            Manage Cloudflare Access allow, block, and bypass policies for your
+            application.
           </p>
         </div>
         <Button size="lg" className="shrink-0" asChild>
@@ -153,7 +165,17 @@ export function PoliciesPage({
       </div>
 
       <div className="flex-1">
-        <PolicyTable policies={policies} />
+        {policiesQuery.isLoading ? (
+          <PolicyTableLoading />
+        ) : policiesQuery.isError ? (
+          <p role="alert" className="text-sm text-destructive">
+            {policiesQuery.error instanceof Error
+              ? policiesQuery.error.message
+              : "Failed to load policies"}
+          </p>
+        ) : (
+          <PolicyTable policies={policies} />
+        )}
       </div>
     </div>
   )

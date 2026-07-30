@@ -9,4 +9,8 @@ export const queryKeys = {
     status: () => [...queryKeys.billing.all, "status"] as const,
     details: () => [...queryKeys.billing.all, "details"] as const,
   },
+  accessPolicies: {
+    all: ["access-policies"] as const,
+    list: () => [...queryKeys.accessPolicies.all, "list"] as const,
+  },
 } as const
