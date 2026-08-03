@@ -1,5 +1,5 @@
-import { AccessPolicyForm } from "@/app/(protected)/content-policies/(editor)/new-policy/_components/access-policy-form"
+import { PolicyDetail } from "@/app/(protected)/content-policies/(editor)/_components/policy-detail"
 
 export default function NewPolicyPage() {
-  return <AccessPolicyForm />
+  return <PolicyDetail mode="create" />
 }

@@ -39,6 +39,7 @@ import {
   PickerDialog,
   type PickerGroup,
 } from "./picker-dialog"
+import { AccessPolicyForm } from "./access-policy-form"
 
 type PolicyType = "allow" | "block" | "ytrestricted" | "safesearch"
 
@@ -626,7 +627,11 @@ type Props = {
 }
 
 export function PolicyDetail({ mode, policyId: _policyId }: Props) {
-  const isCreateMode = mode === "create"
+  if (mode === "create") {
+    return <AccessPolicyForm />
+  }
+
+  const isCreateMode = false
   const idCounterRef = useRef(100)
   const nextId = (prefix: string) => {
     idCounterRef.current += 1
@@ -953,10 +958,7 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
               onOpenChange={setIsCreateRuleOpen}
             >
               <DialogTrigger asChild>
-                <Button
-                  size="default"
-                  className="h-9 gap-2 px-4 text-sm font-semibold bg-brand-primary text-brand-primary-foreground shadow-md shadow-brand-primary/20 hover:bg-brand-primary/90"
-                >
+                <Button type="button" className="h-9 gap-2 px-4">
                   <Plus className="size-4" />
                   Add Rule
                 </Button>
@@ -1199,13 +1201,13 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
                   </span>
                 </div>
                 <Button
-                  variant="outline"
+                  variant="brandOutline"
                   size="sm"
+                  className="h-8 gap-1.5"
                   onClick={() => {
                     setCategoryPickerKey((k) => k + 1)
                     setIsCategoryPickerOpen(true)
                   }}
-                  className="h-8 gap-1.5 border-brand-primary/50 text-brand-primary hover:bg-brand-primary/5 hover:text-brand-primary"
                 >
                   <Plus className="size-3.5" />
                   Add category
@@ -1308,13 +1310,13 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
                   </span>
                 </div>
                 <Button
-                  variant="outline"
+                  variant="brandOutline"
                   size="sm"
+                  className="h-8 gap-1.5"
                   onClick={() => {
                     setAppPickerKey((k) => k + 1)
                     setIsAppPickerOpen(true)
                   }}
-                  className="h-8 gap-1.5 border-brand-primary/50 text-brand-primary hover:bg-brand-primary/5 hover:text-brand-primary"
                 >
                   <Plus className="size-3.5" />
                   Add app
@@ -1419,11 +1421,7 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
                 </div>
                 <Dialog open={isAddAddressOpen} onOpenChange={setIsAddAddressOpen}>
                   <DialogTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-8 gap-1.5 border-brand-primary/50 text-brand-primary hover:bg-brand-primary/5 hover:text-brand-primary"
-                    >
+                    <Button variant="brandOutline" size="sm" className="h-8 gap-1.5">
                       <Plus className="size-3.5" />
                       Add address
                     </Button>
@@ -1456,7 +1454,7 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
                           <Button
                             type="button"
                             onClick={handleDetectAddresses}
-                            className="h-auto rounded-none px-6 text-sm font-semibold bg-brand-primary text-brand-primary-foreground hover:bg-brand-primary/90 shadow-none border-l border-brand-primary/20"
+                            className="h-auto rounded-none border-l border-brand-primary/20 px-6 shadow-none"
                           >
                             Add
                           </Button>
@@ -1563,12 +1561,11 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
                         size="lg"
                         disabled={!hasAnyPendingSelected}
                         onClick={addSelectedAddresses}
-                        className={cn(
-                          "h-11 gap-2 px-6 text-sm font-semibold shadow-md",
+                        className={
                           hasAnyPendingSelected
-                            ? "bg-brand-primary text-brand-primary-foreground hover:bg-brand-primary/90 shadow-brand-primary/20"
-                            : "bg-brand-primary/25 text-white cursor-not-allowed shadow-none hover:bg-brand-primary/25"
-                        )}
+                            ? undefined
+                            : "bg-brand-primary/25 text-white shadow-none hover:bg-brand-primary/25"
+                        }
                       >
                         Add Selections
                       </Button>
@@ -1643,13 +1640,13 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
                   </span>
                 </div>
                 <Button
-                  variant="outline"
+                  variant="brandOutline"
                   size="sm"
+                  className="h-8 gap-1.5"
                   onClick={() => {
                     setAudiencePickerKey((k) => k + 1)
                     setIsAudiencePickerOpen(true)
                   }}
-                  className="h-8 gap-1.5 border-brand-primary/50 text-brand-primary hover:bg-brand-primary/5 hover:text-brand-primary"
                 >
                   <Plus className="size-3.5" />
                   Add member
@@ -1735,10 +1732,10 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
                   </span>
                 </div>
                 <Button
-                  variant="outline"
+                  variant="brandOutline"
                   size="sm"
+                  className="h-8 gap-1.5"
                   onClick={openAddSchedule}
-                  className="h-8 gap-1.5 border-brand-primary/50 text-brand-primary hover:bg-brand-primary/5 hover:text-brand-primary"
                 >
                   <Plus className="size-3.5" />
                   Add schedule
@@ -1893,10 +1890,7 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
 
             {/* Save status */}
             <div className="flex justify-end pt-2">
-              <Button
-                size="lg"
-                className="h-11 gap-2 px-5 text-sm font-semibold bg-brand-primary text-brand-primary-foreground shadow-md shadow-brand-primary/20 hover:bg-brand-primary/90"
-              >
+              <Button size="lg">
                 <svg
                   viewBox="0 0 24 24"
                   fill="none"
@@ -2007,11 +2001,7 @@ function SectionBlock({
           </h3>
           <span className="text-sm text-brand-text-muted">({count})</span>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-8 gap-1.5 border-brand-primary/50 text-brand-primary hover:bg-brand-primary/5 hover:text-brand-primary"
-        >
+        <Button variant="brandOutline" size="sm" className="h-8 gap-1.5">
           <Plus className="size-3.5" />
           {addLabel}
         </Button>

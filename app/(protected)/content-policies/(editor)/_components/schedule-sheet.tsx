@@ -456,16 +456,11 @@ export function ScheduleSheet({
             <Button
               variant="outline"
               size="lg"
-              className="h-11 px-6 text-sm font-semibold bg-white hover:bg-gray-100"
               onClick={() => onOpenChange(false)}
             >
               Close
             </Button>
-            <Button
-              size="lg"
-              onClick={handleSave}
-              className="h-11 gap-2 px-6 text-sm font-semibold bg-brand-primary text-brand-primary-foreground shadow-md shadow-brand-primary/20 hover:bg-brand-primary/90"
-            >
+            <Button size="lg" onClick={handleSave}>
               <svg
                 viewBox="0 0 24 24"
                 fill="none"
