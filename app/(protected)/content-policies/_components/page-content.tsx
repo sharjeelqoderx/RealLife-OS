@@ -45,8 +45,8 @@ export function PoliciesPage({
   const [typeFilters, setTypeFilters] = useState<PolicyType[]>(initialTypeFilters)
 
   const policiesQuery = useQuery({
-    queryKey: queryKeys.accessPolicies.list(),
-    queryFn: () => apiClient<PolicyListItem[]>("/api/access-policies"),
+    queryKey: queryKeys.gatewayPolicies.list(),
+    queryFn: () => apiClient<PolicyListItem[]>("/api/gateway-policies"),
     initialData: allPolicies.length > 0 ? allPolicies : undefined,
   })
 

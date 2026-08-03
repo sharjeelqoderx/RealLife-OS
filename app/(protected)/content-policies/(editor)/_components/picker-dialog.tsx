@@ -7,9 +7,10 @@ import {
   DialogContent,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { CustomSpinner } from "@/components/feedback/custom-spinner"
 import { cn } from "@/lib/utils"
 
-export type PickerGroup<T extends string> = {
+export type PickerGroup<T extends string = string> = {
   id: T
   label: string
   items: { id: string; label: string }[]
@@ -22,6 +23,8 @@ type Props<TGroupId extends string> = {
   groups: PickerGroup<TGroupId>[]
   selectedIds?: string[]
   onSelect?: (item: { id: string; label: string; groupId: TGroupId }) => void
+  isLoading?: boolean
+  errorMessage?: string
 }
 
 export function PickerDialog<TGroupId extends string>({
@@ -31,6 +34,8 @@ export function PickerDialog<TGroupId extends string>({
   groups,
   selectedIds = [],
   onSelect,
+  isLoading = false,
+  errorMessage,
 }: Props<TGroupId>) {
   const [query, setQuery] = useState("")
 
@@ -60,7 +65,6 @@ export function PickerDialog<TGroupId extends string>({
         showCloseButton={false}
         className="w-[92vw] max-w-[620px] p-0 gap-0 sm:max-w-[620px] bg-white rounded-[20px] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.15)] ring-0 border-0"
       >
-        {/* Search bar */}
         <div className="flex items-center gap-3 px-6 pt-6 pb-5">
           <div className="flex flex-1 items-center gap-3">
             <Search className="size-5 shrink-0 text-brand-text-muted" />
@@ -83,9 +87,19 @@ export function PickerDialog<TGroupId extends string>({
 
         <div className="h-px bg-border/60 mx-6" />
 
-        {/* Grouped list */}
         <div className="max-h-[520px] overflow-y-auto px-3 py-3">
-          {filteredGroups.length === 0 ? (
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center gap-3 px-4 py-16 text-sm text-brand-text-muted">
+              <CustomSpinner className="size-5 text-brand-primary" />
+            </div>
+          ) : errorMessage ? (
+            <div
+              role="alert"
+              className="flex flex-col items-center justify-center px-4 py-16 text-center text-sm text-destructive"
+            >
+              {errorMessage}
+            </div>
+          ) : filteredGroups.length === 0 ? (
             <div className="flex flex-col items-center justify-center px-4 py-16 text-center text-sm text-brand-text-muted">
               No results.
             </div>
@@ -113,7 +127,7 @@ export function PickerDialog<TGroupId extends string>({
                         >
                           <span className="truncate pr-4">{item.label}</span>
                           {isSelected && (
-                            <span className="ml-auto shrink-0 rounded-full size-2 bg-brand-primary" />
+                            <span className="ml-auto size-2 shrink-0 rounded-full bg-brand-primary" />
                           )}
                         </button>
                       )

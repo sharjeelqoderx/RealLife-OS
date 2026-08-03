@@ -2,8 +2,11 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Copy, Eye, Flame, Pencil, Trash2 } from "lucide-react"
+import { useState } from "react"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { Eye, Flame, Pencil, Trash2 } from "lucide-react"
 
+import { ErrorAlert } from "@/components/feedback"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -12,6 +15,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,8 +38,18 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import {
+  policyTableCardClassName,
+  policyTableCellClassName,
+  policyTableClassName,
+  policyTableColgroup,
+  policyTableHeadClassName,
+} from "@/app/(protected)/content-policies/_components/policy-table-layout"
+import { ApiError, apiClient } from "@/lib/api/client"
+import { queryKeys } from "@/lib/query/keys"
 import { cn } from "@/lib/utils"
 import type { PolicyListItem, PolicyType } from "@/schemas/content-policies/policy"
+import { CustomSpinner } from "@/components/feedback/custom-spinner"
 
 export interface PolicyTableProps {
   policies: PolicyListItem[]
@@ -41,14 +62,22 @@ const badgeClassByType: Record<PolicyType, string> = {
   safesearch: "bg-blue-800 text-white hover:bg-blue-800",
 }
 
-const cardClassName = "rounded-md bg-brand-surface ring-0 shadow-none"
+const cardClassName = policyTableCardClassName
+const tableHeadClassName = policyTableHeadClassName
+const tableCellClassName = policyTableCellClassName
 
-const tableHeadClassName =
-  "h-8 border-b border-border/60 bg-muted/40 px-4 py-1.5 align-middle text-[11px] font-semibold tracking-wide text-brand-text-muted uppercase first:rounded-tl-xl last:rounded-tr-xl"
+type PendingDelete = {
+  id: string
+  name: string
+}
 
-const tableCellClassName = "px-4 py-2 align-middle text-xs"
-
-function PolicyRowActions({ policyId }: { policyId: string }) {
+function PolicyRowActions({
+  policy,
+  onRequestDelete,
+}: {
+  policy: PolicyListItem
+  onRequestDelete: (policy: PendingDelete) => void
+}) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -69,25 +98,24 @@ function PolicyRowActions({ policyId }: { policyId: string }) {
         onClick={(event) => event.stopPropagation()}
       >
         <DropdownMenuItem asChild className="gap-2 px-2 py-1.5 text-xs">
-          <Link href={`/content-policies/${policyId}`}>
+          <Link href={`/content-policies/${policy.id}`}>
             <Eye className="size-3.5" />
             View
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild className="gap-2 px-2 py-1.5 text-xs">
-          <Link href={`/content-policies/${policyId}`}>
+          <Link href={`/content-policies/${policy.id}/edit`}>
             <Pencil className="size-3.5" />
             Edit
           </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem className="gap-2 px-2 py-1.5 text-xs">
-          <Copy className="size-3.5" />
-          Duplicate
         </DropdownMenuItem>
         <DropdownMenuSeparator className="my-1" />
         <DropdownMenuItem
           variant="destructive"
           className="gap-2 px-2 py-1.5 text-xs"
+          onSelect={() => {
+            onRequestDelete({ id: policy.id, name: policy.name })
+          }}
         >
           <Trash2 className="size-3.5" />
           Delete
@@ -99,12 +127,51 @@ function PolicyRowActions({ policyId }: { policyId: string }) {
 
 export function PolicyTable({ policies }: PolicyTableProps) {
   const router = useRouter()
+  const queryClient = useQueryClient()
+  const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null)
+  const [deleteError, setDeleteError] = useState("")
+
+  const deleteMutation = useMutation({
+    mutationFn: (policyId: string) =>
+      apiClient<{ ok: boolean }>(`/api/gateway-policies/${policyId}`, {
+        method: "DELETE",
+      }),
+    onSuccess: (_data, policyId) => {
+      setPendingDelete(null)
+      setDeleteError("")
+      queryClient.setQueryData<PolicyListItem[]>(
+        queryKeys.gatewayPolicies.list(),
+        (current) => (current ?? []).filter((policy) => policy.id !== policyId)
+      )
+    },
+    onError: (error) => {
+      setDeleteError(
+        error instanceof ApiError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : "Failed to delete policy"
+      )
+    },
+  })
 
   return (
     <>
+      {deleteError && !pendingDelete ? (
+        <div className="mb-4">
+          <ErrorAlert message={deleteError} />
+        </div>
+      ) : null}
+
       <div className="grid gap-4 lg:hidden">
         {policies.map((policy) => (
-          <Card key={policy.id} className={cn(cardClassName, "gap-0 py-0")}>
+          <Card
+            key={policy.id}
+            className={cn(cardClassName, "cursor-pointer gap-0 py-0")}
+            onClick={() => {
+              router.push(`/content-policies/${policy.id}`)
+            }}
+          >
             <CardHeader className="rounded-none border-b border-border/60 py-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 space-y-1.5">
@@ -132,7 +199,13 @@ export function PolicyTable({ policies }: PolicyTableProps) {
                     </Badge>
                   </div>
                 </div>
-                <PolicyRowActions policyId={policy.id} />
+                <PolicyRowActions
+                  policy={policy}
+                  onRequestDelete={(next) => {
+                    setDeleteError("")
+                    setPendingDelete(next)
+                  }}
+                />
               </div>
             </CardHeader>
             <CardContent className="py-3">
@@ -152,7 +225,12 @@ export function PolicyTable({ policies }: PolicyTableProps) {
         )}
       >
         <CardContent className="p-0">
-          <Table className="text-xs">
+          <Table className={policyTableClassName}>
+            <colgroup>
+              {policyTableColgroup.map((col) => (
+                <col key={col.key} style={{ width: col.width }} />
+              ))}
+            </colgroup>
             <TableHeader className="[&_tr]:border-0">
               <TableRow className="border-0 hover:bg-transparent">
                 <TableHead className={tableHeadClassName}>Policy Name</TableHead>
@@ -220,7 +298,13 @@ export function PolicyTable({ policies }: PolicyTableProps) {
                     className={cn(tableCellClassName, "text-right")}
                   >
                     <div className="flex justify-end">
-                      <PolicyRowActions policyId={policy.id} />
+                      <PolicyRowActions
+                        policy={policy}
+                        onRequestDelete={(next) => {
+                          setDeleteError("")
+                          setPendingDelete(next)
+                        }}
+                      />
                     </div>
                   </TableCell>
                 </TableRow>
@@ -239,6 +323,59 @@ export function PolicyTable({ policies }: PolicyTableProps) {
           </Table>
         </CardContent>
       </Card>
+
+      <Dialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => {
+          if (!open && !deleteMutation.isPending) {
+            setPendingDelete(null)
+            setDeleteError("")
+          }
+        }}
+      >
+        <DialogContent showCloseButton={!deleteMutation.isPending}>
+          <DialogHeader>
+            <DialogTitle>Delete policy?</DialogTitle>
+            <DialogDescription>
+              This permanently deletes{" "}
+              <span className="font-medium text-brand-text-heading">
+                {pendingDelete?.name ?? "this policy"}
+              </span>
+              . This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          {deleteError ? <ErrorAlert message={deleteError} /> : null}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={deleteMutation.isPending}
+              onClick={() => {
+                setPendingDelete(null)
+                setDeleteError("")
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={deleteMutation.isPending || !pendingDelete}
+              className="flex items-center gap-2"
+              onClick={() => {
+                if (!pendingDelete) return
+                setDeleteError("")
+                deleteMutation.mutate(pendingDelete.id)
+              }}
+            >
+              {
+                (deleteMutation.isPending || !pendingDelete) && <CustomSpinner />
+              }
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

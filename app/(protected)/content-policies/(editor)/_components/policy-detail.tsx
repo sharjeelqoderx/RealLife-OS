@@ -1,6 +1,6 @@
 "use client"
 
-import Link from "next/link"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -16,8 +16,11 @@ import {
   Users2,
   X,
 } from "lucide-react"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { useRef, useState } from "react"
 
+import { CustomSpinner } from "@/components/feedback/custom-spinner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -30,16 +33,23 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
+import { apiClient } from "@/lib/api/client"
+import { queryKeys } from "@/lib/query/keys"
 import { cn } from "@/lib/utils"
-import {
-  ScheduleSheet,
-  type ScheduleBlock,
-} from "./schedule-sheet"
+import type { CreateGatewayPolicyInput } from "@/schemas/content-policies/gateway-policy"
+import type {
+  GatewayPreset,
+  GatewayPresetsResponse,
+} from "@/schemas/content-policies/gateway-preset"
+import type { PolicyListItem } from "@/schemas/content-policies/policy"
 import {
   PickerDialog,
   type PickerGroup,
 } from "./picker-dialog"
-import { AccessPolicyForm } from "./access-policy-form"
+import {
+  ScheduleSheet,
+  type ScheduleBlock,
+} from "./schedule-sheet"
 
 type PolicyType = "allow" | "block" | "ytrestricted" | "safesearch"
 
@@ -136,161 +146,25 @@ type GeneralRuleOption = {
 const generalRuleOptions: GeneralRuleOption[] = [
   {
     type: "block",
-    title: "",
-    description:
-      "Block access to categories, apps, and domains.",
+    title: "Block",
+    description: "Block access to categories, apps, and domains.",
   },
   {
     type: "allow",
-    title: "",
-    description:
-      "Whitelist something that is blocked in another rule.",
+    title: "Allow",
+    description: "Whitelist something that is blocked in another rule.",
   },
   {
     type: "ytrestricted",
-    title: "",
+    title: "YouTube Restricted",
     description:
       "Enforces restricted mode on YouTube to filter out mature content.",
   },
-]
-
-type PresetRuleOption = {
-  id: string
-  type: PolicyType
-  name: string
-  description: string
-  badgeText?: string
-}
-
-const presetRuleOptions: PresetRuleOption[] = [
   {
-    id: "pr-safe",
     type: "safesearch",
-    name: "Enforce SafeSearch",
+    title: "SafeSearch",
     description:
       "Enforces SafeSearch if supported by a search engine.",
-    badgeText: "SAFESEARCH",
-  },
-  {
-    id: "pr-adult",
-    type: "block",
-    name: "Adult Content",
-    description:
-      "Restrict access to pornographic content and optional sub-categories that are adult themed.",
-    badgeText: "BLOCK",
-  },
-  {
-    id: "pr-vpn",
-    type: "block",
-    name: "VPNs and Proxies",
-    description:
-      "Restrict access to VPN and Proxy services that can anonymize web traffic.",
-    badgeText: "BLOCK",
-  },
-  {
-    id: "pr-apple-maps",
-    type: "block",
-    name: "Apple Maps Images",
-    description: "Block images from displaying in Apple Maps.",
-    badgeText: "BLOCK",
-  },
-  {
-    id: "pr-google-maps",
-    type: "block",
-    name: "Google Maps Images",
-    description: "Block images from displaying in Google Maps.",
-    badgeText: "BLOCK",
-  },
-  {
-    id: "pr-imsg-gifs",
-    type: "block",
-    name: "Block GIFs in iMessage",
-    description:
-      "Block GIFs that can be browsed in iMessage using the #images option.",
-    badgeText: "BLOCK",
-  },
-  {
-    id: "pr-twitter-imgs",
-    type: "block",
-    name: "Twitter (X) Images",
-    description:
-      "Block profile icons and most embedded images on twitter.com (x.com).",
-    badgeText: "BLOCK",
-  },
-  {
-    id: "pr-twitter-vids",
-    type: "block",
-    name: "Twitter (X) Videos",
-    description: "Block most embedded videos on twitter.com (x.com).",
-    badgeText: "BLOCK",
-  },
-  {
-    id: "pr-twitch-imgs",
-    type: "block",
-    name: "Twitch.tv Images",
-    description: "Block profile icons and video thumbnails on Twitch.tv.",
-    badgeText: "BLOCK",
-  },
-  {
-    id: "pr-spotify-imgs",
-    type: "block",
-    name: "Spotify Images",
-    description:
-      "Block most album and playlist images from displaying in Spotify.",
-    badgeText: "BLOCK",
-  },
-  {
-    id: "pr-spotify-vids",
-    type: "block",
-    name: "Spotify Videos",
-    description: "Block most video content from playing in Spotify.",
-    badgeText: "BLOCK",
-  },
-  {
-    id: "pr-net-downtime",
-    type: "block",
-    name: "Internet Downtime",
-    description:
-      "Turn off the Internet at night. Allow specific apps or categories during downtime using an Allow rule.",
-    badgeText: "BLOCK",
-  },
-  {
-    id: "pr-security",
-    type: "block",
-    name: "Security Threats",
-    description:
-      "Prevent security threats like phishing and less-obvious security risks like new domains.",
-    badgeText: "BLOCK",
-  },
-  {
-    id: "pr-yt-imgs",
-    type: "block",
-    name: "YouTube Images",
-    description: "Block YouTube video and shorts thumbnails.",
-    badgeText: "BLOCK",
-  },
-  {
-    id: "pr-reddit-media",
-    type: "block",
-    name: "Reddit Media",
-    description: "Block post thumbnails and most embedded media on reddit.com.",
-    badgeText: "BLOCK",
-  },
-  {
-    id: "pr-imsg-gifs-2",
-    type: "block",
-    name: "Block GIFs in iMessage",
-    description:
-      "Block GIFs that can be browsed in iMessage using the #images option.",
-    badgeText: "BLOCK",
-  },
-  {
-    id: "pr-spotlight",
-    type: "block",
-    name: "Block Spotlight Image Results",
-    description:
-      "Block images that can be browsed in Spotlight search on both iOS and macOS.",
-    badgeText: "BLOCK",
   },
 ]
 
@@ -303,7 +177,7 @@ const presetBadgeClass: Record<PolicyType, string> = {
 
 
 const headerBadgeByType: Record<PolicyType, { text: string; class: string }> = {
-  allow: { text: "ALL3W", class: "bg-green-700 text-white hover:bg-green-700" },
+  allow: { text: "ALLOW", class: "bg-green-700 text-white hover:bg-green-700" },
   block: { text: "BLOCK", class: "bg-red-600 text-white hover:bg-red-600" },
   ytrestricted: {
     text: "YTRES",
@@ -315,303 +189,51 @@ const headerBadgeByType: Record<PolicyType, { text: string; class: string }> = {
   },
 }
 
+function formatPolicyTypeLabel(type: PolicyType): string {
+  if (type === "ytrestricted") return "YouTube Restricted"
+  if (type === "safesearch") return "SafeSearch"
+  if (type === "allow") return "Allow"
+  return "Block"
+}
+
+type CreatedGatewayRule = {
+  id?: string
+  name?: string
+  action?: string
+  enabled?: boolean
+  created_at?: string
+  updated_at?: string
+}
+
+function toPolicyListItem(
+  rule: CreatedGatewayRule,
+  payload: CreateGatewayPolicyInput
+): PolicyListItem | null {
+  const id = rule.id?.trim()
+  if (!id) return null
+
+  const updatedAt = rule.updated_at ?? rule.created_at
+  return {
+    id,
+    name: rule.name?.trim() || payload.name,
+    type: payload.type,
+    typeLabel: formatPolicyTypeLabel(payload.type),
+    rulesCount: 1,
+    status:
+      rule.enabled === false || payload.enabled === false
+        ? "inactive"
+        : "active",
+    updatedAt: updatedAt
+      ? new Date(updatedAt).toLocaleDateString()
+      : new Date().toLocaleDateString(),
+  }
+}
+
 type AddAddressMode = "auto" | "address" | "keyword"
 
-type CategoryGroupId = "ads" | "business" | "communication" | "games" | "lifestyle" | "mature" | "newsgov" | "porn" | "security" | "social" | "streaming" | "tech" | "transport"
-type AppGroupId = CategoryGroupId
-type AudienceGroupId = "email" | "name"
-
-const CATEGORY_GROUPS: PickerGroup<CategoryGroupId>[] = [
-  {
-    id: "ads",
-    label: "ADS",
-    items: [
-      { id: "cat-ads-adv", label: "Advertisements" },
-      { id: "cat-ads-mal", label: "Malvertising" },
-    ],
-  },
-  {
-    id: "business",
-    label: "BUSINESS & ECONOMY",
-    items: [
-      { id: "cat-biz-brokerage", label: "Brokerage & Investing" },
-      { id: "cat-biz-business", label: "Business" },
-      { id: "cat-biz-crypto", label: "Cryptocurrency" },
-      { id: "cat-biz-econ", label: "Economy & Finance" },
-      { id: "cat-biz-jobs", label: "Job Search" },
-      { id: "cat-biz-law", label: "Legal" },
-      { id: "cat-biz-realestate", label: "Real Estate" },
-    ],
-  },
-  {
-    id: "communication",
-    label: "COMMUNICATION",
-    items: [
-      { id: "cat-com-chat", label: "Chat & Instant Messaging" },
-      { id: "cat-com-email", label: "Email" },
-      { id: "cat-com-forums", label: "Forums & Message Boards" },
-      { id: "cat-com-phone", label: "VOIP & Phone Services" },
-    ],
-  },
-  {
-    id: "games",
-    label: "GAMES",
-    items: [
-      { id: "cat-gam-arcade", label: "Arcade & Classics" },
-      { id: "cat-gam-casino", label: "Casino & Gambling" },
-      { id: "cat-gam-mmo", label: "MMO Games" },
-      { id: "cat-gam-moba", label: "MOBA & Competitive" },
-      { id: "cat-gam-rpg", label: "RPG Games" },
-      { id: "cat-gam-shooter", label: "Shooter Games" },
-    ],
-  },
-  {
-    id: "lifestyle",
-    label: "LIFESTYLE",
-    items: [
-      { id: "cat-life-animals", label: "Animals & Pets" },
-      { id: "cat-life-astrology", label: "Astrology & Horoscopes" },
-      { id: "cat-life-beauty", label: "Beauty & Cosmetics" },
-      { id: "cat-life-dating", label: "Dating" },
-      { id: "cat-life-diet", label: "Diet & Nutrition" },
-      { id: "cat-life-food", label: "Food & Cooking" },
-      { id: "cat-life-health", label: "Health & Medicine" },
-      { id: "cat-life-hobby", label: "Hobbies & Specialized Interests" },
-      { id: "cat-life-military", label: "Military" },
-      { id: "cat-life-parenting", label: "Parenting" },
-      { id: "cat-life-religion", label: "Religion & Belief" },
-      { id: "cat-life-sport", label: "Sports" },
-      { id: "cat-life-travel", label: "Travel" },
-      { id: "cat-life-vehicles", label: "Vehicles" },
-    ],
-  },
-  {
-    id: "newsgov",
-    label: "NEWS & GOVERNMENT",
-    items: [
-      { id: "cat-ng-gov", label: "Government" },
-      { id: "cat-ng-news", label: "News & Newspapers" },
-      { id: "cat-ng-pol", label: "Politics" },
-    ],
-  },
-  {
-    id: "social",
-    label: "SOCIAL",
-    items: [
-      { id: "cat-soc-social", label: "Social Networking" },
-      { id: "cat-soc-blog", label: "Weblogs, Forums, Personal Sites" },
-    ],
-  },
-  {
-    id: "streaming",
-    label: "STREAMING & ENTERTAINMENT",
-    items: [
-      { id: "cat-stream-movies", label: "Movies & Television" },
-      { id: "cat-stream-music", label: "Music & Audio Streaming" },
-      { id: "cat-stream-video", label: "Online Video (YouTube, TikTok...)" },
-    ],
-  },
-  {
-    id: "tech",
-    label: "TECHNOLOGY",
-    items: [
-      { id: "cat-tech-dev", label: "Developer Tools & Resources" },
-      { id: "cat-tech-hardware", label: "Hardware, Software, Consumer Tech" },
-      { id: "cat-tech-cloud", label: "Cloud Services & Storage" },
-    ],
-  },
-]
-
-const APP_GROUPS: PickerGroup<AppGroupId>[] = [
-  {
-    id: "ads",
-    label: "ADS",
-    items: [
-      { id: "app-ads-adv", label: "Advertisements" },
-    ],
-  },
-  {
-    id: "business",
-    label: "BUSINESS & ECONOMY",
-    items: [
-      { id: "app-biz-robinhood", label: "Robinhood" },
-      { id: "app-biz-etrade", label: "E*TRADE" },
-      { id: "app-biz-coinbase", label: "Coinbase" },
-      { id: "app-biz-binance", label: "Binance" },
-      { id: "app-biz-linkedin", label: "LinkedIn" },
-      { id: "app-biz-indeed", label: "Indeed" },
-      { id: "app-biz-zillow", label: "Zillow" },
-      { id: "app-biz-gmail-business", label: "Google Workspace" },
-      { id: "app-biz-outlook-business", label: "Microsoft 365" },
-      { id: "app-biz-slack", label: "Slack" },
-      { id: "app-biz-zoom", label: "Zoom" },
-      { id: "app-biz-dropbox", label: "Dropbox" },
-    ],
-  },
-  {
-    id: "communication",
-    label: "COMMUNICATION",
-    items: [
-      { id: "app-com-discord", label: "Discord" },
-      { id: "app-com-imessage", label: "iMessage" },
-      { id: "app-com-signal", label: "Signal" },
-      { id: "app-com-telegram", label: "Telegram" },
-      { id: "app-com-whatsapp", label: "WhatsApp" },
-      { id: "app-com-messenger", label: "Facebook Messenger" },
-      { id: "app-com-wechat", label: "WeChat" },
-      { id: "app-com-gmail", label: "Gmail" },
-      { id: "app-com-outlook", label: "Microsoft Outlook" },
-      { id: "app-com-yahoo-mail", label: "Yahoo Mail" },
-      { id: "app-com-mail", label: "Apple Mail" },
-      { id: "app-com-protonmail", label: "Proton Mail" },
-      { id: "app-com-threads", label: "Threads" },
-    ],
-  },
-  {
-    id: "games",
-    label: "GAMES",
-    items: [
-      { id: "app-gam-roblox", label: "Roblox" },
-      { id: "app-gam-minecraft", label: "Minecraft" },
-      { id: "app-gam-fortnite", label: "Fortnite" },
-      { id: "app-gam-pubg", label: "PUBG Mobile" },
-      { id: "app-gam-candy-crush", label: "Candy Crush Saga" },
-      { id: "app-gam-clash-clans", label: "Clash of Clans" },
-      { id: "app-gam-genshin", label: "Genshin Impact" },
-      { id: "app-gam-cod-mobile", label: "Call of Duty Mobile" },
-      { id: "app-gam-brawl-stars", label: "Brawl Stars" },
-      { id: "app-gam-among-us", label: "Among Us" },
-      { id: "app-gam-pokemon-go", label: "Pokémon GO" },
-      { id: "app-gam-pokerstars", label: "PokerStars" },
-    ],
-  },
-  {
-    id: "lifestyle",
-    label: "LIFESTYLE",
-    items: [
-      { id: "app-life-tinder", label: "Tinder" },
-      { id: "app-life-hinge", label: "Hinge" },
-      { id: "app-life-bumble", label: "Bumble" },
-      { id: "app-life-grindr", label: "Grindr" },
-      { id: "app-life-instacart", label: "Instacart" },
-      { id: "app-life-ubereats", label: "Uber Eats" },
-      { id: "app-life-doordash", label: "DoorDash" },
-      { id: "app-life-recipe", label: "Allrecipes" },
-      { id: "app-life-myfitnesspal", label: "MyFitnessPal" },
-      { id: "app-life-headspace", label: "Headspace" },
-      { id: "app-life-calm", label: "Calm" },
-      { id: "app-life-strava", label: "Strava" },
-      { id: "app-life-nike-run", label: "Nike Run Club" },
-    ],
-  },
-  {
-    id: "security",
-    label: "SECURITY THREATS",
-    items: [
-      { id: "app-sec-vpn-nord", label: "NordVPN" },
-      { id: "app-sec-vpn-express", label: "ExpressVPN" },
-      { id: "app-sec-vpn-surfshark", label: "Surfshark" },
-      { id: "app-sec-vpn-proton", label: "ProtonVPN" },
-      { id: "app-sec-vpn-hola", label: "Hola VPN" },
-      { id: "app-sec-tor", label: "Tor Browser" },
-      { id: "app-sec-phish", label: "Known Phishing Hosts" },
-      { id: "app-sec-malware", label: "Malware & Ransomware" },
-    ],
-  },
-  {
-    id: "social",
-    label: "SOCIAL",
-    items: [
-      { id: "app-soc-facebook", label: "Facebook" },
-      { id: "app-soc-instagram", label: "Instagram" },
-      { id: "app-soc-twitter", label: "Twitter / X" },
-      { id: "app-soc-tiktok", label: "TikTok" },
-      { id: "app-soc-snapchat", label: "Snapchat" },
-      { id: "app-soc-reddit", label: "Reddit" },
-      { id: "app-soc-tumblr", label: "Tumblr" },
-      { id: "app-soc-pinterest", label: "Pinterest" },
-      { id: "app-soc-linkedin2", label: "LinkedIn" },
-      { id: "app-soc-bluesky", label: "Bluesky" },
-      { id: "app-soc-mastodon", label: "Mastodon" },
-      { id: "app-soc-flickr", label: "Flickr" },
-    ],
-  },
-  {
-    id: "streaming",
-    label: "STREAMING & ENTERTAINMENT",
-    items: [
-      { id: "app-stream-netflix", label: "Netflix" },
-      { id: "app-stream-disney", label: "Disney+" },
-      { id: "app-stream-amazon-prime", label: "Amazon Prime Video" },
-      { id: "app-stream-hbo", label: "Max / HBO Max" },
-      { id: "app-stream-hulu", label: "Hulu" },
-      { id: "app-stream-paramount", label: "Paramount+" },
-      { id: "app-stream-apple-tv", label: "Apple TV+" },
-      { id: "app-stream-peacock", label: "Peacock" },
-      { id: "app-stream-spotify", label: "Spotify" },
-      { id: "app-stream-apple-music", label: "Apple Music" },
-      { id: "app-stream-soundcloud", label: "SoundCloud" },
-      { id: "app-stream-tidal", label: "TIDAL" },
-      { id: "app-stream-youtube", label: "YouTube" },
-      { id: "app-stream-twitch", label: "Twitch" },
-      { id: "app-stream-vimeo", label: "Vimeo" },
-      { id: "app-stream-plex", label: "Plex" },
-      { id: "app-stream-crunchyroll", label: "Crunchyroll" },
-    ],
-  },
-  {
-    id: "tech",
-    label: "TECHNOLOGY",
-    items: [
-      { id: "app-tech-github", label: "GitHub" },
-      { id: "app-tech-gitlab", label: "GitLab" },
-      { id: "app-tech-stackoverflow", label: "Stack Overflow" },
-      { id: "app-tech-chatgpt", label: "ChatGPT / OpenAI" },
-      { id: "app-tech-google-search", label: "Google Search" },
-      { id: "app-tech-bing", label: "Bing" },
-      { id: "app-tech-duckduckgo", label: "DuckDuckGo" },
-      { id: "app-tech-app-store", label: "App Store" },
-      { id: "app-tech-google-play", label: "Google Play Store" },
-    ],
-  },
-  {
-    id: "transport",
-    label: "TRANSPORTATION",
-    items: [
-      { id: "app-tr-uber", label: "Uber" },
-      { id: "app-tr-lyft", label: "Lyft" },
-      { id: "app-tr-google-maps", label: "Google Maps" },
-      { id: "app-tr-apple-maps", label: "Apple Maps" },
-      { id: "app-tr-waze", label: "Waze" },
-    ],
-  },
-]
-
-const AUDIENCE_GROUPS: PickerGroup<AudienceGroupId>[] = [
-  {
-    id: "email",
-    label: "LOGIN EMAIL",
-    items: [
-      { id: "aud-email-1", label: "abcd@gmail.com" },
-      { id: "aud-email-2", label: "sarah.smith@yahoo.com" },
-      { id: "aud-email-3", label: "mike.jones@outlook.com" },
-      { id: "aud-email-4", label: "emma.wilson@proton.me" },
-      { id: "aud-email-5", label: "admin@company.co" },
-    ],
-  },
-  {
-    id: "name",
-    label: "MEMBERS",
-    items: [
-      { id: "aud-name-1", label: "Sarah Smith" },
-      { id: "aud-name-2", label: "Mike Jones" },
-      { id: "aud-name-3", label: "Emma Wilson" },
-      { id: "aud-name-4", label: "Family — Kids" },
-      { id: "aud-name-5", label: "Work Devices" },
-      { id: "aud-name-6", label: "Guest Wi-Fi" },
-    ],
-  },
-]
+type PickerGroupsResponse = {
+  groups: PickerGroup<string>[]
+}
 
 type PickedItem = {
   id: string
@@ -627,11 +249,9 @@ type Props = {
 }
 
 export function PolicyDetail({ mode, policyId: _policyId }: Props) {
-  if (mode === "create") {
-    return <AccessPolicyForm />
-  }
-
-  const isCreateMode = false
+  const isCreateMode = mode === "create"
+  const router = useRouter()
+  const queryClient = useQueryClient()
   const idCounterRef = useRef(100)
   const nextId = (prefix: string) => {
     idCounterRef.current += 1
@@ -651,14 +271,42 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
 
   const [isAddAddressOpen, setIsAddAddressOpen] = useState(false)
   const [addressInput, setAddressInput] = useState(
-    "facebook.com, messenger.facebook.com, face"
+    isCreateMode ? "" : "facebook.com, messenger.facebook.com, face"
   )
-  const [addressError, setAddressError] = useState("Value is required")
+  const [addressError, setAddressError] = useState(
+    isCreateMode ? "" : "Value is required"
+  )
   const [addressMode, setAddressMode] =
     useState<AddAddressMode>("auto")
   const [pendingAddresses, setPendingAddresses] = useState<
     { id: string; url: string; mode: AddAddressMode; selected: boolean }[]
   >([])
+
+  const saveMutation = useMutation({
+    mutationFn: async (payload: CreateGatewayPolicyInput) => {
+      const response = await apiClient<{ data: CreatedGatewayRule }>(
+        "/api/gateway-policies",
+        {
+          method: "POST",
+          body: JSON.stringify(payload),
+        }
+      )
+      return { rule: response.data, payload }
+    },
+    onSuccess: ({ rule, payload }) => {
+      const listItem = toPolicyListItem(rule, payload)
+      if (listItem) {
+        queryClient.setQueryData<PolicyListItem[]>(
+          queryKeys.gatewayPolicies.list(),
+          (current) => [
+            listItem,
+            ...(current ?? []).filter((policy) => policy.id !== listItem.id),
+          ]
+        )
+      }
+      router.push("/content-policies")
+    },
+  })
 
   const selectedRule = selectedRuleId
     ? rulesList.find((rule) => rule.id === selectedRuleId)
@@ -667,6 +315,10 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
   const headerBadge = selectedRule
     ? headerBadgeByType[selectedRule.type]
     : null
+
+  const isYoutubeRestrictedRule = selectedRule?.type === "ytrestricted"
+  const isSafeSearchRule = selectedRule?.type === "safesearch"
+  const hideContentPickers = isYoutubeRestrictedRule || isSafeSearchRule
 
   const removeWebAddress = (id: string) => {
     setWebAddresses((prev) => prev.filter((a) => a.id !== id))
@@ -678,12 +330,28 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
       setPendingAddresses([])
       return
     }
-    setAddressError("")
     const parts = addressInput
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean)
-    const detected = parts.map((part, idx) => ({
+      .map((part) =>
+        part
+          .toLowerCase()
+          .replace(/^https?:\/\//, "")
+          .replace(/\/.*$/, "")
+      )
+
+    const hostnamePattern =
+      /^(?:\*\.)?(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/i
+    const invalid = parts.filter((part) => !hostnamePattern.test(part))
+    if (invalid.length > 0) {
+      setAddressError(`Invalid hostname: ${invalid[0]}`)
+      setPendingAddresses([])
+      return
+    }
+
+    setAddressError("")
+    const detected = parts.map((part) => ({
       id: nextId("pa"),
       url: part,
       mode: addressMode,
@@ -754,18 +422,51 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
   const [appPickerKey, setAppPickerKey] = useState(0)
   const [audiencePickerKey, setAudiencePickerKey] = useState(0)
 
-  // Group label lookup helpers
-  const catGroupLabelById = (id: CategoryGroupId) =>
-    CATEGORY_GROUPS.find((g) => g.id === id)?.label ?? ""
-  const appGroupLabelById = (id: AppGroupId) =>
-    APP_GROUPS.find((g) => g.id === id)?.label ?? ""
-  const audGroupLabelById = (id: AudienceGroupId) =>
-    AUDIENCE_GROUPS.find((g) => g.id === id)?.label ?? ""
+  const categoriesQuery = useQuery({
+    queryKey: queryKeys.gatewayPolicies.categories(),
+    queryFn: () =>
+      apiClient<PickerGroupsResponse>("/api/gateway-categories"),
+    enabled: isCategoryPickerOpen,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  const appsQuery = useQuery({
+    queryKey: queryKeys.gatewayPolicies.apps(),
+    queryFn: () => apiClient<PickerGroupsResponse>("/api/gateway-apps"),
+    enabled: isAppPickerOpen,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  const locationsQuery = useQuery({
+    queryKey: queryKeys.gatewayPolicies.locations(),
+    queryFn: () =>
+      apiClient<PickerGroupsResponse>("/api/gateway-locations"),
+    enabled: isAudiencePickerOpen,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  const presetsQuery = useQuery({
+    queryKey: queryKeys.gatewayPolicies.presets(),
+    queryFn: () =>
+      apiClient<GatewayPresetsResponse>("/api/gateway-presets"),
+    enabled: isCreateRuleOpen && createRuleTab === "presets",
+    staleTime: 5 * 60 * 1000,
+  })
+
+  const categoryGroups = categoriesQuery.data?.groups ?? []
+  const appGroups = appsQuery.data?.groups ?? []
+  const audienceGroups = locationsQuery.data?.groups ?? []
+  const presetOptions = presetsQuery.data?.presets ?? []
+
+  const groupLabelById = (
+    groups: PickerGroup<string>[],
+    id: string
+  ): string => groups.find((g) => g.id === id)?.label ?? ""
 
   const handleCategorySelected = (item: {
     id: string
     label: string
-    groupId: CategoryGroupId
+    groupId: string
   }) => {
     if (!selectedRuleId) return
     const ruleId = selectedRuleId
@@ -774,7 +475,11 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
       ...prev,
       [ruleId]: [
         ...(prev[ruleId] ?? []),
-        { id: item.id, label: item.label, groupLabel: catGroupLabelById(item.groupId) },
+        {
+          id: item.id,
+          label: item.label,
+          groupLabel: groupLabelById(categoryGroups, item.groupId),
+        },
       ],
     }))
   }
@@ -790,7 +495,7 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
   const handleAppSelected = (item: {
     id: string
     label: string
-    groupId: AppGroupId
+    groupId: string
   }) => {
     if (!selectedRuleId) return
     const ruleId = selectedRuleId
@@ -799,7 +504,11 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
       ...prev,
       [ruleId]: [
         ...(prev[ruleId] ?? []),
-        { id: item.id, label: item.label, groupLabel: appGroupLabelById(item.groupId) },
+        {
+          id: item.id,
+          label: item.label,
+          groupLabel: groupLabelById(appGroups, item.groupId),
+        },
       ],
     }))
   }
@@ -815,7 +524,7 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
   const handleAudienceSelected = (item: {
     id: string
     label: string
-    groupId: AudienceGroupId
+    groupId: string
   }) => {
     if (!selectedRuleId) return
     const ruleId = selectedRuleId
@@ -824,7 +533,11 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
       ...prev,
       [ruleId]: [
         ...(prev[ruleId] ?? []),
-        { id: item.id, label: item.label, groupLabel: audGroupLabelById(item.groupId) },
+        {
+          id: item.id,
+          label: item.label,
+          groupLabel: groupLabelById(audienceGroups, item.groupId),
+        },
       ],
     }))
   }
@@ -907,14 +620,46 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
     setIsCreateRuleOpen(false)
   }
 
-  const handleCreateFromPreset = (preset: PresetRuleOption) => {
+  const handleCreateFromPreset = (preset: GatewayPreset) => {
     const newRule = buildRuleFromType(preset.type, preset.name)
     setRulesList((prev) => [...prev, newRule])
     setSelectedRuleId(newRule.id)
+
+    setCategoriesByRule((prev) => ({
+      ...prev,
+      [newRule.id]: preset.categories.map((c) => ({
+        id: String(c.id),
+        label: c.name,
+        groupLabel: c.groupLabel ?? "PRESET",
+      })),
+    }))
+
+    setAppsByRule((prev) => ({
+      ...prev,
+      [newRule.id]: preset.apps.map((a) => ({
+        id: String(a.id),
+        label: a.name,
+        groupLabel: a.groupLabel ?? "PRESET",
+      })),
+    }))
+
+    if (preset.domains.length > 0) {
+      setWebAddresses(
+        preset.domains.map((url) => ({
+          id: nextId("wa"),
+          tag: "PRESET",
+          url,
+        }))
+      )
+    } else {
+      setWebAddresses([])
+    }
+
+    setIsActive(true)
     setIsCreateRuleOpen(false)
   }
 
-  const filteredPresets = presetRuleOptions.filter((p) => {
+  const filteredPresets = presetOptions.filter((p) => {
     if (!presetSearch.trim()) return true
     const q = presetSearch.trim().toLowerCase()
     return (
@@ -922,6 +667,42 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
       p.description.toLowerCase().includes(q)
     )
   })
+
+  const handleSaveSelectedRule = () => {
+    if (!selectedRule) return
+
+    const categoryIds = currentCategories
+      .map((c) => Number(c.id))
+      .filter((id) => Number.isFinite(id) && id > 0)
+
+    const appIds = currentApps
+      .map((a) => Number(a.id))
+      .filter((id) => Number.isFinite(id) && id > 0)
+
+    const payload: CreateGatewayPolicyInput = {
+      name: selectedRule.name,
+      type: selectedRule.type,
+      enabled: isActive,
+      categories: currentCategories.map((c) => c.label),
+      categoryIds,
+      domains: webAddresses.map((a) => a.url),
+      apps: currentApps.map((a) => a.label),
+      appIds,
+      locationIds: currentAudience.map((a) => a.id),
+      schedules: currentSchedules.map((s) => ({
+        dayIndex: s.dayIndex,
+        startHour: s.startHour,
+        startMinute: s.startMinute,
+        durationMinutes: s.durationMinutes,
+      })),
+      timeZone:
+        typeof Intl !== "undefined"
+          ? Intl.DateTimeFormat().resolvedOptions().timeZone
+          : undefined,
+    }
+
+    saveMutation.mutate(payload)
+  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
@@ -1022,6 +803,11 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
                             >
                               {typeBadgeDefaults[opt.type].label}
                             </Badge>
+                            {opt.title ? (
+                              <p className="text-sm font-semibold text-brand-text-heading">
+                                {opt.title}
+                              </p>
+                            ) : null}
                             <p className="text-sm leading-relaxed text-brand-text-muted">
                               {opt.description}
                             </p>
@@ -1044,7 +830,20 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
                         />
                       </div>
                       <div className="max-h-[420px] space-y-2.5 overflow-y-auto pr-1">
-                        {filteredPresets.length === 0 ? (
+                        {presetsQuery.isLoading || presetsQuery.isFetching ? (
+                          <div className="flex flex-col items-center justify-center gap-3 py-10 text-sm text-brand-text-muted">
+                            <CustomSpinner className="size-5 text-brand-primary" />
+                          </div>
+                        ) : presetsQuery.isError ? (
+                          <div
+                            role="alert"
+                            className="flex flex-col items-center justify-center py-10 text-center text-sm text-destructive"
+                          >
+                            {presetsQuery.error instanceof Error
+                              ? presetsQuery.error.message
+                              : "Failed to load presets"}
+                          </div>
+                        ) : filteredPresets.length === 0 ? (
                           <div className="flex flex-col items-center justify-center py-10 text-sm text-brand-text-muted">
                             No presets match your search.
                           </div>
@@ -1072,6 +871,25 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
                                 <p className="text-xs leading-relaxed text-brand-text-muted">
                                   {p.description}
                                 </p>
+                                {(p.categories.length > 0 ||
+                                  p.apps.length > 0 ||
+                                  p.domains.length > 0) && (
+                                  <p className="text-[11px] text-brand-text-muted">
+                                    {[
+                                      p.categories.length > 0
+                                        ? `${p.categories.length} categories`
+                                        : null,
+                                      p.apps.length > 0
+                                        ? `${p.apps.length} apps`
+                                        : null,
+                                      p.domains.length > 0
+                                        ? `${p.domains.length} domains`
+                                        : null,
+                                    ]
+                                      .filter(Boolean)
+                                      .join(" · ")}
+                                  </p>
+                                )}
                               </div>
                               <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full border border-border/70 text-brand-primary transition-colors group-hover:border-brand-primary group-hover:bg-brand-primary group-hover:text-white">
                                 <ArrowUpRight className="size-3.5" />
@@ -1189,6 +1007,8 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
 
           {/* Rule sections */}
           <div className="space-y-8 px-5 py-6">
+            {!hideContentPickers ? (
+            <>
             {/* Categories */}
             <div>
               <div className="mb-3 flex items-center justify-between">
@@ -1627,6 +1447,8 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
                 )}
               </div>
             </div>
+            </>
+            ) : null}
 
             {/* Audience */}
             <div>
@@ -1649,7 +1471,7 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
                   }}
                 >
                   <Plus className="size-3.5" />
-                  Add member
+                  Add location
                 </Button>
               </div>
 
@@ -1662,11 +1484,9 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
                     No audience yet
                   </p>
                   <div className="mt-1.5 max-w-md text-sm leading-relaxed text-brand-text-muted">
-                    <>
-                      This rule applies to all members and devices.
-                      <br />
-                      Select a member to narrow down the scope of this rule.
-                    </>
+                    This rule applies to all Gateway DNS locations by default.
+                    Add a location to scope the rule to specific devices or
+                    networks.
                   </div>
                 </div>
               ) : (
@@ -1845,42 +1665,68 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
               )}
             </div>
 
-            {/* Category Picker */}
-            <PickerDialog<CategoryGroupId>
-              key={categoryPickerKey}
+            {/* Category Picker — Cloudflare Gateway categories */}
+            <PickerDialog
+              key={`category-picker-${categoryPickerKey}`}
               open={isCategoryPickerOpen}
               onOpenChange={setIsCategoryPickerOpen}
-              searchPlaceholder="Search for a category..."
-              groups={CATEGORY_GROUPS}
+              searchPlaceholder="Search Cloudflare categories..."
+              groups={categoryGroups}
               selectedIds={currentCategories.map((c) => c.id)}
               onSelect={handleCategorySelected}
+              isLoading={categoriesQuery.isLoading || categoriesQuery.isFetching}
+              errorMessage={
+                categoriesQuery.isError
+                  ? categoriesQuery.error instanceof Error
+                    ? categoriesQuery.error.message
+                    : "Failed to load categories"
+                  : undefined
+              }
             />
 
-            {/* App Picker */}
-            <PickerDialog<AppGroupId>
-              key={appPickerKey}
+            {/* App Picker — Cloudflare Gateway app_types */}
+            <PickerDialog
+              key={`app-picker-${appPickerKey}`}
               open={isAppPickerOpen}
               onOpenChange={setIsAppPickerOpen}
-              searchPlaceholder="Search for a App..."
-              groups={APP_GROUPS}
+              searchPlaceholder="Search Cloudflare apps..."
+              groups={appGroups}
               selectedIds={currentApps.map((c) => c.id)}
               onSelect={handleAppSelected}
+              isLoading={appsQuery.isLoading || appsQuery.isFetching}
+              errorMessage={
+                appsQuery.isError
+                  ? appsQuery.error instanceof Error
+                    ? appsQuery.error.message
+                    : "Failed to load apps"
+                  : undefined
+              }
             />
 
-            {/* Audience Picker */}
-            <PickerDialog<AudienceGroupId>
-              key={audiencePickerKey}
+            {/* Audience Picker — Gateway DNS locations */}
+            <PickerDialog
+              key={`audience-picker-${audiencePickerKey}`}
               open={isAudiencePickerOpen}
               onOpenChange={setIsAudiencePickerOpen}
-              searchPlaceholder="Search for a App..."
-              groups={AUDIENCE_GROUPS}
+              searchPlaceholder="Search DNS locations..."
+              groups={audienceGroups}
               selectedIds={currentAudience.map((c) => c.id)}
               onSelect={handleAudienceSelected}
+              isLoading={
+                locationsQuery.isLoading || locationsQuery.isFetching
+              }
+              errorMessage={
+                locationsQuery.isError
+                  ? locationsQuery.error instanceof Error
+                    ? locationsQuery.error.message
+                    : "Failed to load locations"
+                  : undefined
+              }
             />
 
             {/* Schedule Sheet (right side) */}
             <ScheduleSheet
-              key={scheduleSheetKey}
+              key={`schedule-sheet-${scheduleSheetKey}`}
               open={isScheduleSheetOpen}
               onOpenChange={setIsScheduleSheetOpen}
               mode={scheduleMode}
@@ -1888,23 +1734,23 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
               onSave={handleSaveSchedules}
             />
 
-            {/* Save status */}
-            <div className="flex justify-end pt-2">
-              <Button size="lg">
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="size-4"
-                >
-                  <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" />
-                  <polyline points="17 21 17 13 7 13 7 21" />
-                  <polyline points="7 3 7 8 15 8" />
-                </svg>
-                All Changes Saved
+            {/* Save */}
+            <div className="flex flex-col items-end gap-2 pt-2">
+              {saveMutation.isError ? (
+                <p className="w-full text-sm text-destructive">
+                  {saveMutation.error instanceof Error
+                    ? saveMutation.error.message
+                    : "Failed to save policy"}
+                </p>
+              ) : null}
+              <Button
+                size="lg"
+                type="button"
+                disabled={!selectedRule || saveMutation.isPending}
+                onClick={handleSaveSelectedRule}
+              >
+                {saveMutation.isPending ? <CustomSpinner /> : null}
+                {isCreateMode ? "Save policy" : "Save changes"}
               </Button>
             </div>
           </div>
@@ -1913,7 +1759,7 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
           <div className="h-4" />
             </>
           ) : (
-            <div className="flex min-h-[420px] flex-col items-center justify-center px-5 py-16 text-center">
+            <div className="flex min-h-[320px] flex-col items-center justify-center px-5 py-10 text-center">
               <p className="text-base font-semibold text-brand-text-heading">
                 {isCreateMode ? "Create your first rule" : "Select a rule"}
               </p>

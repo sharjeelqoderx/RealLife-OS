@@ -117,8 +117,9 @@ page.tsx (RSC fetch via lib/services)
 | `/forget-password` | Password reset request | `app/(auth)/forget-password/page.tsx` | `app/(auth)/forget-password/loading.tsx` | `forget-password-form` | ✅ ready |
 | `/change-password` | Password change via reset token | `app/(auth)/change-password/page.tsx` | `app/(auth)/change-password/loading.tsx` | `change-password-form` | ✅ ready |
 | `/content-policies` | View all content policies list (allowlist/blocklist) | `app/(protected)/content-policies/page.tsx` | `app/(protected)/content-policies/loading.tsx` | `page-content`, `policy-table`, `policy-table-loading` | ✅ ready |
-| `/content-policies/new-policy` | Create Cloudflare Access policy — same editor shell as edit | `app/(protected)/content-policies/(editor)/new-policy/page.tsx` | `app/(protected)/content-policies/(editor)/new-policy/loading.tsx` | `policy-detail`, `access-policy-form` | ✅ ready |
-| `/content-policies/[policyId]` | Edit existing policy — shared editor layout | `app/(protected)/content-policies/(editor)/[policyId]/page.tsx` | `app/(protected)/content-policies/(editor)/[policyId]/loading.tsx` | `policy-detail` | ✅ ready |
+| `/content-policies/new-policy` | Create Gateway DNS policy — same full editor as edit (categories, apps, domains, schedules, SafeSearch, YT Restricted) | `app/(protected)/content-policies/(editor)/new-policy/page.tsx` | `app/(protected)/content-policies/(editor)/new-policy/loading.tsx` | `policy-detail` | ✅ ready |
+| `/content-policies/[policyId]` | View policy details (read-only) | `app/(protected)/content-policies/(editor)/[policyId]/page.tsx` | `app/(protected)/content-policies/(editor)/[policyId]/loading.tsx` | `policy-view` | ✅ ready |
+| `/content-policies/[policyId]/edit` | Edit existing policy | `app/(protected)/content-policies/(editor)/[policyId]/edit/page.tsx` | `app/(protected)/content-policies/(editor)/[policyId]/edit/loading.tsx` | `policy-detail` | ✅ ready |
 
 ### Shared Components
 
@@ -158,14 +159,16 @@ page.tsx (RSC fetch via lib/services)
 | BillingActionButton | `app/(protected)/billing/_components/billing-action-button.tsx` | Branded billing CTA button | `/billing` | ✅ ready |
 | PoliciesPage | `app/(protected)/content-policies/_components/page-content.tsx` | Client shell with URL search/filters + Access policies table via React Query | `/content-policies` | ✅ ready |
 | PoliciesSearchInput | `app/(protected)/content-policies/_components/policies-search-input.tsx` | Debounced search input; updates `?q=` via `history.replaceState` | `/content-policies` | ✅ ready |
-| PolicyTable | `app/(protected)/content-policies/_components/policy-table.tsx` | Desktop table + mobile cards for policies | `/content-policies` | ✅ ready |
-| PolicyTableLoading | `app/(protected)/content-policies/_components/policy-table-loading.tsx` | Table-only loading skeleton | `/content-policies` | ✅ ready |
-| AccessPolicyForm | `app/(protected)/content-policies/(editor)/_components/access-policy-form.tsx` | Cloudflare Access create form in editor layout (sticky Rules sidebar: Include/Require/Exclude + API save) | `/content-policies/new-policy` via `PolicyDetail` create mode | ✅ ready |
-| PolicyDetail | `app/(protected)/content-policies/(editor)/_components/policy-detail.tsx` | Legacy content-filter rule editor (edit route) with sticky rules sidebar, categories, apps, web, audience, schedules + ScheduleSheet + PickerDialogs | `/content-policies/[policyId]` | 🟡 legacy mock UI |
+| PolicyTable | `app/(protected)/content-policies/_components/policy-table.tsx` | Desktop table + mobile cards; Flame menu + delete confirm | `/content-policies` | ✅ ready |
+| PolicyTableLoading | `app/(protected)/content-policies/_components/policy-table-loading.tsx` | Table/card skeleton — 2 rows matching list layout | `/content-policies` loading | ✅ ready |
+| AccessPolicyForm | `app/(protected)/content-policies/(editor)/_components/access-policy-form.tsx` | Legacy Cloudflare Access Include/Require/Exclude form (superseded by Gateway editor for new-policy) | — | ⚪ unused |
+| PolicyDetail | `app/(protected)/content-policies/(editor)/_components/policy-detail.tsx` | Create/edit policy editor | `/content-policies/new-policy`, `/content-policies/[policyId]/edit` | ✅ ready |
+| PolicyView | `app/(protected)/content-policies/(editor)/_components/policy-view.tsx` | Read-only policy detail; View/Download config JSON + DNS .mobileconfig | `/content-policies/[policyId]` | ✅ ready |
+| PolicyViewLoading | `app/(protected)/content-policies/(editor)/_components/policy-view-loading.tsx` | View-page skeleton (separate from editor loading) | `/content-policies/[policyId]` loading | ✅ ready |
 | PolicyEditorLoading | `app/(protected)/content-policies/(editor)/_components/policy-editor-loading.tsx` | Shared editor skeleton (sticky sidebar + detail panel) | editor routes loading.tsx | ✅ ready |
 | ScheduleSheet | `app/(protected)/content-policies/(editor)/_components/schedule-sheet.tsx` | Right-side Sheet with weekly 24h calendar grid — click-to-add, click-to-remove, drag-to-resize (15-min snap) | PolicyDetail schedules | ✅ ready |
 | PickerDialog | `app/(protected)/content-policies/(editor)/_components/picker-dialog.tsx` | Centered modal with top search bar, grouped uppercase section headers (ADS, BUSINESS & ECONOMY, LOGIN EMAIL...), list rows with selected dot indicator — Add Category / Add App / Add Member flows | PolicyDetail Categories, Apps, Audience | ✅ ready |
-| ErrorAlert | `components/feedback/error-alert.tsx` | Generic error display | — | ⚪ not started |
+| ErrorAlert | `components/feedback/error-alert.tsx` | Generic error display | Policy delete confirm, shared | ✅ ready |
 
 ### Supabase (`lib/supabase/`)
 
@@ -206,7 +209,30 @@ page.tsx (RSC fetch via lib/services)
 | getBillingDetails / createBillingPortalSession | `lib/services/billing/details.ts` | Subscription + card + Stripe Customer Portal | billing-details + billing-portal APIs | ✅ ready |
 | processStripeWebhookEvent | `lib/services/billing/webhook.ts` | Event → handler → DB | `/api/stripe/webhook` | ✅ ready |
 | getPolicies | `lib/services/content-policies/get-policies.ts` | Content policies list helpers / mock filter | `/content-policies` client filter | ✅ ready |
-| listAccessPolicies / createAccessPolicy | `lib/services/content-policies/access-policies.ts` | Cloudflare Access app policies list + create | `/api/access-policies`, content-policies page | ✅ ready |
+| listAccessPolicies / createAccessPolicy | `lib/services/content-policies/access-policies.ts` | Cloudflare Access app policies list + create | `/api/access-policies` | ✅ ready |
+| listGatewayPolicies / createGatewayPolicy / getGatewayPolicyById / deleteGatewayPolicy | `lib/services/content-policies/gateway-policies.ts` | Gateway DNS policies — list, create, get, delete (Access fallback) | `/api/gateway-policies`, policy list/view/create | ✅ ready |
+| deleteAccessPolicy | `lib/services/content-policies/access-policies.ts` | Delete Cloudflare Access app policy | Gateway delete fallback | ✅ ready |
+| deleteGatewayRule | `lib/services/cloudflare/rules.ts` | DELETE `/accounts/{id}/gateway/rules/{ruleId}` | `deleteGatewayPolicy` | ✅ ready |
+| buildPolicyConfigJson / buildDohMobileconfig | `lib/services/content-policies/policy-config-export.ts` | Policy JSON export + Apple DoH .mobileconfig | Policy view, `/api/dns-profile/mobileconfig` | ✅ ready |
+| getDnsProfileSource | `lib/services/content-policies/dns-profile.ts` | Resolve DoH location availability for DNS profile download | Policy view, `/api/dns-profile/mobileconfig` | ✅ ready |
+| listGatewayCategories / resolveCategoryIdsByLabels | `lib/services/cloudflare/categories.ts` | Gateway content category catalog | `/api/gateway-categories`, create policy | ✅ ready |
+| listGatewayCategoryPickerGroups | `lib/services/cloudflare/category-picker.ts` | Categories → picker groups | Policy editor Add category | ✅ ready |
+| listGatewayAppTypes / listGatewayAppPickerGroups | `lib/services/cloudflare/app-types.ts` | Gateway app_types → picker groups | Policy editor Add app | ✅ ready |
+| listGatewayAudiencePickerGroups | `lib/services/cloudflare/audience-picker.ts` | Gateway locations → Audience picker | Policy editor Add location | ✅ ready |
+| listGatewayPresets | `lib/services/content-policies/gateway-presets.ts` | Curated presets resolved against CF categories/apps | `/api/gateway-presets`, Create Rule Presets tab | ✅ ready |
+| createGatewayRule / listGatewayRules | `lib/services/cloudflare/rules.ts` | Low-level Gateway rules API | gateway-policies, baseline-rules | ✅ ready |
+| createCloudflareAccount / listCloudflareAccounts / getCloudflareAccount | `lib/services/cloudflare/accounts.ts` | Tenant API create/list/get child accounts | `/api/cloudflare/accounts`, tenant provision | ✅ ready |
+| ensureZeroTrustGateway | `lib/services/cloudflare/gateway.ts` | Enable Zero Trust Gateway on child account | tenant provision | ✅ ready |
+| createGatewayLocation | `lib/services/cloudflare/locations.ts` | DoH/DoT DNS location for device setup | tenant provision | ✅ ready |
+| seedBaselineDnsPolicies | `lib/services/cloudflare/baseline-rules.ts` | Phase 1 SafeSearch + DoH provider block rules | tenant provision | ✅ ready |
+| provisionTenantCloudflareAccount / getTenantCloudflareAccountForUser | `lib/services/tenants/provision.ts` | Full tenant onboarding orchestration + DB mapping | `/api/tenants/provision` | ✅ ready |
+
+### Cloudflare (`lib/cloudflare/`)
+
+| Module | Path | Purpose | Status |
+|--------|------|---------|--------|
+| Config | `lib/cloudflare/config.ts` | Env helpers (`CLOUDFARE_*` / `CLOUDFLARE_*`), Tenant admin auth | ✅ ready |
+| Client | `lib/cloudflare/client.ts` | Shared Cloudflare API fetch + error type | ✅ ready |
 
 ### API Routes (`app/api/`)
 
@@ -228,6 +254,18 @@ page.tsx (RSC fetch via lib/services)
 | `/api/stripe/billing-portal` | POST | `createBillingPortalSession` | — | ✅ ready |
 | `/api/access-policies` | GET | `listAccessPolicies` | — | ✅ ready |
 | `/api/access-policies` | POST | `createAccessPolicy` | `createAccessPolicySchema` | ✅ ready |
+| `/api/gateway-policies` | GET | `listGatewayPolicies` | — | ✅ ready |
+| `/api/gateway-policies` | POST | `createGatewayPolicy` | `createGatewayPolicySchema` | ✅ ready |
+| `/api/gateway-policies/[policyId]` | DELETE | `deleteGatewayPolicy` | — | ✅ ready |
+| `/api/gateway-categories` | GET | `listGatewayCategoryPickerGroups` | Auth; `{ groups }` | ✅ ready |
+| `/api/gateway-apps` | GET | `listGatewayAppPickerGroups` | Auth; `{ groups }` | ✅ ready |
+| `/api/gateway-locations` | GET | `listGatewayAudiencePickerGroups` | Auth; `{ groups }` | ✅ ready |
+| `/api/gateway-presets` | GET | `listGatewayPresets` | Auth; `{ presets }` resolved vs CF catalog | ✅ ready |
+| `/api/cloudflare/accounts` | GET | `listCloudflareAccounts` | — | ✅ ready |
+| `/api/cloudflare/accounts` | POST | `createCloudflareAccount` | `createCloudflareAccountSchema` | ✅ ready |
+| `/api/tenants/provision` | GET | `getTenantCloudflareAccountForUser` | — | ✅ ready |
+| `/api/tenants/provision` | POST | `provisionTenantCloudflareAccount` | `provisionTenantSchema` | ✅ ready |
+| `/api/dns-profile/mobileconfig` | GET | `buildDohMobileconfig` + Gateway location | Auth required; downloads .mobileconfig | ✅ ready |
 
 ### Schemas (`schemas/`)
 
@@ -240,12 +278,17 @@ page.tsx (RSC fetch via lib/services)
 | `createCheckoutSessionSchema` | `schemas/billing/checkout.ts` | Checkout API + paywall | ✅ ready |
 | `BillingDetailsResponse` | `schemas/billing/details.ts` | Billing page + APIs | ✅ ready |
 | `createAccessPolicySchema` | `schemas/content-policies/access-policy.ts` | Access policy form + `/api/access-policies` POST | ✅ ready |
+| `createGatewayPolicySchema` | `schemas/content-policies/gateway-policy.ts` | Shared editor Save → Gateway DNS rule | ✅ ready |
+| `gatewayPresetSchema` | `schemas/content-policies/gateway-preset.ts` | Preset list + apply payload | ✅ ready |
+| `createCloudflareAccountSchema` | `schemas/cloudflare/account.ts` | Create Account API + `/api/cloudflare/accounts` POST | ✅ ready |
+| `provisionTenantSchema` | `schemas/tenants/provision.ts` | Tenant onboarding + `/api/tenants/provision` POST | ✅ ready |
 
 ### DB migrations (`supabase/migrations/`)
 
 | Migration | Purpose | Status |
 |-----------|---------|--------|
 | `20260716120000_user_subscriptions.sql` | `user_subscriptions` + `stripe_webhook_events` tables + RLS | ✅ applied to Reallife-OS [Production] |
+| `20260803120000_tenant_cloudflare_accounts.sql` | Per-user Cloudflare child account + Gateway location mapping + RLS | ⚪ apply to Supabase |
 
 ### Generic Validators (`schemas/generic/`)
 
@@ -263,6 +306,28 @@ page.tsx (RSC fetch via lib/services)
 
 | Date | Change | Updated By |
 |------|--------|------------|
+| 2026-08-03 | Policy create: prepend new item into `gatewayPolicies.list` cache via `setQueryData` (no list refetch) | Agent |
+| 2026-08-03 | Policy delete: update React Query list cache with `setQueryData` (no refetch / no router.refresh) | Agent |
+| 2026-08-03 | Policy list + skeleton share fixed column widths (`policy-table-layout`) so columns match exactly | Agent |
+| 2026-08-03 | Content policies loading skeleton matches real list UI (Table/Card structure, 2 rows) | Agent |
+| 2026-08-03 | Create Rule Presets: fetch `/api/gateway-presets` (CF-resolved categories/apps/domains) and apply on select | Agent |
+| 2026-08-03 | Create Rule dialog: General = Block/Allow/YT Restricted/SafeSearch with titles; Presets = block templates only (no YT duplicate) | Agent |
+| 2026-08-03 | Removed YouTube Restricted Mode toggle from editor (option already in Add Rule) | Agent |
+| 2026-08-03 | Policy editor: Categories/Apps/Audience from Cloudflare APIs; web addresses validated + saved as domains; save sends categoryIds/appIds/locationIds | Agent |
+| 2026-08-03 | Content policies `loading.tsx` matches page layout; table skeleton shows 2 rows | Agent |
+| 2026-08-03 | Content policies: Delete with confirm dialog → `DELETE /api/gateway-policies/[policyId]` (Gateway + Access fallback) | Agent |
+| 2026-08-03 | Policy view actions: Flame dropdown on mobile/tablet (`<lg`); icon-only buttons on desktop | Agent |
+| 2026-08-03 | Policy view actions: icon-only buttons; collapse to Flame dropdown on narrow screens (no wrap) | Agent |
+| 2026-08-03 | DNS Profile button disabled when no Gateway DoH location; shared `getDnsProfileSource` for view + API | Agent |
+| 2026-08-03 | Policy view: View config + Download config (JSON export); DNS profile .mobileconfig via `/api/dns-profile/mobileconfig` (no Cloudflare download URL for policies) | Agent |
+| 2026-08-03 | Content policies: row click + View open read-only `/content-policies/[id]` (`PolicyView`); Edit goes to `/content-policies/[id]/edit` | Agent |
+| 2026-08-03 | Gateway auth: always use API token (not Tenant email/key); list soft-falls back to Access policies on Cloudflare "Authentication error"; clearer create error for missing Zero Trust token perms | Agent |
+| 2026-08-03 | Gateway policies: soft-fail tenant lookup when `tenant_cloudflare_accounts` missing — fall back to platform `CLOUDFARE_ACCOUNT_ID` | Agent |
+| 2026-08-03 | Schedule sheet: replaced week drag-grid with simple day toggles + start/end time selects + weekly summary list | Agent |
+| 2026-08-03 | Schedule calendar: fluid full-width week grid, sticky day headers, quick-fill templates, ✕ remove (not click-to-delete), fixed resize drag | Agent |
+| 2026-08-03 | Schedule sheet: wider panel (up to 1120px, overrides default `sm:max-w-sm`), cleaner header/footer, larger day columns and blocks | Agent |
+| 2026-08-03 | Content policies create = same editor UI as edit (categories/apps/domains/schedules/SafeSearch/YT Restricted); Save → Gateway DNS `POST /accounts/{id}/gateway/rules`; list uses `/api/gateway-policies` | Agent |
+| 2026-08-03 | Phase 1 multi-tenant Cloudflare provisioning: Create Account API (`POST /accounts`) + Gateway enable + DoH/DoT location + baseline DNS rules (SafeSearch/DoH block); services, schemas, `/api/cloudflare/accounts`, `/api/tenants/provision`, `tenant_cloudflare_accounts` migration | Agent |
 | 2026-07-30 | New policy uses same editor shell as edit — `AccessPolicyForm` moved to `(editor)/_components`, sticky Include/Require/Exclude sidebar, create API via Save in UI; `PolicyDetail mode="create"` delegates to form | Agent |
 | 2026-07-30 | Content Policies: Cloudflare-style Add Rule flow — `/content-policies/new-policy` form (name, Allow/Block/Bypass, Include/Require/Exclude selectors), Zod + service + POST `/api/access-policies`; list Add Rule navigates to form instead of dummy JSON | Agent |
 | 2026-07-30 | Content policies editor: consistent buttons — default/`brandOutline`/`outline` variants on new-policy form, policy detail, and schedule sheet (removed inline brand overrides) | Agent |

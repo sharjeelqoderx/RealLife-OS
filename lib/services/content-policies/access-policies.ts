@@ -150,3 +150,28 @@ export async function createAccessPolicy(
 
   return data.result
 }
+
+export async function deleteAccessPolicy(policyId: string): Promise<void> {
+  const { accountId, appId, token } = getCloudflareConfig()
+
+  const res = await fetch(`${policiesUrl(accountId, appId)}/${policyId}`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    cache: "no-store",
+  })
+
+  const data = (await res.json().catch(() => ({}))) as {
+    success?: boolean
+    errors?: Array<{ message?: string }>
+  }
+
+  if (!res.ok || data.success === false) {
+    const message =
+      data.errors?.[0]?.message ?? "Failed to delete access policy"
+    console.error("Cloudflare delete policy error:", res.status, data)
+    throw new Error(message)
+  }
+}

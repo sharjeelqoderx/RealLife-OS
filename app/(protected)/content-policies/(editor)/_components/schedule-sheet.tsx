@@ -1,16 +1,26 @@
 "use client"
 
-import { useRef, useState } from "react"
-import { cn } from "@/lib/utils"
+import { useMemo, useRef, useState } from "react"
+import { CalendarDays, Plus, Trash2, X } from "lucide-react"
+
 import { Button } from "@/components/ui/button"
+import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   Sheet,
   SheetContent,
-  SheetHeader,
-  SheetTitle,
   SheetDescription,
   SheetFooter,
+  SheetHeader,
+  SheetTitle,
 } from "@/components/ui/sheet"
+import { cn } from "@/lib/utils"
 
 export type ScheduleBlock = {
   id: string
@@ -21,27 +31,44 @@ export type ScheduleBlock = {
   saved?: boolean
 }
 
-const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
-const HOURS_FROM = 0
-const HOURS_TO = 23
-const HOUR_HEIGHT = 48
-const GRID_PADDING_TOP = 52
-const GRID_PADDING_LEFT = 72
-const DAY_COLUMN_WIDTH = 100
+const DAYS = [
+  { index: 0, short: "Sun", full: "Sunday" },
+  { index: 1, short: "Mon", full: "Monday" },
+  { index: 2, short: "Tue", full: "Tuesday" },
+  { index: 3, short: "Wed", full: "Wednesday" },
+  { index: 4, short: "Thu", full: "Thursday" },
+  { index: 5, short: "Fri", full: "Friday" },
+  { index: 6, short: "Sat", full: "Saturday" },
+] as const
 
-const formatTime = (hour: number, minute: number) => {
-  const h = hour % 24
-  const m = minute
-  return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`
+const TIME_OPTIONS = Array.from({ length: 24 * 4 }, (_, i) => {
+  const total = i * 15
+  const hour = Math.floor(total / 60)
+  const minute = total % 60
+  return {
+    value: `${hour}:${minute}`,
+    minutes: total,
+    label: formatClock(hour, minute),
+  }
+})
+
+function formatClock(hour: number, minute: number) {
+  const h12 = hour % 12 === 0 ? 12 : hour % 12
+  const suffix = hour < 12 ? "AM" : "PM"
+  return `${h12}:${minute.toString().padStart(2, "0")} ${suffix}`
 }
 
-const formatBlockRange = (block: ScheduleBlock) => {
-  const startH = block.startHour
-  const startM = block.startMinute
-  const totalEnd = startH * 60 + startM + block.durationMinutes
-  const endH = Math.floor(totalEnd / 60) % 24
-  const endM = totalEnd % 60
-  return `${formatTime(startH, startM)}—${formatTime(endH, endM)}`
+function formatBlockRange(block: ScheduleBlock) {
+  const start = block.startHour * 60 + block.startMinute
+  const end = start + block.durationMinutes
+  const endH = Math.floor(end / 60) % 24
+  const endM = end % 60
+  return `${formatClock(block.startHour, block.startMinute)} – ${formatClock(endH, endM)}`
+}
+
+function parseTimeValue(value: string) {
+  const [h, m] = value.split(":").map(Number)
+  return { hour: h ?? 0, minute: m ?? 0, minutes: (h ?? 0) * 60 + (m ?? 0) }
 }
 
 type Props = {
@@ -63,420 +90,339 @@ export function ScheduleSheet({
   const nextId = () => {
     idCounterRef.current += 1
     const c = idCounterRef.current
-    return `sb-${c}-${c * 7919 % 100000}`
+    return `sb-${c}-${(c * 7919) % 100000}`
   }
 
-  const [blocks, setBlocks] = useState<ScheduleBlock[]>(() => {
-    const base = initialBlocks.map((b) => ({
-      ...b,
-      saved: b.saved ?? true,
-    }))
-    if (mode === "add" && base.length === 0) {
-      return [
-        {
-          id: "sb-init-001",
-          dayIndex: 0,
-          startHour: 0,
-          startMinute: 30,
-          durationMinutes: 30,
-          saved: false,
-        },
-        {
-          id: "sb-init-002",
-          dayIndex: 1,
-          startHour: 0,
-          startMinute: 0,
-          durationMinutes: 60,
-          saved: false,
-        },
-      ]
+  const [blocks, setBlocks] = useState<ScheduleBlock[]>(() =>
+    initialBlocks.map((b) => ({ ...b, saved: b.saved ?? true }))
+  )
+  const [selectedDays, setSelectedDays] = useState<number[]>([1, 2, 3, 4, 5])
+  const [startTime, setStartTime] = useState("8:0")
+  const [endTime, setEndTime] = useState("17:0")
+  const [formError, setFormError] = useState("")
+
+  const blocksByDay = useMemo(() => {
+    const map: Record<number, ScheduleBlock[]> = {}
+    for (const day of DAYS) map[day.index] = []
+    for (const block of blocks) {
+      map[block.dayIndex] = [...(map[block.dayIndex] ?? []), block]
     }
-    return base
-  })
+    for (const day of DAYS) {
+      map[day.index] = (map[day.index] ?? []).sort(
+        (a, b) =>
+          a.startHour * 60 +
+          a.startMinute -
+          (b.startHour * 60 + b.startMinute)
+      )
+    }
+    return map
+  }, [blocks])
 
-  const dragStateRef = useRef<{
-    type: "create" | "resize" | "move" | null
-    dayIndex?: number
-    startY?: number
-    anchorStartMin?: number
-    blockId?: string
-  }>({ type: null })
-
-  const snapToMinutes = (minutes: number, step = 15) =>
-    Math.round(minutes / step) * step
-
-  const yToMinutes = (y: number) => {
-    const rel = Math.max(0, y - GRID_PADDING_TOP)
-    const rawMinutes = (rel / HOUR_HEIGHT) * 60
-    return snapToMinutes(rawMinutes)
+  const toggleDay = (dayIndex: number) => {
+    setSelectedDays((prev) =>
+      prev.includes(dayIndex)
+        ? prev.filter((d) => d !== dayIndex)
+        : [...prev, dayIndex].sort((a, b) => a - b)
+    )
   }
 
-  const minutesToY = (totalMinutes: number) => {
-    return GRID_PADDING_TOP + (totalMinutes / 60) * HOUR_HEIGHT
-  }
+  const addBlocks = () => {
+    if (selectedDays.length === 0) {
+      setFormError("Select at least one day")
+      return
+    }
 
-  const findDayIndexFromX = (x: number) => {
-    const rel = Math.max(0, x - GRID_PADDING_LEFT)
-    const idx = Math.floor(rel / DAY_COLUMN_WIDTH)
-    return Math.max(0, Math.min(DAYS.length - 1, idx))
+    const start = parseTimeValue(startTime)
+    const end = parseTimeValue(endTime)
+
+    if (end.minutes <= start.minutes) {
+      setFormError("End time must be after start time")
+      return
+    }
+
+    setFormError("")
+    const durationMinutes = end.minutes - start.minutes
+    const next = selectedDays.map((dayIndex) => ({
+      id: nextId(),
+      dayIndex,
+      startHour: start.hour,
+      startMinute: start.minute,
+      durationMinutes,
+      saved: false,
+    }))
+    setBlocks((prev) => [...prev, ...next])
   }
 
   const removeBlock = (id: string) => {
     setBlocks((prev) => prev.filter((b) => b.id !== id))
   }
 
-  const handleGridPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    const target = e.target as HTMLElement
-    if (target.closest("[data-schedule-block]")) return
+  const clearAll = () => setBlocks([])
 
-    const rect = e.currentTarget.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
-    const dayIndex = findDayIndexFromX(x)
-    const startTotalMin = yToMinutes(y)
-
-    const newBlock: ScheduleBlock = {
-      id: nextId(),
-      dayIndex,
-      startHour: Math.floor(startTotalMin / 60),
-      startMinute: startTotalMin % 60,
-      durationMinutes: 60,
-      saved: false,
-    }
-
-    setBlocks((prev) => [...prev, newBlock])
-    dragStateRef.current = {
-      type: "resize",
-      blockId: newBlock.id,
-      anchorStartMin: startTotalMin,
-      startY: y,
-    }
-    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
-  }
-
-  const handleGridPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect()
-    const y = e.clientY - rect.top
-    const state = dragStateRef.current
-
-    if (!state.type || !state.blockId) return
-
-    const anchorMin = state.anchorStartMin ?? 0
-    const currentMin = yToMinutes(y)
-    const diff = currentMin - anchorMin
-
-    setBlocks((prev) =>
-      prev.map((b) => {
-        if (b.id !== state.blockId) return b
-        const blockStartMin = b.startHour * 60 + b.startMinute
-        if (state.type === "resize") {
-          let newDuration: number
-          if (diff < 0) {
-            const newStartTotal = snapToMinutes(
-              Math.max(0, blockStartMin + diff)
-            )
-            const newEnd = blockStartMin + b.durationMinutes
-            newDuration = Math.max(15, newEnd - newStartTotal)
-            return {
-              ...b,
-              startHour: Math.floor(newStartTotal / 60),
-              startMinute: newStartTotal % 60,
-              durationMinutes: newDuration,
-              saved: false,
-            }
-          } else {
-            newDuration = Math.max(15, b.durationMinutes + diff)
-            const totalEnd = blockStartMin + newDuration
-            const clampedEnd = Math.min(HOURS_TO * 60 + 60, totalEnd)
-            return {
-              ...b,
-              durationMinutes: clampedEnd - blockStartMin,
-              saved: false,
-            }
-          }
-        }
-        return b
-      })
+  const applyWeekdays = () => {
+    setSelectedDays([1, 2, 3, 4, 5])
+    setStartTime("8:0")
+    setEndTime("17:0")
+    setFormError("")
+    setBlocks(
+      [1, 2, 3, 4, 5].map((dayIndex) => ({
+        id: nextId(),
+        dayIndex,
+        startHour: 8,
+        startMinute: 0,
+        durationMinutes: 9 * 60,
+        saved: false,
+      }))
     )
   }
 
-  const handleGridPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    dragStateRef.current = { type: null }
-    try {
-      ;(e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId)
-    } catch {
-      /* ignore */
-    }
-  }
-
-  const handleBlockResizeDown = (
-    e: React.PointerEvent<HTMLDivElement>,
-    block: ScheduleBlock
-  ) => {
-    e.stopPropagation()
-    const rect = (e.currentTarget as HTMLElement)
-      .closest("[data-schedule-grid]")!
-      .getBoundingClientRect()
-    const startMin = block.startHour * 60 + block.startMinute
-    dragStateRef.current = {
-      type: "resize",
-      blockId: block.id,
-      anchorStartMin: startMin + block.durationMinutes,
-      startY: e.clientY - rect.top,
-    }
-    ;(
-      (e.currentTarget as HTMLElement).closest(
-        "[data-schedule-grid]"
-      ) as HTMLElement
-    ).setPointerCapture(e.pointerId)
+  const applyEveryNight = () => {
+    setSelectedDays([0, 1, 2, 3, 4, 5, 6])
+    setStartTime("21:0")
+    setEndTime("23:45")
+    setFormError("")
+    setBlocks(
+      [0, 1, 2, 3, 4, 5, 6].map((dayIndex) => ({
+        id: nextId(),
+        dayIndex,
+        startHour: 21,
+        startMinute: 0,
+        durationMinutes: 165,
+        saved: false,
+      }))
+    )
   }
 
   const handleSave = () => {
-    const cleaned = blocks.map((b) => ({ ...b, saved: true }))
-    onSave?.(cleaned)
+    onSave?.(blocks.map((b) => ({ ...b, saved: true })))
     onOpenChange(false)
   }
-
-  const totalMinutesToEnd = HOURS_TO * 60 + 60
-  const gridBodyHeight = (totalMinutesToEnd / 60) * HOUR_HEIGHT
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
         showCloseButton={false}
-        className="w-full max-w-[820px] sm:max-w-[820px] md:max-w-[860px] gap-0 p-0 flex flex-col bg-white"
+        className={cn(
+          "flex h-full w-full flex-col gap-0 bg-brand-surface p-0",
+          "data-[side=right]:w-[min(100vw,560px)] data-[side=right]:max-w-[min(100vw,560px)]",
+          "data-[side=right]:sm:max-w-[min(100vw,560px)]"
+        )}
       >
-        <SheetHeader className="px-6 pt-5 pb-4 border-b border-border/50">
-          <div className="flex items-start justify-between gap-3 pr-6">
-            <div className="min-w-0 flex-1 space-y-1">
+        <SheetHeader className="shrink-0 space-y-0 border-b border-border/60 px-6 py-5 text-left">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0 flex-1 space-y-1.5">
               <SheetTitle className="text-xl font-bold tracking-tight text-brand-text-heading">
                 {mode === "edit" ? "Edit Rule Schedule" : "Add Rule Schedule"}
               </SheetTitle>
               <SheetDescription className="text-sm leading-relaxed text-brand-text-muted">
-                Click an item to remove it. Click empty space to add a new
-                item. Drag to reorder or resize. Click and drag between days.
+                Choose days and a time range when this rule should be active.
               </SheetDescription>
             </div>
             <button
               type="button"
               onClick={() => onOpenChange(false)}
-              className="shrink-0 rounded-md p-1.5 text-brand-text-muted transition-colors hover:bg-gray-100 hover:text-brand-text-heading -mt-1 -mr-1"
+              className="shrink-0 rounded-md p-1.5 text-brand-text-muted transition-colors hover:bg-muted hover:text-brand-text-heading"
               aria-label="Close"
             >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="size-5"
-              >
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
+              <X className="size-5" />
             </button>
           </div>
         </SheetHeader>
 
-        <div className="flex-1 overflow-y-auto px-6 py-5">
-          <div
-            data-schedule-grid
-            className="relative mx-auto select-none rounded-xl border border-border/60 bg-white shadow-sm overflow-hidden touch-none"
-            style={{
-              width: GRID_PADDING_LEFT + DAY_COLUMN_WIDTH * DAYS.length + 4,
-            }}
-            onPointerDown={handleGridPointerDown}
-            onPointerMove={handleGridPointerMove}
-            onPointerUp={handleGridPointerUp}
-          >
-            <div
-              className="relative"
-              style={{
-                width: GRID_PADDING_LEFT + DAY_COLUMN_WIDTH * DAYS.length,
-                height: GRID_PADDING_TOP + gridBodyHeight,
-              }}
+        <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-5">
+          {/* Quick presets */}
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="brandOutline"
+              size="sm"
+              className="h-8"
+              onClick={applyWeekdays}
             >
-              {/* Day headers */}
-              <div
-                className="absolute left-0 right-0 top-0 z-20 flex border-b border-border/60 bg-white"
-                style={{
-                  height: GRID_PADDING_TOP,
-                  paddingLeft: GRID_PADDING_LEFT,
-                }}
-              >
-                {DAYS.map((day, i) => (
-                  <div
-                    key={day}
+              Weekdays 8am–5pm
+            </Button>
+            <Button
+              type="button"
+              variant="brandOutline"
+              size="sm"
+              className="h-8"
+              onClick={applyEveryNight}
+            >
+              Every night 9pm–11:45pm
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 text-brand-text-muted"
+              onClick={clearAll}
+              disabled={blocks.length === 0}
+            >
+              Clear all
+            </Button>
+          </div>
+
+          {/* Days */}
+          <div className="space-y-2.5">
+            <Label className="text-sm font-semibold text-brand-text-heading">
+              Days
+            </Label>
+            <div className="grid grid-cols-7 gap-1.5">
+              {DAYS.map((day) => {
+                const active = selectedDays.includes(day.index)
+                return (
+                  <button
+                    key={day.index}
+                    type="button"
+                    onClick={() => toggleDay(day.index)}
                     className={cn(
-                      "flex h-full items-center justify-center text-xs font-semibold text-brand-text-heading border-r border-border/60 last:border-r-0",
-                      i === 0 || i === DAYS.length - 1
-                        ? "bg-gray-50/60"
-                        : "bg-white"
+                      "flex h-11 flex-col items-center justify-center rounded-md border text-xs font-semibold transition-colors",
+                      active
+                        ? "border-brand-primary bg-brand-primary text-brand-primary-foreground"
+                        : "border-border/70 bg-white text-brand-text-heading hover:border-brand-primary/40 hover:bg-brand-primary/5"
                     )}
-                    style={{ width: DAY_COLUMN_WIDTH }}
+                    aria-pressed={active}
                   >
-                    {day}
-                  </div>
-                ))}
-              </div>
-
-              {/* Hour labels + hour rows */}
-              {Array.from({ length: HOURS_TO - HOURS_FROM + 1 }).map((_, i) => {
-                const hour = HOURS_FROM + i
-                const label =
-                  hour === 0
-                    ? "12 am"
-                    : hour < 12
-                    ? `${hour} am`
-                    : hour === 12
-                    ? "12 pm"
-                    : `${hour - 12} pm`
-                const y = GRID_PADDING_TOP + i * HOUR_HEIGHT
-                const isMidnight =
-                  hour === 0 || hour === 6 || hour === 12 || hour === 18
-                return (
-                  <div key={hour}>
-                    <div
-                      className="absolute left-0 z-10 flex items-center justify-end pr-3 text-xs text-brand-text-muted/90 font-medium"
-                      style={{
-                        top: y - 6,
-                        width: GRID_PADDING_LEFT,
-                        height: 16,
-                      }}
-                    >
-                      {label}
-                    </div>
-                    <div
-                      className={cn(
-                        "absolute right-0 border-t border-dashed",
-                        isMidnight ? "border-border/70" : "border-border/30"
-                      )}
-                      style={{
-                        top: y,
-                        left: GRID_PADDING_LEFT,
-                      }}
-                    />
-                  </div>
-                )
-              })}
-
-              {/* Half-hour dotted lines */}
-              {Array.from({ length: HOURS_TO - HOURS_FROM }).map((_, i) => {
-                const hour = HOURS_FROM + i
-                const y = GRID_PADDING_TOP + (i + 0.5) * HOUR_HEIGHT
-                return (
-                  <div
-                    key={`hh-${hour}`}
-                    className="absolute right-0 border-t border-dotted border-border/20"
-                    style={{
-                      top: y,
-                      left: GRID_PADDING_LEFT,
-                    }}
-                  />
-                )
-              })}
-
-              {/* Day column dividers + backgrounds */}
-              {DAYS.map((_, i) => {
-                const isWeekend = i === 0 || i === DAYS.length - 1
-                return (
-                  <div
-                    key={`col-${i}`}
-                    className={cn(
-                      "absolute top-0 border-r border-border/40 last:border-r-0",
-                      isWeekend ? "bg-gray-50/30" : "bg-white"
-                    )}
-                    style={{
-                      left: GRID_PADDING_LEFT + i * DAY_COLUMN_WIDTH,
-                      width: DAY_COLUMN_WIDTH,
-                      height: GRID_PADDING_TOP + gridBodyHeight,
-                    }}
-                  />
-                )
-              })}
-
-              {/* Schedule blocks */}
-              {blocks.map((block) => {
-                const startTotal = block.startHour * 60 + block.startMinute
-                const top = minutesToY(startTotal)
-                const height = (block.durationMinutes / 60) * HOUR_HEIGHT
-                const left =
-                  GRID_PADDING_LEFT + block.dayIndex * DAY_COLUMN_WIDTH + 2
-                const width = DAY_COLUMN_WIDTH - 4
-
-                return (
-                  <div
-                    key={block.id}
-                    data-schedule-block
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      removeBlock(block.id)
-                    }}
-                    className={cn(
-                      "absolute z-10 flex flex-col justify-between overflow-hidden rounded-md border border-brand-primary/30 px-2 py-1.5 text-[10px] leading-tight text-brand-primary cursor-pointer transition-colors shadow-sm",
-                      block.saved
-                        ? "bg-brand-primary/12 hover:bg-red-100 hover:border-red-300 hover:text-red-600"
-                        : "bg-brand-primary/8 hover:bg-red-100 hover:border-red-300 hover:text-red-600"
-                    )}
-                    style={{
-                      top,
-                      left,
-                      width,
-                      height: Math.max(22, height - 4),
-                    }}
-                    title="Click to remove"
-                  >
-                    <div className="font-mono font-semibold truncate">
-                      {formatBlockRange(block)}
-                    </div>
-                    {!block.saved && (
-                      <div className="text-[9px] font-medium text-brand-primary/70 truncate">
-                        (not saved)
-                      </div>
-                    )}
-                    <div
-                      onPointerDown={(e) => handleBlockResizeDown(e, block)}
-                      className="absolute inset-x-0 bottom-0 h-2 cursor-ns-resize touch-none"
-                      style={{
-                        background:
-                          "linear-gradient(to bottom, transparent, rgba(1,75,198,0.25))",
-                      }}
-                    />
-                  </div>
+                    {day.short}
+                  </button>
                 )
               })}
             </div>
           </div>
+
+          {/* Time range */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label
+                htmlFor="schedule-start"
+                className="text-sm font-semibold text-brand-text-heading"
+              >
+                Start time
+              </Label>
+              <Select value={startTime} onValueChange={setStartTime}>
+                <SelectTrigger id="schedule-start" className="w-full">
+                  <SelectValue placeholder="Start" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TIME_OPTIONS.map((opt) => (
+                    <SelectItem key={`start-${opt.value}`} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label
+                htmlFor="schedule-end"
+                className="text-sm font-semibold text-brand-text-heading"
+              >
+                End time
+              </Label>
+              <Select value={endTime} onValueChange={setEndTime}>
+                <SelectTrigger id="schedule-end" className="w-full">
+                  <SelectValue placeholder="End" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TIME_OPTIONS.map((opt) => (
+                    <SelectItem key={`end-${opt.value}`} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {formError ? (
+            <p className="text-sm text-destructive">{formError}</p>
+          ) : null}
+
+          <Button
+            type="button"
+            variant="brandOutline"
+            className="h-10 w-full gap-1.5"
+            onClick={addBlocks}
+          >
+            <Plus className="size-4" />
+            Add to schedule
+          </Button>
+
+          {/* Weekly summary */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-sm font-semibold text-brand-text-heading">
+                This week
+              </h3>
+              <span className="text-xs text-brand-text-muted">
+                {blocks.length} block{blocks.length === 1 ? "" : "s"}
+              </span>
+            </div>
+
+            {blocks.length === 0 ? (
+              <div className="flex min-h-[160px] flex-col items-center justify-center rounded-lg border border-dashed border-border/70 bg-white px-4 py-8 text-center">
+                <CalendarDays className="mb-3 size-8 text-brand-text-muted/70" />
+                <p className="text-sm font-semibold text-brand-text-heading">
+                  No schedule yet
+                </p>
+                <p className="mt-1 max-w-xs text-sm text-brand-text-muted">
+                  Pick days and times above, or use a quick preset.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2 rounded-lg border border-border/70 bg-white p-2">
+                {DAYS.map((day) => {
+                  const dayBlocks = blocksByDay[day.index] ?? []
+                  if (dayBlocks.length === 0) return null
+                  return (
+                    <div
+                      key={day.index}
+                      className="rounded-md border border-border/50 bg-muted/20 px-3 py-2.5"
+                    >
+                      <p className="mb-2 text-xs font-bold uppercase tracking-wide text-brand-text-muted">
+                        {day.full}
+                      </p>
+                      <div className="space-y-1.5">
+                        {dayBlocks.map((block) => (
+                          <div
+                            key={block.id}
+                            className="flex items-center justify-between gap-3 rounded-md border border-brand-primary/20 bg-brand-primary/[0.06] px-3 py-2"
+                          >
+                            <span className="text-sm font-medium text-brand-text-heading">
+                              {formatBlockRange(block)}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => removeBlock(block.id)}
+                              className="rounded-md p-1.5 text-brand-text-muted transition-colors hover:bg-destructive/10 hover:text-destructive"
+                              aria-label={`Remove ${day.full} block`}
+                            >
+                              <Trash2 className="size-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
         </div>
 
-        <SheetFooter className="flex-row-reverse items-center justify-between gap-3 px-6 py-4 border-t border-border/50 bg-gray-50/40 m-0">
-          <div className="flex items-center gap-3">
-            <Button
-              variant="outline"
-              size="lg"
-              onClick={() => onOpenChange(false)}
-            >
-              Close
-            </Button>
-            <Button size="lg" onClick={handleSave}>
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="size-4"
-              >
-                <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" />
-                <polyline points="17 21 17 13 7 13 7 21" />
-                <polyline points="7 3 7 8 15 8" />
-              </svg>
-              Save
-            </Button>
-          </div>
+        <SheetFooter className="m-0 shrink-0 flex-row items-center justify-end gap-3 border-t border-border/60 bg-muted/30 px-6 py-4 sm:flex-row sm:space-x-0">
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            onClick={() => onOpenChange(false)}
+          >
+            Close
+          </Button>
+          <Button type="button" size="lg" onClick={handleSave}>
+            Save schedule
+          </Button>
         </SheetFooter>
       </SheetContent>
     </Sheet>

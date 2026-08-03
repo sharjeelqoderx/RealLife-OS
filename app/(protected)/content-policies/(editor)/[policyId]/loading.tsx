@@ -1,5 +1,5 @@
-import { PolicyEditorLoading } from "@/app/(protected)/content-policies/(editor)/_components/policy-editor-loading"
+import { PolicyViewLoading } from "@/app/(protected)/content-policies/(editor)/_components/policy-view-loading"
 
-export default function PolicyDetailLoading() {
-  return <PolicyEditorLoading />
+export default function PolicyViewPageLoading() {
+  return <PolicyViewLoading />
 }
