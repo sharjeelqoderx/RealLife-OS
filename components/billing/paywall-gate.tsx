@@ -63,11 +63,11 @@ export function PaywallGate({ initialBillingStatus }: PaywallGateProps) {
 
   const trial = useMutation({
     mutationFn: (_planId: "personal") =>
-      apiClient<BillingStatusResponse>("/api/stripe/start-trial", {
+      apiClient<CreateCheckoutSessionResponse>("/api/stripe/start-trial", {
         method: "POST",
       }),
     onSuccess: (data) => {
-      queryClient.setQueryData(queryKeys.billing.status(), data)
+      window.location.assign(data.url)
     },
   })
 
@@ -144,7 +144,7 @@ export function PaywallGate({ initialBillingStatus }: PaywallGateProps) {
             Choose your level of protection.
           </DialogTitle>
           <DialogDescription className="text-base text-slate-500">
-            No credit card required for the 7-day trial.
+            Add a card to start your 7-day free trial.
           </DialogDescription>
         </DialogHeader>
 

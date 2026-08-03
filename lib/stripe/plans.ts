@@ -62,3 +62,13 @@ export function getBillingPlan(planId: BillingPlanId): BillingPlan {
   }
   return plan
 }
+
+/** Map stored plan id (e.g. `personal_trial`) to a display name. */
+export function getPlanDisplayName(planId: string | null): string {
+  if (!planId || planId === "personal_trial") {
+    return "Personal"
+  }
+
+  const plan = BILLING_PLANS.find((entry) => entry.id === planId)
+  return plan?.tier ?? "Subscription"
+}

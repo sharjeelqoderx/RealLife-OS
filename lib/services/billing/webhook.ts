@@ -10,6 +10,7 @@ import {
 } from "@/lib/services/billing/subscriptions"
 import { getStripe } from "@/lib/stripe/client"
 import { getStripeWebhookSecret } from "@/lib/env"
+import { FREE_TRIAL_DAYS } from "@/lib/stripe/plans"
 import type { SubscriptionStatus } from "@/types/billing"
 
 function asCustomerId(
@@ -101,12 +102,69 @@ function invoiceSubscriptionId(invoice: Stripe.Invoice): string | null {
 
 // ─── Event handlers ──────────────────────────────────────────────────────────
 
+async function setDefaultPaymentMethodFromSetup(
+  customerId: string,
+  setupIntentRef: string | Stripe.SetupIntent | null
+) {
+  const setupIntentId =
+    typeof setupIntentRef === "string" ? setupIntentRef : setupIntentRef?.id
+
+  if (!setupIntentId) return
+
+  const setupIntent = await getStripe().setupIntents.retrieve(setupIntentId)
+  const paymentMethodId =
+    typeof setupIntent.payment_method === "string"
+      ? setupIntent.payment_method
+      : setupIntent.payment_method?.id
+
+  if (!paymentMethodId) return
+
+  await getStripe().customers.update(customerId, {
+    invoice_settings: { default_payment_method: paymentMethodId },
+  })
+}
+
+async function startPersonalTrial(userId: string, customerId: string | null) {
+  const existing = await getSubscriptionByUserId(userId)
+  if (existing?.status === "active" || existing?.status === "trialing") {
+    return
+  }
+
+  const endsAt = new Date()
+  endsAt.setDate(endsAt.getDate() + FREE_TRIAL_DAYS)
+
+  await saveSubscription({
+    userId,
+    stripeCustomerId: customerId,
+    stripeSubscriptionId: null,
+    stripePriceId: "personal_trial",
+    status: "trialing",
+    currentPeriodEnd: endsAt.toISOString(),
+    cancelAtPeriodEnd: true,
+  })
+}
+
 async function handleCheckoutSessionCompleted(
   session: Stripe.Checkout.Session
 ) {
   const userId =
     session.metadata?.user_id ?? session.client_reference_id ?? null
   if (!userId) return
+
+  const customerId = asCustomerId(session.customer)
+
+  if (session.mode === "setup") {
+    if (customerId) {
+      await saveCustomerId(userId, customerId)
+      await setDefaultPaymentMethodFromSetup(customerId, session.setup_intent)
+    }
+
+    if (session.metadata?.plan_id === "personal") {
+      await startPersonalTrial(userId, customerId)
+    }
+
+    return
+  }
 
   const subscriptionId = asSubscriptionId(session.subscription)
   if (!subscriptionId) return

@@ -1,9 +1,14 @@
-import { BillingError, startFreeTrial } from "@/lib/services/billing/checkout"
+import {
+  BillingError,
+  createTrialCheckoutSession,
+} from "@/lib/services/billing/checkout"
 
-export async function POST() {
+export async function POST(request: Request) {
+  const origin = request.headers.get("origin") ?? undefined
+
   try {
-    const status = await startFreeTrial()
-    return Response.json(status)
+    const result = await createTrialCheckoutSession(origin)
+    return Response.json(result)
   } catch (error) {
     if (error instanceof BillingError) {
       return Response.json(
