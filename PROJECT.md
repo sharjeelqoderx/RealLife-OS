@@ -73,7 +73,8 @@ reallife-os/
 │   ├── (protected)/                 # Authenticated app
 │   │   ├── dashboard/
 │   │   ├── billing/
-│   │   └── content-policies/        # list + (editor) create/edit/view
+│   │   ├── content-policies/        # list + (editor) create/edit/view
+│   │   └── [slug]/                   # Unknown routes → under development
 │   ├── (public)/                    # Marketing / landing
 │   ├── api/                         # Thin route handlers → lib/services/*
 │   │   ├── auth/
@@ -194,6 +195,7 @@ page.tsx (RSC fetch via lib/services)
 | `/content-policies/new-policy` | Create Gateway DNS policy — same full editor as edit (categories, apps, domains, schedules, SafeSearch, YT Restricted) | `app/(protected)/content-policies/(editor)/new-policy/page.tsx` | `app/(protected)/content-policies/(editor)/new-policy/loading.tsx` | `policy-detail` | ✅ ready |
 | `/content-policies/[policyId]` | View policy details (read-only) | `app/(protected)/content-policies/(editor)/[policyId]/page.tsx` | `app/(protected)/content-policies/(editor)/[policyId]/loading.tsx` | `policy-view` | ✅ ready |
 | `/content-policies/[policyId]/edit` | Edit Gateway policy — same form as create, prepopulated; Save enabled only when dirty → PUT update | `app/(protected)/content-policies/(editor)/[policyId]/edit/page.tsx` | `app/(protected)/content-policies/(editor)/[policyId]/edit/loading.tsx` | `policy-detail` | ✅ ready |
+| `/[slug]` (protected) | Unknown protected routes (devices, settings, …) → under development | `app/(protected)/[slug]/page.tsx` | `app/(protected)/[slug]/loading.tsx` | `under-development` | ✅ ready |
 
 ### Shared Components
 
@@ -242,6 +244,7 @@ page.tsx (RSC fetch via lib/services)
 | PolicyEditorLoading | `app/(protected)/content-policies/(editor)/_components/policy-editor-loading.tsx` | Shared editor skeleton (sticky sidebar + detail panel) | editor routes loading.tsx | ✅ ready |
 | ScheduleSheet | `app/(protected)/content-policies/(editor)/_components/schedule-sheet.tsx` | Right-side Sheet with weekly 24h calendar grid — click-to-add, click-to-remove, drag-to-resize (15-min snap) | PolicyDetail schedules | ✅ ready |
 | PickerDialog | `app/(protected)/content-policies/(editor)/_components/picker-dialog.tsx` | Search modal; empty / no-match can show `emptyCreate` (name + Create). Categories, Apps, Audience | PolicyDetail | ✅ ready |
+| UnderDevelopment | `app/(protected)/[slug]/_components/under-development.tsx` | Placeholder for unimplemented protected nav routes | `/[slug]` catch-all | ✅ ready |
 | ErrorAlert | `components/feedback/error-alert.tsx` | Generic error display | Policy delete confirm, shared | ✅ ready |
 
 ### Supabase (`lib/supabase/`)
@@ -386,6 +389,7 @@ page.tsx (RSC fetch via lib/services)
 
 | Date | Change | Updated By |
 |------|--------|------------|
+| 2026-08-06 | Protected `[slug]` catch-all: unknown routes (devices, settings, …) show Under development UI | Agent |
 | 2026-08-06 | Edit prepopulation: parse live CF traffic/schedule exactly; platform-account fallback; sync form state from `initialData` | Agent |
 | 2026-08-06 | Policy edit: same create form prepopulated via `getGatewayPolicyForEditor`; Save only when dirty; PUT `updateGatewayPolicy` | Agent |
 | 2026-08-06 | Web addresses: per-rule state; Auto-Detect/Address/Keyword tabs drive validation + CF Domain/Host/regex traffic | Agent |
