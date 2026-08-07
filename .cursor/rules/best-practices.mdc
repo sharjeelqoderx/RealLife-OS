@@ -14,6 +14,11 @@ alwaysApply: true
 - Files: kebab-case (`user-profile.tsx`, `get-users.ts`).
 - Components: PascalCase. Hooks: `use` prefix. Services: verb-first (`getUsers`, `createTask`).
 - Query keys: noun-based arrays in `lib/query/keys.ts`.
+- Prefer clear domain verbs: `get`, `list`, `create`, `update`, `delete`.
+- Avoid vague verbs like `resolve`, `handle`, `process`, `fix` for normal lookups.
+  - Bad: `resolvePolicyAccountId` (sounds like a bugfix).
+  - Good: `getPolicyCloudflareAccountId` (states what is returned).
+- Name functions after the value they return or the action they perform — crystal clear, no jargon.
 
 ## Environment
 - Supabase keys in `.env.local` — never commit.

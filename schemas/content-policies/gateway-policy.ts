@@ -29,8 +29,20 @@ export const createGatewayPolicySchema = z
     categories: z.array(z.string().trim().min(1)).default([]),
     /** Explicit Cloudflare category IDs when already known. */
     categoryIds: z.array(z.number().int().positive()).default([]),
-    /** Custom allow/block hostnames (web addresses). */
+    /**
+     * Exact hostnames (Address tab) → `dns.fqdn`.
+     * Also accepts legacy flat domain lists.
+     */
     domains: z.array(z.string().trim().min(1)).default([]),
+    /**
+     * Domain roots (Auto-Detect tab) → Domain selector incl. subdomains.
+     * `any(dns.domains[*] …)`
+     */
+    domainRoots: z.array(z.string().trim().min(1)).default([]),
+    /**
+     * Keyword substrings (Keyword tab) → `dns.fqdn matches ".*kw.*"`.
+     */
+    domainKeywords: z.array(z.string().trim().min(1)).default([]),
     /** App labels — mapped to known domains when app IDs unavailable (DNS fallback). */
     apps: z.array(z.string().trim().min(1)).default([]),
     /** Cloudflare Gateway application IDs from `/gateway/app_types`. */
@@ -53,6 +65,8 @@ export const createGatewayPolicySchema = z
       value.categories.length > 0 ||
       value.categoryIds.length > 0 ||
       value.domains.length > 0 ||
+      value.domainRoots.length > 0 ||
+      value.domainKeywords.length > 0 ||
       value.apps.length > 0 ||
       value.appIds.length > 0 ||
       value.locationIds.length > 0

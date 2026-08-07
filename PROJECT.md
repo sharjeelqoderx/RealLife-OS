@@ -1,65 +1,139 @@
 # RealLife OS — Project Definition & Status
 
 > **Agent rule:** Har meaningful change ke baad is file ko update karo. Naya prompt aane par pehle yahan se context lo — kya hai, kyun hai, kahan use hua, kaise kaam karta hai.
+>
+> **Hamesha sync:** `Tech Stack` (packages + versions), `Folder Structure`, Element Registry, aur Changelog — yeh sections optional nahi; har relevant change ke baad update zaroori hai.
 
 ---
 
 ## Tech Stack
 
-| Layer | Choice |
-|-------|--------|
-| Framework | Next.js 16 (App Router) |
-| UI | shadcn/ui + Tailwind CSS v4 |
-| Forms | shadcn Form + react-hook-form |
-| Validation | Zod (shared API + frontend) |
-| Data | Supabase (server-only) |
-| Client data | TanStack React Query |
-| Types | Supabase generated types |
+> **Mandatory:** Yeh section hamesha sync rakho — naya framework/lib add ho ya major version badle to yahan + `package.json` dono update karo.
+
+| Layer | Choice | Packages |
+|-------|--------|----------|
+| Framework | Next.js 16 (App Router) | `next@16.2.10` |
+| UI runtime | React 19 | `react@19.2.4`, `react-dom@19.2.4` |
+| Language | TypeScript (strict) | `typescript@^5`, `@types/node`, `@types/react`, `@types/react-dom` |
+| Styling | Tailwind CSS v4 + animate | `tailwindcss@^4`, `@tailwindcss/postcss@^4`, `tw-animate-css` |
+| UI kit | shadcn/ui + Radix | `shadcn`, `radix-ui`, `class-variance-authority`, `clsx`, `tailwind-merge`, `lucide-react` |
+| Forms | shadcn Form + RHF | `react-hook-form`, `@hookform/resolvers` |
+| Validation | Zod (shared API + frontend) | `zod@^4` |
+| Auth / DB | Supabase (server-only) | `@supabase/supabase-js`, `@supabase/ssr` |
+| Client data | TanStack React Query | `@tanstack/react-query@^5` |
+| Payments | Stripe (server) | `stripe` |
+| Charts | Recharts (billing/dashboard) | `recharts` |
+| Lint | ESLint + Next config | `eslint`, `eslint-config-next@16.2.10` |
+| Types | Supabase generated | `types/supabase.ts` |
+
+### Package inventory (`package.json`)
+
+**Dependencies**
+
+| Package | Role |
+|---------|------|
+| `next` | App Router framework |
+| `react` / `react-dom` | UI runtime |
+| `@supabase/ssr` / `@supabase/supabase-js` | Auth + DB (server) |
+| `@tanstack/react-query` | Client cache / mutations |
+| `zod` | Shared schemas |
+| `react-hook-form` / `@hookform/resolvers` | Forms |
+| `stripe` | Billing / webhooks |
+| `shadcn` / `radix-ui` | Component primitives |
+| `class-variance-authority` / `clsx` / `tailwind-merge` | Variant + class utils |
+| `lucide-react` | Icons |
+| `recharts` | Charts |
+| `tw-animate-css` | CSS animations |
+
+**DevDependencies**
+
+| Package | Role |
+|---------|------|
+| `typescript` | Types |
+| `tailwindcss` / `@tailwindcss/postcss` | Styling pipeline |
+| `eslint` / `eslint-config-next` | Lint |
+| `@types/node` / `@types/react` / `@types/react-dom` | TS defs |
+
+Source of truth for exact versions: root `package.json`. Jab package add/remove/upgrade ho → is section ko sync karo.
 
 ---
 
 ## Folder Structure
 
+> **Mandatory:** Naya top-level folder, route group, `lib/*` domain, ya `schemas/*` feature add ho to yeh tree update karo.
+
 ```
 reallife-os/
 ├── app/
-│   ├── (auth)/                    # Auth routes (login, sign-up, etc.)
+│   ├── (auth)/                      # login, sign-up, forget/change-password
 │   │   └── [route]/
-│   │       ├── page.tsx           # Server Component — initial data fetch
-│   │       ├── loading.tsx        # REQUIRED per route
-│   │       └── _components/       # Page-only components (not reusable elsewhere)
-│   ├── (protected)/               # Authenticated routes
-│   ├── (public)/                  # Public routes
-│   ├── api/                       # API routes — thin handlers only
-│   │   └── [resource]/
-│   │       └── route.ts           # Calls lib/services/* functions
+│   │       ├── page.tsx             # Server Component — initial data fetch
+│   │       ├── loading.tsx          # REQUIRED per route
+│   │       └── _components/         # Page-only components
+│   ├── (protected)/                 # Authenticated app
+│   │   ├── dashboard/
+│   │   ├── billing/
+│   │   └── content-policies/        # list + (editor) create/edit/view
+│   ├── (public)/                    # Marketing / landing
+│   ├── api/                         # Thin route handlers → lib/services/*
+│   │   ├── auth/
+│   │   ├── stripe/
+│   │   ├── access-policies/
+│   │   ├── gateway-policies/
+│   │   ├── gateway-categories/
+│   │   ├── gateway-apps/
+│   │   ├── gateway-locations/
+│   │   ├── gateway-presets/
+│   │   ├── cloudflare/
+│   │   ├── tenants/
+│   │   └── dns-profile/
 │   ├── layout.tsx
 │   └── globals.css
 │
-├── components/                    # Shared / reusable components
-│   ├── ui/                        # shadcn primitives (Button, Input, Form, etc.)
-│   ├── feedback/                  # ErrorAlert, WarningAlert, etc.
-│   └── providers/                 # QueryProvider, etc.
+├── components/                      # Shared / reusable UI
+│   ├── ui/                          # shadcn primitives
+│   ├── feedback/                    # ErrorAlert, WarningAlert, spinners
+│   ├── providers/                   # QueryProvider, etc.
+│   ├── layout/                      # App shell / nav chrome
+│   └── billing/                     # Shared billing UI
 │
-├── schemas/                       # ALL Zod schemas — single source of truth
-│   ├── generic/                   # Reusable field validators (name, email, empty string, number)
-│   └── [feature]/                 # Feature-specific schemas (compose from generic/)
+├── schemas/                         # ALL Zod schemas (API + UI)
+│   ├── generic/                     # email, password, personName, …
+│   ├── auth/
+│   ├── billing/
+│   ├── cloudflare/
+│   ├── content-policies/
+│   └── tenants/
 │
 ├── lib/
-│   ├── services/                  # Business logic + Supabase queries (reusable)
-│   ├── api/                       # Generic fetch client for React Query (client-side)
-│   ├── supabase/
-│   │   ├── server.ts              # Server Supabase client (API + RSC only)
-│   │   └── admin.ts               # Service role (server only, if needed)
-│   ├── query/                     # Query keys factory + query/mutation hooks
+│   ├── api/                         # Client fetch helper (React Query)
+│   ├── auth/                        # Auth helpers
+│   ├── cloudflare/                  # CF config + HTTP client
+│   ├── content-policies/            # Policy UI helpers (if any)
+│   ├── navigation/                  # Sidebar / nav config
+│   ├── query/                       # queryKeys factory
+│   ├── services/                    # Business logic (verb-first)
+│   │   ├── auth/
+│   │   ├── billing/
+│   │   ├── cloudflare/              # categories, locations, rules, …
+│   │   ├── content-policies/
+│   │   └── tenants/
+│   ├── stripe/                      # Stripe SDK + plans
+│   ├── supabase/                    # server / admin / gotrue / stateless
+│   ├── env.ts
 │   └── utils.ts
 │
+├── hooks/                           # Shared React hooks (e.g. use-mobile)
 ├── types/
-│   └── supabase.ts                # Generated Supabase Database types
-│
-├── .cursor/rules/                 # Cursor agent rules
-├── PROJECT.md                     # This file
-└── AGENTS.md
+│   └── supabase.ts                  # Generated DB types
+├── supabase/
+│   └── migrations/                  # SQL migrations
+├── scripts/                         # One-off / ops scripts
+├── public/                          # Static assets
+├── .cursor/rules/                   # Always-on agent rules
+├── PROJECT.md                       # This file (registry + stack + tree)
+├── AGENTS.md
+└── package.json                     # Exact dependency versions
 ```
 
 ---
@@ -119,7 +193,7 @@ page.tsx (RSC fetch via lib/services)
 | `/content-policies` | View all content policies list (allowlist/blocklist) | `app/(protected)/content-policies/page.tsx` | `app/(protected)/content-policies/loading.tsx` | `page-content`, `policy-table`, `policy-table-loading` | ✅ ready |
 | `/content-policies/new-policy` | Create Gateway DNS policy — same full editor as edit (categories, apps, domains, schedules, SafeSearch, YT Restricted) | `app/(protected)/content-policies/(editor)/new-policy/page.tsx` | `app/(protected)/content-policies/(editor)/new-policy/loading.tsx` | `policy-detail` | ✅ ready |
 | `/content-policies/[policyId]` | View policy details (read-only) | `app/(protected)/content-policies/(editor)/[policyId]/page.tsx` | `app/(protected)/content-policies/(editor)/[policyId]/loading.tsx` | `policy-view` | ✅ ready |
-| `/content-policies/[policyId]/edit` | Edit existing policy | `app/(protected)/content-policies/(editor)/[policyId]/edit/page.tsx` | `app/(protected)/content-policies/(editor)/[policyId]/edit/loading.tsx` | `policy-detail` | ✅ ready |
+| `/content-policies/[policyId]/edit` | Edit Gateway policy — same form as create, prepopulated; Save enabled only when dirty → PUT update | `app/(protected)/content-policies/(editor)/[policyId]/edit/page.tsx` | `app/(protected)/content-policies/(editor)/[policyId]/edit/loading.tsx` | `policy-detail` | ✅ ready |
 
 ### Shared Components
 
@@ -162,12 +236,12 @@ page.tsx (RSC fetch via lib/services)
 | PolicyTable | `app/(protected)/content-policies/_components/policy-table.tsx` | Desktop table + mobile cards; Flame menu + delete confirm | `/content-policies` | ✅ ready |
 | PolicyTableLoading | `app/(protected)/content-policies/_components/policy-table-loading.tsx` | Table/card skeleton — 2 rows matching list layout | `/content-policies` loading | ✅ ready |
 | AccessPolicyForm | `app/(protected)/content-policies/(editor)/_components/access-policy-form.tsx` | Legacy Cloudflare Access Include/Require/Exclude form (superseded by Gateway editor for new-policy) | — | ⚪ unused |
-| PolicyDetail | `app/(protected)/content-policies/(editor)/_components/policy-detail.tsx` | Create/edit policy editor | `/content-policies/new-policy`, `/content-policies/[policyId]/edit` | ✅ ready |
+| PolicyDetail | `app/(protected)/content-policies/(editor)/_components/policy-detail.tsx` | Shared create/edit editor; edit uses `initialData`, dirty-gated Save → PUT | `/content-policies/new-policy`, `/content-policies/[policyId]/edit` | ✅ ready |
 | PolicyView | `app/(protected)/content-policies/(editor)/_components/policy-view.tsx` | Read-only policy detail; View/Download config JSON + DNS .mobileconfig | `/content-policies/[policyId]` | ✅ ready |
 | PolicyViewLoading | `app/(protected)/content-policies/(editor)/_components/policy-view-loading.tsx` | View-page skeleton (separate from editor loading) | `/content-policies/[policyId]` loading | ✅ ready |
 | PolicyEditorLoading | `app/(protected)/content-policies/(editor)/_components/policy-editor-loading.tsx` | Shared editor skeleton (sticky sidebar + detail panel) | editor routes loading.tsx | ✅ ready |
 | ScheduleSheet | `app/(protected)/content-policies/(editor)/_components/schedule-sheet.tsx` | Right-side Sheet with weekly 24h calendar grid — click-to-add, click-to-remove, drag-to-resize (15-min snap) | PolicyDetail schedules | ✅ ready |
-| PickerDialog | `app/(protected)/content-policies/(editor)/_components/picker-dialog.tsx` | Centered modal with top search bar, grouped uppercase section headers (ADS, BUSINESS & ECONOMY, LOGIN EMAIL...), list rows with selected dot indicator — Add Category / Add App / Add Member flows | PolicyDetail Categories, Apps, Audience | ✅ ready |
+| PickerDialog | `app/(protected)/content-policies/(editor)/_components/picker-dialog.tsx` | Search modal; empty / no-match can show `emptyCreate` (name + Create). Categories, Apps, Audience | PolicyDetail | ✅ ready |
 | ErrorAlert | `components/feedback/error-alert.tsx` | Generic error display | Policy delete confirm, shared | ✅ ready |
 
 ### Supabase (`lib/supabase/`)
@@ -210,7 +284,9 @@ page.tsx (RSC fetch via lib/services)
 | processStripeWebhookEvent | `lib/services/billing/webhook.ts` | Event → handler → DB | `/api/stripe/webhook` | ✅ ready |
 | getPolicies | `lib/services/content-policies/get-policies.ts` | Content policies list helpers / mock filter | `/content-policies` client filter | ✅ ready |
 | listAccessPolicies / createAccessPolicy | `lib/services/content-policies/access-policies.ts` | Cloudflare Access app policies list + create | `/api/access-policies` | ✅ ready |
-| listGatewayPolicies / createGatewayPolicy / getGatewayPolicyById / deleteGatewayPolicy | `lib/services/content-policies/gateway-policies.ts` | Gateway DNS policies — list, create, get, delete (Access fallback) | `/api/gateway-policies`, policy list/view/create | ✅ ready |
+| listGatewayPolicies / createGatewayPolicy / updateGatewayPolicy / getGatewayPolicyById / getGatewayPolicyForEditor / deleteGatewayPolicy | `lib/services/content-policies/gateway-policies.ts` | Gateway DNS policies CRUD + editor prepopulation | `/api/gateway-policies`, list/view/create/edit | ✅ ready |
+| parseTrafficExpression / parseGatewaySchedule | `lib/services/content-policies/parse-gateway-rule.ts` | Wirefilter + schedule → editor fields | `getGatewayPolicyForEditor` | ✅ ready |
+| updateGatewayRule | `lib/services/cloudflare/rules.ts` | PUT `/accounts/{id}/gateway/rules/{ruleId}` | `updateGatewayPolicy` | ✅ ready |
 | deleteAccessPolicy | `lib/services/content-policies/access-policies.ts` | Delete Cloudflare Access app policy | Gateway delete fallback | ✅ ready |
 | deleteGatewayRule | `lib/services/cloudflare/rules.ts` | DELETE `/accounts/{id}/gateway/rules/{ruleId}` | `deleteGatewayPolicy` | ✅ ready |
 | buildPolicyConfigJson / buildDohMobileconfig | `lib/services/content-policies/policy-config-export.ts` | Policy JSON export + Apple DoH .mobileconfig | Policy view, `/api/dns-profile/mobileconfig` | ✅ ready |
@@ -223,7 +299,7 @@ page.tsx (RSC fetch via lib/services)
 | createGatewayRule / listGatewayRules | `lib/services/cloudflare/rules.ts` | Low-level Gateway rules API | gateway-policies, baseline-rules | ✅ ready |
 | createCloudflareAccount / listCloudflareAccounts / getCloudflareAccount | `lib/services/cloudflare/accounts.ts` | Tenant API create/list/get child accounts | `/api/cloudflare/accounts`, tenant provision | ✅ ready |
 | ensureZeroTrustGateway | `lib/services/cloudflare/gateway.ts` | Enable Zero Trust Gateway on child account | tenant provision | ✅ ready |
-| createGatewayLocation | `lib/services/cloudflare/locations.ts` | DoH/DoT DNS location for device setup | tenant provision | ✅ ready |
+| createGatewayLocation | `lib/services/cloudflare/locations.ts` | DoH/DoT DNS location for device setup | tenant provision, Audience picker create | ✅ ready |
 | seedBaselineDnsPolicies | `lib/services/cloudflare/baseline-rules.ts` | Phase 1 SafeSearch + DoH provider block rules | tenant provision | ✅ ready |
 | provisionTenantCloudflareAccount / getTenantCloudflareAccountForUser | `lib/services/tenants/provision.ts` | Full tenant onboarding orchestration + DB mapping | `/api/tenants/provision` | ✅ ready |
 
@@ -256,10 +332,13 @@ page.tsx (RSC fetch via lib/services)
 | `/api/access-policies` | POST | `createAccessPolicy` | `createAccessPolicySchema` | ✅ ready |
 | `/api/gateway-policies` | GET | `listGatewayPolicies` | — | ✅ ready |
 | `/api/gateway-policies` | POST | `createGatewayPolicy` | `createGatewayPolicySchema` | ✅ ready |
+| `/api/gateway-policies/[policyId]` | GET | `getGatewayPolicyForEditor` | Auth; `{ data }` editor state | ✅ ready |
+| `/api/gateway-policies/[policyId]` | PUT | `updateGatewayPolicy` | `createGatewayPolicySchema` | ✅ ready |
 | `/api/gateway-policies/[policyId]` | DELETE | `deleteGatewayPolicy` | — | ✅ ready |
 | `/api/gateway-categories` | GET | `listGatewayCategoryPickerGroups` | Auth; `{ groups }` | ✅ ready |
 | `/api/gateway-apps` | GET | `listGatewayAppPickerGroups` | Auth; `{ groups }` | ✅ ready |
 | `/api/gateway-locations` | GET | `listGatewayAudiencePickerGroups` | Auth; `{ groups }` | ✅ ready |
+| `/api/gateway-locations` | POST | `createGatewayLocation` | `createGatewayLocationSchema` | ✅ ready |
 | `/api/gateway-presets` | GET | `listGatewayPresets` | Auth; `{ presets }` resolved vs CF catalog | ✅ ready |
 | `/api/cloudflare/accounts` | GET | `listCloudflareAccounts` | — | ✅ ready |
 | `/api/cloudflare/accounts` | POST | `createCloudflareAccount` | `createCloudflareAccountSchema` | ✅ ready |
@@ -278,10 +357,11 @@ page.tsx (RSC fetch via lib/services)
 | `createCheckoutSessionSchema` | `schemas/billing/checkout.ts` | Checkout API + paywall | ✅ ready |
 | `BillingDetailsResponse` | `schemas/billing/details.ts` | Billing page + APIs | ✅ ready |
 | `createAccessPolicySchema` | `schemas/content-policies/access-policy.ts` | Access policy form + `/api/access-policies` POST | ✅ ready |
-| `createGatewayPolicySchema` | `schemas/content-policies/gateway-policy.ts` | Shared editor Save → Gateway DNS rule | ✅ ready |
+| `createGatewayPolicySchema` | `schemas/content-policies/gateway-policy.ts` | Save payload: domains (Host), domainRoots (Domain), domainKeywords (regex) | ✅ ready |
 | `gatewayPresetSchema` | `schemas/content-policies/gateway-preset.ts` | Preset list + apply payload | ✅ ready |
 | `createCloudflareAccountSchema` | `schemas/cloudflare/account.ts` | Create Account API + `/api/cloudflare/accounts` POST | ✅ ready |
 | `provisionTenantSchema` | `schemas/tenants/provision.ts` | Tenant onboarding + `/api/tenants/provision` POST | ✅ ready |
+| `createGatewayLocationSchema` | `schemas/content-policies/gateway-location.ts` | Audience picker create + `/api/gateway-locations` POST | ✅ ready |
 
 ### DB migrations (`supabase/migrations/`)
 
@@ -306,6 +386,14 @@ page.tsx (RSC fetch via lib/services)
 
 | Date | Change | Updated By |
 |------|--------|------------|
+| 2026-08-06 | Edit prepopulation: parse live CF traffic/schedule exactly; platform-account fallback; sync form state from `initialData` | Agent |
+| 2026-08-06 | Policy edit: same create form prepopulated via `getGatewayPolicyForEditor`; Save only when dirty; PUT `updateGatewayPolicy` | Agent |
+| 2026-08-06 | Web addresses: per-rule state; Auto-Detect/Address/Keyword tabs drive validation + CF Domain/Host/regex traffic | Agent |
+| 2026-08-06 | PROJECT.md: Tech Stack + package inventory + full Folder Structure; rules/AGENTS require always sync | Agent |
+| 2026-08-06 | Audience create: type name in search; no results → ghost underlined Create “name” (no extra field) | Agent |
+| 2026-08-06 | Audience picker empty / no-match: Create DNS location (POST `/api/gateway-locations`), auto-select + cache update | Agent |
+| 2026-08-06 | Audience DNS location picker: search by name / DoH subdomain / IPv4; show DoH+IP under each location | Agent |
+| 2026-08-06 | Renamed `resolvePolicyAccountId` → `getPolicyCloudflareAccountId`; naming rule: avoid vague `resolve`/`handle`/`process` | Agent |
 | 2026-08-03 | Policy create: prepend new item into `gatewayPolicies.list` cache via `setQueryData` (no list refetch) | Agent |
 | 2026-08-03 | Policy delete: update React Query list cache with `setQueryData` (no refetch / no router.refresh) | Agent |
 | 2026-08-03 | Policy list + skeleton share fixed column widths (`policy-table-layout`) so columns match exactly | Agent |

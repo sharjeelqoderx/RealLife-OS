@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { listGatewayPresets } from "@/lib/services/content-policies/gateway-presets"
-import { resolvePolicyAccountId } from "@/lib/services/content-policies/gateway-policies"
+import { getPolicyCloudflareAccountId } from "@/lib/services/content-policies/gateway-policies"
 import { createClient } from "@/lib/supabase/server"
 
 /**
@@ -19,7 +19,7 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const accountId = await resolvePolicyAccountId(user.id)
+    const accountId = await getPolicyCloudflareAccountId(user.id)
     const presets = await listGatewayPresets(accountId)
     return NextResponse.json({ presets })
   } catch (error) {

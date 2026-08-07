@@ -4,7 +4,12 @@ import { listGatewayCategories } from "@/lib/services/cloudflare/categories"
 export type PickerGroupDto = {
   id: string
   label: string
-  items: { id: string; label: string }[]
+  items: {
+    id: string
+    label: string
+    description?: string
+    keywords?: string
+  }[]
 }
 
 /**

@@ -16,6 +16,8 @@ export const queryKeys = {
   gatewayPolicies: {
     all: ["gateway-policies"] as const,
     list: () => [...queryKeys.gatewayPolicies.all, "list"] as const,
+    detail: (policyId: string) =>
+      [...queryKeys.gatewayPolicies.all, "detail", policyId] as const,
     categories: () => [...queryKeys.gatewayPolicies.all, "categories"] as const,
     apps: () => [...queryKeys.gatewayPolicies.all, "apps"] as const,
     locations: () => [...queryKeys.gatewayPolicies.all, "locations"] as const,

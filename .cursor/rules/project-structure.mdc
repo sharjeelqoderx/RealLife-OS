@@ -7,6 +7,19 @@ alwaysApply: true
 
 Read `PROJECT.md` at the start of every task for current element registry and status.
 
+## Always keep `PROJECT.md` in sync
+
+`PROJECT.md` is mandatory living docs. After every meaningful change, update:
+
+| Section | When to update |
+|---------|----------------|
+| **Tech Stack** + package tables | Add/remove/upgrade a dependency, or change framework/lib choice |
+| **Folder Structure** tree | Add/rename/remove top-level dirs, route groups, `lib/*` domains, `schemas/*` features, `app/api/*` resources |
+| **Element Registry** | New route, component, service, schema, API, or migration |
+| **Changelog** | Every meaningful change (date + short note) |
+
+Do **not** leave stack/packages/tree stale vs `package.json` or the real repo layout.
+
 ## Route folders (mandatory files)
 
 Every route under `app/` MUST have:
@@ -38,4 +51,4 @@ app/(group)/[route]/
 
 ## After every change
 
-Update `PROJECT.md` element registry + changelog.
+Update `PROJECT.md`: Tech Stack / Folder Structure (if needed) + element registry + changelog.

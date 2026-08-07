@@ -18,7 +18,7 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 
 import { CustomSpinner } from "@/components/feedback/custom-spinner"
 import { Badge } from "@/components/ui/badge"
@@ -35,6 +35,7 @@ import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { apiClient } from "@/lib/api/client"
 import { queryKeys } from "@/lib/query/keys"
+import type { GatewayPolicyEditorData } from "@/lib/services/content-policies/gateway-policies"
 import { cn } from "@/lib/utils"
 import type { CreateGatewayPolicyInput } from "@/schemas/content-policies/gateway-policy"
 import type {
@@ -231,6 +232,50 @@ function toPolicyListItem(
 
 type AddAddressMode = "auto" | "address" | "keyword"
 
+type WebAddressItem = {
+  id: string
+  url: string
+  mode: AddAddressMode
+}
+
+function addressTag(mode: AddAddressMode): string {
+  if (mode === "keyword") return "KEYWORD"
+  if (mode === "address") return "ADDRESS"
+  return "AUTO"
+}
+
+const HOSTNAME_PATTERN =
+  /^(?:\*\.)?(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/i
+
+function normalizeAddressPart(part: string): string {
+  return part
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/\/.*$/, "")
+}
+
+const addressTabMeta: Record<
+  AddAddressMode,
+  { label: string; placeholder: string; hint: string }
+> = {
+  auto: {
+    label: "Auto-Detect",
+    placeholder: "e.g. facebook.com, messenger.facebook.com",
+    hint: "Matches the domain and all its subdomains (Cloudflare Domain selector).",
+  },
+  address: {
+    label: "Address",
+    placeholder: "e.g. www.facebook.com",
+    hint: "Matches only the exact hostname (Cloudflare Host selector).",
+  },
+  keyword: {
+    label: "Keyword",
+    placeholder: "e.g. facebook, messenger, ads",
+    hint: "Matches hostnames that contain the keyword (regex substring).",
+  },
+}
+
 type PickerGroupsResponse = {
   groups: PickerGroup<string>[]
 }
@@ -246,10 +291,81 @@ type PolicyEditorMode = "create" | "edit"
 type Props = {
   mode: PolicyEditorMode
   policyId?: string
+  /** Prepopulated Gateway rule for edit mode (same form as create). */
+  initialData?: GatewayPolicyEditorData
 }
 
-export function PolicyDetail({ mode, policyId: _policyId }: Props) {
+function buildRuleItemFromEditorData(data: GatewayPolicyEditorData): RuleItem {
+  const defaults = typeBadgeDefaults[data.type]
+  return {
+    id: data.id,
+    name: data.name,
+    type: data.type,
+    typeLabel: defaults.label,
+    badgeClass: defaults.className,
+  }
+}
+
+type EditorSnapshot = {
+  name: string
+  type: PolicyType
+  enabled: boolean
+  categoryIds: string[]
+  appIds: string[]
+  locationIds: string[]
+  addresses: { url: string; mode: AddAddressMode }[]
+  schedules: {
+    dayIndex: number
+    startHour: number
+    startMinute: number
+    durationMinutes: number
+  }[]
+}
+
+function serializeEditorSnapshot(snapshot: EditorSnapshot): string {
+  return JSON.stringify({
+    name: snapshot.name,
+    type: snapshot.type,
+    enabled: snapshot.enabled,
+    categoryIds: [...snapshot.categoryIds].sort(),
+    appIds: [...snapshot.appIds].sort(),
+    locationIds: [...snapshot.locationIds].sort(),
+    addresses: [...snapshot.addresses]
+      .map((a) => ({ url: a.url, mode: a.mode }))
+      .sort((a, b) =>
+        `${a.mode}:${a.url}`.localeCompare(`${b.mode}:${b.url}`)
+      ),
+    schedules: [...snapshot.schedules]
+      .map((s) => ({
+        dayIndex: s.dayIndex,
+        startHour: s.startHour,
+        startMinute: s.startMinute,
+        durationMinutes: s.durationMinutes,
+      }))
+      .sort((a, b) =>
+        `${a.dayIndex}-${a.startHour}-${a.startMinute}-${a.durationMinutes}`.localeCompare(
+          `${b.dayIndex}-${b.startHour}-${b.startMinute}-${b.durationMinutes}`
+        )
+      ),
+  })
+}
+
+function snapshotFromEditorData(data: GatewayPolicyEditorData): string {
+  return serializeEditorSnapshot({
+    name: data.name,
+    type: data.type,
+    enabled: data.enabled,
+    categoryIds: data.categories.map((c) => c.id),
+    appIds: data.apps.map((a) => a.id),
+    locationIds: data.locations.map((l) => l.id),
+    addresses: data.addresses,
+    schedules: data.schedules,
+  })
+}
+
+export function PolicyDetail({ mode, policyId, initialData }: Props) {
   const isCreateMode = mode === "create"
+  const isEditMode = mode === "edit"
   const router = useRouter()
   const queryClient = useQueryClient()
   const idCounterRef = useRef(100)
@@ -258,32 +374,98 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
     const c = idCounterRef.current
     return `${prefix}-${c}-${(c * 7919) % 100000}`
   }
-  const [rulesList, setRulesList] = useState<RuleItem[]>(
-    isCreateMode ? [] : mockRules
+
+  const initialRule = initialData
+    ? buildRuleItemFromEditorData(initialData)
+    : null
+
+  const [rulesList, setRulesList] = useState<RuleItem[]>(() => {
+    if (isCreateMode) return []
+    if (initialRule) return [initialRule]
+    return mockRules
+  })
+  const [selectedRuleId, setSelectedRuleId] = useState<string | null>(() => {
+    if (isCreateMode) return null
+    if (initialRule) return initialRule.id
+    return mockRules[0]?.id ?? null
+  })
+  const [isActive, setIsActive] = useState(() =>
+    initialData ? initialData.enabled : true
   )
-  const [selectedRuleId, setSelectedRuleId] = useState<string | null>(
-    isCreateMode ? null : (mockRules[0]?.id ?? null)
-  )
-  const [isActive, setIsActive] = useState(true)
-  const [webAddresses, setWebAddresses] = useState(
-    isCreateMode ? [] : [{ id: "wa-1", tag: "M3 MAIN", url: "reallifeos.com" }]
-  )
+  const [addressesByRule, setAddressesByRule] = useState<
+    Record<string, WebAddressItem[]>
+  >(() => {
+    if (!initialData || !initialRule) return {}
+    return {
+      [initialRule.id]: initialData.addresses.map((a, index) => ({
+        id: `wa-init-${index}`,
+        url: a.url,
+        mode: a.mode,
+      })),
+    }
+  })
 
   const [isAddAddressOpen, setIsAddAddressOpen] = useState(false)
-  const [addressInput, setAddressInput] = useState(
-    isCreateMode ? "" : "facebook.com, messenger.facebook.com, face"
-  )
-  const [addressError, setAddressError] = useState(
-    isCreateMode ? "" : "Value is required"
-  )
+  const [addressInput, setAddressInput] = useState("")
+  const [addressError, setAddressError] = useState("")
   const [addressMode, setAddressMode] =
     useState<AddAddressMode>("auto")
   const [pendingAddresses, setPendingAddresses] = useState<
     { id: string; url: string; mode: AddAddressMode; selected: boolean }[]
   >([])
 
+  const baselineSnapshotRef = useRef<string | null>(
+    initialData ? snapshotFromEditorData(initialData) : null
+  )
+
+  /** Keep form state in sync with server-fetched Gateway rule (exact data). */
+  useEffect(() => {
+    if (!isEditMode || !initialData) return
+
+    const rule = buildRuleItemFromEditorData(initialData)
+    setRulesList([rule])
+    setSelectedRuleId(rule.id)
+    setIsActive(initialData.enabled)
+    setCategoriesByRule({ [rule.id]: initialData.categories })
+    setAppsByRule({ [rule.id]: initialData.apps })
+    setAudienceByRule({ [rule.id]: initialData.locations })
+    setAddressesByRule({
+      [rule.id]: initialData.addresses.map((a, index) => ({
+        id: `wa-init-${index}`,
+        url: a.url,
+        mode: a.mode,
+      })),
+    })
+    setSchedulesByRule({
+      [rule.id]: initialData.schedules.map((s, index) => ({
+        id: `sch-init-${index}`,
+        dayIndex: s.dayIndex,
+        startHour: s.startHour,
+        startMinute: s.startMinute,
+        durationMinutes: s.durationMinutes,
+        saved: true,
+      })),
+    })
+    baselineSnapshotRef.current = snapshotFromEditorData(initialData)
+    // Only re-hydrate when the policy id changes (not on every parent render).
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional
+  }, [isEditMode, initialData?.id])
+
   const saveMutation = useMutation({
     mutationFn: async (payload: CreateGatewayPolicyInput) => {
+      if (isEditMode) {
+        const id = policyId ?? initialData?.id
+        if (!id) throw new Error("Policy ID is required for update")
+        const response = await apiClient<{ data: CreatedGatewayRule }>(
+          `/api/gateway-policies/${id}`,
+          {
+            method: "PUT",
+            body: JSON.stringify(payload),
+          }
+        )
+        return { rule: response.data, payload, mode: "edit" as const }
+      }
+
       const response = await apiClient<{ data: CreatedGatewayRule }>(
         "/api/gateway-policies",
         {
@@ -291,17 +473,25 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
           body: JSON.stringify(payload),
         }
       )
-      return { rule: response.data, payload }
+      return { rule: response.data, payload, mode: "create" as const }
     },
-    onSuccess: ({ rule, payload }) => {
+    onSuccess: ({ rule, payload, mode: saveMode }) => {
       const listItem = toPolicyListItem(rule, payload)
       if (listItem) {
         queryClient.setQueryData<PolicyListItem[]>(
           queryKeys.gatewayPolicies.list(),
-          (current) => [
-            listItem,
-            ...(current ?? []).filter((policy) => policy.id !== listItem.id),
-          ]
+          (current) => {
+            if (saveMode === "edit") {
+              const list = current ?? []
+              const exists = list.some((p) => p.id === listItem.id)
+              if (!exists) return [listItem, ...list]
+              return list.map((p) => (p.id === listItem.id ? listItem : p))
+            }
+            return [
+              listItem,
+              ...(current ?? []).filter((policy) => policy.id !== listItem.id),
+            ]
+          }
         )
       }
       router.push("/content-policies")
@@ -321,7 +511,18 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
   const hideContentPickers = isYoutubeRestrictedRule || isSafeSearchRule
 
   const removeWebAddress = (id: string) => {
-    setWebAddresses((prev) => prev.filter((a) => a.id !== id))
+    if (!selectedRuleId) return
+    const ruleId = selectedRuleId
+    setAddressesByRule((prev) => ({
+      ...prev,
+      [ruleId]: (prev[ruleId] ?? []).filter((a) => a.id !== id),
+    }))
+  }
+
+  const handleAddressModeChange = (mode: AddAddressMode) => {
+    setAddressMode(mode)
+    setAddressError("")
+    setPendingAddresses((prev) => prev.map((p) => ({ ...p, mode })))
   }
 
   const handleDetectAddresses = () => {
@@ -330,20 +531,35 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
       setPendingAddresses([])
       return
     }
+
     const parts = addressInput
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean)
-      .map((part) =>
-        part
-          .toLowerCase()
-          .replace(/^https?:\/\//, "")
-          .replace(/\/.*$/, "")
-      )
 
-    const hostnamePattern =
-      /^(?:\*\.)?(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/i
-    const invalid = parts.filter((part) => !hostnamePattern.test(part))
+    if (addressMode === "keyword") {
+      const keywords = parts
+        .map((p) => p.trim().toLowerCase())
+        .filter((p) => p.length >= 2)
+      if (keywords.length === 0) {
+        setAddressError("Keyword must be at least 2 characters")
+        setPendingAddresses([])
+        return
+      }
+      setAddressError("")
+      setPendingAddresses(
+        keywords.map((url) => ({
+          id: nextId("pa"),
+          url,
+          mode: "keyword" as const,
+          selected: true,
+        }))
+      )
+      return
+    }
+
+    const normalized = parts.map(normalizeAddressPart)
+    const invalid = normalized.filter((part) => !HOSTNAME_PATTERN.test(part))
     if (invalid.length > 0) {
       setAddressError(`Invalid hostname: ${invalid[0]}`)
       setPendingAddresses([])
@@ -351,13 +567,14 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
     }
 
     setAddressError("")
-    const detected = parts.map((part) => ({
-      id: nextId("pa"),
-      url: part,
-      mode: addressMode,
-      selected: true,
-    }))
-    setPendingAddresses(detected)
+    setPendingAddresses(
+      normalized.map((url) => ({
+        id: nextId("pa"),
+        url,
+        mode: addressMode,
+        selected: true,
+      }))
+    )
   }
 
   const togglePendingSelection = (id: string) => {
@@ -369,23 +586,32 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
   }
 
   const addSelectedAddresses = () => {
+    if (!selectedRuleId) return
+    const ruleId = selectedRuleId
     const selected = pendingAddresses.filter((p) => p.selected)
     if (selected.length === 0) return
-    setWebAddresses((prev) => [
-      ...prev,
-      ...selected.map((p) => ({
-        id: nextId("wa"),
-        tag:
-          p.mode === "keyword"
-            ? "KEYWORD"
-            : p.mode === "address"
-            ? "MANUAL"
-            : "AUTO",
-        url: p.url,
-      })),
-    ])
+    setAddressesByRule((prev) => {
+      const existing = prev[ruleId] ?? []
+      const next = selected
+        .filter(
+          (p) =>
+            !existing.some(
+              (e) => e.url === p.url && e.mode === p.mode
+            )
+        )
+        .map((p) => ({
+          id: nextId("wa"),
+          url: p.url,
+          mode: p.mode,
+        }))
+      return {
+        ...prev,
+        [ruleId]: [...existing, ...next],
+      }
+    })
     setPendingAddresses([])
     setAddressInput("")
+    setAddressError("")
     setIsAddAddressOpen(false)
   }
 
@@ -400,11 +626,22 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
   // ========== Categories, Apps, Audience per rule ==========
   const [categoriesByRule, setCategoriesByRule] = useState<
     Record<string, PickedItem[]>
-  >({})
-  const [appsByRule, setAppsByRule] = useState<Record<string, PickedItem[]>>({})
+  >(() => {
+    if (!initialData || !initialRule) return {}
+    return { [initialRule.id]: initialData.categories }
+  })
+  const [appsByRule, setAppsByRule] = useState<Record<string, PickedItem[]>>(
+    () => {
+      if (!initialData || !initialRule) return {}
+      return { [initialRule.id]: initialData.apps }
+    }
+  )
   const [audienceByRule, setAudienceByRule] = useState<
     Record<string, PickedItem[]>
-  >({})
+  >(() => {
+    if (!initialData || !initialRule) return {}
+    return { [initialRule.id]: initialData.locations }
+  })
 
   const currentCategories = selectedRuleId
     ? (categoriesByRule[selectedRuleId] ?? [])
@@ -412,6 +649,9 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
   const currentApps = selectedRuleId ? (appsByRule[selectedRuleId] ?? []) : []
   const currentAudience = selectedRuleId
     ? (audienceByRule[selectedRuleId] ?? [])
+    : []
+  const currentAddresses = selectedRuleId
+    ? (addressesByRule[selectedRuleId] ?? [])
     : []
 
   // Picker open states
@@ -443,6 +683,109 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
       apiClient<PickerGroupsResponse>("/api/gateway-locations"),
     enabled: isAudiencePickerOpen,
     staleTime: 5 * 60 * 1000,
+  })
+
+  const createLocationMutation = useMutation({
+    mutationFn: async (name: string) => {
+      const response = await apiClient<{
+        data: {
+          id?: string
+          name?: string
+          client_default?: boolean
+          doh_subdomain?: string
+          ipv4_destination?: string
+        }
+      }>("/api/gateway-locations", {
+        method: "POST",
+        body: JSON.stringify({ name }),
+      })
+      return response.data
+    },
+    onSuccess: (location) => {
+      if (!location.id || !selectedRuleId) return
+      const ruleId = selectedRuleId
+      const label = location.client_default
+        ? `${(location.name ?? "Location").trim()} (default)`
+        : (location.name ?? "Location").trim()
+      const descriptionParts: string[] = []
+      if (location.doh_subdomain?.trim()) {
+        descriptionParts.push(
+          `${location.doh_subdomain.trim()}.cloudflare-gateway.com`
+        )
+      }
+      if (location.ipv4_destination?.trim()) {
+        descriptionParts.push(location.ipv4_destination.trim())
+      }
+
+      queryClient.setQueryData<PickerGroupsResponse>(
+        queryKeys.gatewayPolicies.locations(),
+        (prev) => {
+          const existing = prev?.groups ?? []
+          const groupId = "locations"
+          const nextItem = {
+            id: location.id as string,
+            label,
+            description:
+              descriptionParts.length > 0
+                ? descriptionParts.join(" · ")
+                : undefined,
+            keywords: [
+              location.id,
+              location.name,
+              location.doh_subdomain,
+              location.ipv4_destination,
+            ]
+              .filter(Boolean)
+              .join(" "),
+          }
+          const group = existing.find((g) => g.id === groupId)
+          if (!group) {
+            return {
+              groups: [
+                {
+                  id: groupId,
+                  label: "DNS LOCATIONS",
+                  items: [nextItem],
+                },
+              ],
+            }
+          }
+          if (group.items.some((i) => i.id === nextItem.id)) {
+            return { groups: existing }
+          }
+          return {
+            groups: existing.map((g) =>
+              g.id === groupId
+                ? {
+                    ...g,
+                    items: [...g.items, nextItem].sort((a, b) =>
+                      a.label.localeCompare(b.label)
+                    ),
+                  }
+                : g
+            ),
+          }
+        }
+      )
+
+      setAudienceByRule((prev) => {
+        if ((prev[ruleId] ?? []).some((a) => a.id === location.id)) {
+          return prev
+        }
+        return {
+          ...prev,
+          [ruleId]: [
+            ...(prev[ruleId] ?? []),
+            {
+              id: location.id as string,
+              label,
+              groupLabel: "DNS LOCATIONS",
+            },
+          ],
+        }
+      })
+      setIsAudiencePickerOpen(false)
+    },
   })
 
   const presetsQuery = useQuery({
@@ -555,13 +898,66 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
   const [scheduleMode, setScheduleMode] = useState<"add" | "edit">("add")
   const [schedulesByRule, setSchedulesByRule] = useState<
     Record<string, ScheduleBlock[]>
-  >({})
+  >(() => {
+    if (!initialData || !initialRule) return {}
+    return {
+      [initialRule.id]: initialData.schedules.map((s, index) => ({
+        id: `sch-init-${index}`,
+        dayIndex: s.dayIndex,
+        startHour: s.startHour,
+        startMinute: s.startMinute,
+        durationMinutes: s.durationMinutes,
+        saved: true,
+      })),
+    }
+  })
   const [editingScheduleId, setEditingScheduleId] = useState<string | null>(null)
   const [scheduleSheetKey, setScheduleSheetKey] = useState(0)
 
   const currentSchedules = selectedRuleId
     ? (schedulesByRule[selectedRuleId] ?? [])
     : []
+
+  const currentSnapshot = useMemo(() => {
+    if (!selectedRule) return null
+    return serializeEditorSnapshot({
+      name: selectedRule.name,
+      type: selectedRule.type,
+      enabled: isActive,
+      categoryIds: currentCategories.map((c) => c.id),
+      appIds: currentApps.map((a) => a.id),
+      locationIds: currentAudience.map((a) => a.id),
+      addresses: currentAddresses.map((a) => ({
+        url: a.url,
+        mode: a.mode,
+      })),
+      schedules: currentSchedules.map((s) => ({
+        dayIndex: s.dayIndex,
+        startHour: s.startHour,
+        startMinute: s.startMinute,
+        durationMinutes: s.durationMinutes,
+      })),
+    })
+  }, [
+    selectedRule,
+    isActive,
+    currentCategories,
+    currentApps,
+    currentAudience,
+    currentAddresses,
+    currentSchedules,
+  ])
+
+  const isDirty =
+    !isEditMode ||
+    (baselineSnapshotRef.current != null &&
+      currentSnapshot != null &&
+      currentSnapshot !== baselineSnapshotRef.current)
+
+  const canSave =
+    Boolean(selectedRule) &&
+    !saveMutation.isPending &&
+    (isCreateMode || isDirty)
 
   const openAddSchedule = () => {
     setScheduleMode("add")
@@ -644,15 +1040,14 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
     }))
 
     if (preset.domains.length > 0) {
-      setWebAddresses(
-        preset.domains.map((url) => ({
+      setAddressesByRule((prev) => ({
+        ...prev,
+        [newRule.id]: preset.domains.map((url) => ({
           id: nextId("wa"),
-          tag: "PRESET",
           url,
-        }))
-      )
-    } else {
-      setWebAddresses([])
+          mode: "auto" as const,
+        })),
+      }))
     }
 
     setIsActive(true)
@@ -685,7 +1080,15 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
       enabled: isActive,
       categories: currentCategories.map((c) => c.label),
       categoryIds,
-      domains: webAddresses.map((a) => a.url),
+      domains: currentAddresses
+        .filter((a) => a.mode === "address")
+        .map((a) => a.url),
+      domainRoots: currentAddresses
+        .filter((a) => a.mode === "auto")
+        .map((a) => a.url),
+      domainKeywords: currentAddresses
+        .filter((a) => a.mode === "keyword")
+        .map((a) => a.url),
       apps: currentApps.map((a) => a.label),
       appIds,
       locationIds: currentAudience.map((a) => a.id),
@@ -696,9 +1099,11 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
         durationMinutes: s.durationMinutes,
       })),
       timeZone:
-        typeof Intl !== "undefined"
+        initialData?.timeZone ??
+        (typeof Intl !== "undefined"
           ? Intl.DateTimeFormat().resolvedOptions().timeZone
-          : undefined,
+          : undefined),
+      precedence: initialData?.precedence ?? undefined,
     }
 
     saveMutation.mutate(payload)
@@ -721,8 +1126,10 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
           <h1 className="text-2xl font-bold tracking-tight text-brand-text-heading md:text-3xl">
             {isCreateMode ? "New Policy" : "Edit Policy"}
           </h1>
-          {!isCreateMode && _policyId ? (
-            <p className="mt-1 text-sm text-brand-text-muted">{_policyId}</p>
+          {!isCreateMode && (initialData?.name || selectedRule?.name) ? (
+            <p className="mt-1 text-sm text-brand-text-muted">
+              {initialData?.name ?? selectedRule?.name}
+            </p>
           ) : null}
         </div>
       </div>
@@ -1228,7 +1635,7 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
               )}
             </div>
 
-            {/* Web addresses */}
+            {/* Web addresses — per selected rule; tabs drive match mode */}
             <div>
               <div className="mb-3 flex items-center justify-between">
                 <div className="flex items-baseline gap-1.5">
@@ -1236,10 +1643,21 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
                     Web addresses
                   </h3>
                   <span className="text-sm text-brand-text-muted">
-                    ({webAddresses.length})
+                    ({currentAddresses.length})
                   </span>
                 </div>
-                <Dialog open={isAddAddressOpen} onOpenChange={setIsAddAddressOpen}>
+                <Dialog
+                  open={isAddAddressOpen}
+                  onOpenChange={(open) => {
+                    setIsAddAddressOpen(open)
+                    if (!open) {
+                      setPendingAddresses([])
+                      setAddressInput("")
+                      setAddressError("")
+                      setAddressMode("auto")
+                    }
+                  }}
+                >
                   <DialogTrigger asChild>
                     <Button variant="brandOutline" size="sm" className="h-8 gap-1.5">
                       <Plus className="size-3.5" />
@@ -1252,12 +1670,44 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
                   >
                     <div className="flex items-center justify-between px-6 pt-6 pb-4">
                       <DialogTitle className="text-xl font-bold text-brand-text-heading tracking-tight">
-                        Add an web address
+                        Add a web address
                       </DialogTitle>
                     </div>
 
                     <div className="px-6 pb-4 space-y-4">
-                      {/* Input + Add button row */}
+                      {/* Mode tabs — drive validation + Gateway selector */}
+                      <div className="flex items-center gap-1 border-b border-border/70">
+                        {(
+                          ["auto", "address", "keyword"] as AddAddressMode[]
+                        ).map((key) => {
+                          const tab = addressTabMeta[key]
+                          const active = addressMode === key
+                          return (
+                            <button
+                              key={key}
+                              type="button"
+                              onClick={() => handleAddressModeChange(key)}
+                              className={cn(
+                                "relative px-4 py-2.5 text-sm font-medium transition-colors",
+                                active
+                                  ? "text-brand-text-heading bg-gray-100 rounded-t-md"
+                                  : "text-brand-text-heading hover:bg-gray-50 rounded-t-md"
+                              )}
+                            >
+                              {tab.label}
+                              {active && (
+                                <span className="absolute -bottom-px left-0 right-0 h-[2px] bg-brand-primary" />
+                              )}
+                            </button>
+                          )
+                        })}
+                      </div>
+
+                      <p className="text-sm text-brand-text-muted">
+                        {addressTabMeta[addressMode].hint}
+                      </p>
+
+                      {/* Input + Add — uses active tab mode */}
                       <div className="space-y-2">
                         <div className="flex w-full items-stretch overflow-hidden rounded-md border-2 border-brand-primary focus-within:ring-2 focus-within:ring-brand-primary/20">
                           <Input
@@ -1268,7 +1718,13 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
                                 setAddressError("")
                               }
                             }}
-                            placeholder="e.g. facebook.com, messenger.facebook.com"
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault()
+                                handleDetectAddresses()
+                              }
+                            }}
+                            placeholder={addressTabMeta[addressMode].placeholder}
                             className="h-12 border-0 bg-white text-base px-4 py-3 text-brand-text-heading placeholder:text-brand-text-placeholder focus-visible:border-0 focus-visible:ring-0"
                           />
                           <Button
@@ -1286,43 +1742,16 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
                         )}
                       </div>
 
-                      {/* Mode tabs */}
-                      <div className="flex items-center gap-1 border-b border-border/70">
-                        {(
-                          [
-                            { key: "auto", label: "Auto-Detect" },
-                            { key: "address", label: "Address" },
-                            { key: "keyword", label: "Keyword" },
-                          ] as { key: AddAddressMode; label: string }[]
-                        ).map((tab) => {
-                          const active = addressMode === tab.key
-                          return (
-                            <button
-                              key={tab.key}
-                              type="button"
-                              onClick={() => setAddressMode(tab.key)}
-                              className={cn(
-                                "relative px-4 py-2.5 text-sm font-medium transition-colors",
-                                active
-                                  ? "text-brand-text-heading bg-gray-100 rounded-t-md"
-                                  : "text-brand-text-heading hover:bg-gray-50 rounded-t-md"
-                              )}
-                            >
-                              {tab.label}
-                              {active && (
-                                <span className="absolute -bottom-px left-0 right-0 h-[2px] bg-brand-primary" />
-                              )}
-                            </button>
-                          )
-                        })}
-                      </div>
-
                       {/* Detected / pending list */}
                       <div className="min-h-[160px] rounded-md">
                         {pendingAddresses.length === 0 ? (
                           <div className="h-full flex items-center justify-center py-10 text-sm text-brand-text-muted">
-                            Enter addresses above and click &quot;Add&quot; to
-                            preview selections.
+                            Enter{" "}
+                            {addressMode === "keyword"
+                              ? "keywords"
+                              : "addresses"}{" "}
+                            above and click &quot;Add&quot; to preview
+                            selections.
                           </div>
                         ) : (
                           <div className="space-y-2">
@@ -1362,11 +1791,7 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
                                       : "bg-gray-700 text-white hover:bg-gray-700"
                                   )}
                                 >
-                                  {pa.mode === "keyword"
-                                    ? "KEYWORD"
-                                    : pa.mode === "address"
-                                    ? "ADDRESS"
-                                    : "AUTO"}
+                                  {addressTag(pa.mode)}
                                 </Badge>
                               </div>
                             ))}
@@ -1394,7 +1819,7 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
                 </Dialog>
               </div>
               <div className="rounded-md border border-border/70 bg-white divide-y divide-border/50">
-                {webAddresses.length === 0 ? (
+                {currentAddresses.length === 0 ? (
                   <div className="flex flex-col items-center justify-center px-4 py-12 text-center">
                     <div className="mb-3 text-brand-text-muted/70">
                       <svg
@@ -1415,11 +1840,12 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
                       No web addresses yet
                     </p>
                     <p className="mt-1 max-w-xs text-sm text-brand-text-muted">
-                      Enter a domain or URL to {selectedRule.type === "block" ? "block" : "allow"}
+                      Enter a domain, host, or keyword to{" "}
+                      {selectedRule.type === "block" ? "block" : "allow"}
                     </p>
                   </div>
                 ) : (
-                  webAddresses.map((addr) => (
+                  currentAddresses.map((addr) => (
                     <div
                       key={addr.id}
                       className="flex items-center justify-between gap-3 px-4 py-3.5 hover:bg-muted/20"
@@ -1427,7 +1853,7 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
                       <div className="flex min-w-0 items-center gap-3">
                         <div className="rounded border border-border/60 bg-gray-50 px-2 py-0.5">
                           <span className="text-[10px] font-bold uppercase tracking-widest text-gray-600">
-                            {addr.tag}
+                            {addressTag(addr.mode)}
                           </span>
                         </div>
                         <span className="truncate font-mono text-sm text-brand-text-heading">
@@ -1707,8 +2133,11 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
             <PickerDialog
               key={`audience-picker-${audiencePickerKey}`}
               open={isAudiencePickerOpen}
-              onOpenChange={setIsAudiencePickerOpen}
-              searchPlaceholder="Search DNS locations..."
+              onOpenChange={(open) => {
+                setIsAudiencePickerOpen(open)
+                if (!open) createLocationMutation.reset()
+              }}
+              searchPlaceholder="Search DNS locations by name, DoH, or IP..."
               groups={audienceGroups}
               selectedIds={currentAudience.map((c) => c.id)}
               onSelect={handleAudienceSelected}
@@ -1722,6 +2151,17 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
                     : "Failed to load locations"
                   : undefined
               }
+              emptyCreate={{
+                noun: "DNS location",
+                nounPlural: "DNS locations",
+                onCreate: (name) => createLocationMutation.mutate(name),
+                isPending: createLocationMutation.isPending,
+                errorMessage: createLocationMutation.isError
+                  ? createLocationMutation.error instanceof Error
+                    ? createLocationMutation.error.message
+                    : "Failed to create DNS location"
+                  : undefined,
+              }}
             />
 
             {/* Schedule Sheet (right side) */}
@@ -1740,17 +2180,24 @@ export function PolicyDetail({ mode, policyId: _policyId }: Props) {
                 <p className="w-full text-sm text-destructive">
                   {saveMutation.error instanceof Error
                     ? saveMutation.error.message
-                    : "Failed to save policy"}
+                    : isEditMode
+                      ? "Failed to update policy"
+                      : "Failed to save policy"}
+                </p>
+              ) : null}
+              {isEditMode && selectedRule && !isDirty ? (
+                <p className="w-full text-right text-sm text-brand-text-muted">
+                  No changes to save
                 </p>
               ) : null}
               <Button
                 size="lg"
                 type="button"
-                disabled={!selectedRule || saveMutation.isPending}
+                disabled={!canSave}
                 onClick={handleSaveSelectedRule}
               >
                 {saveMutation.isPending ? <CustomSpinner /> : null}
-                {isCreateMode ? "Save policy" : "Save changes"}
+                {isEditMode ? "Save changes" : "Save policy"}
               </Button>
             </div>
           </div>

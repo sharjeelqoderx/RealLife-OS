@@ -1,14 +1,25 @@
 import { getCloudflareAccountId } from "@/lib/cloudflare/config"
-import { resolveCategoryIdsByLabels } from "@/lib/services/cloudflare/categories"
+import { listGatewayAppTypes } from "@/lib/services/cloudflare/app-types"
+import {
+  listGatewayCategories,
+  resolveCategoryIdsByLabels,
+  type GatewayCategory,
+} from "@/lib/services/cloudflare/categories"
+import { listGatewayLocations } from "@/lib/services/cloudflare/locations"
 import {
   createGatewayRule,
   deleteGatewayRule,
   getGatewayRule,
   listGatewayRules,
+  updateGatewayRule,
   type GatewayRule,
   type GatewayRuleAction,
   type GatewaySchedule,
 } from "@/lib/services/cloudflare/rules"
+import {
+  parseGatewaySchedule,
+  parseTrafficExpression,
+} from "@/lib/services/content-policies/parse-gateway-rule"
 import { getTenantCloudflareAccountForUser } from "@/lib/services/tenants/provision"
 import { createClient } from "@/lib/supabase/server"
 import type {
@@ -149,6 +160,11 @@ function sanitizeHostname(raw: string): string {
     .replace(/^\*\./, "")
 }
 
+function escapeWirefilterRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+}
+
+/** Host selector — exact hostname only. */
 function buildFqdnExpression(domains: string[]): string | null {
   const clean = [...new Set(domains.map(sanitizeHostname).filter(Boolean))]
   if (clean.length === 0) return null
@@ -156,6 +172,32 @@ function buildFqdnExpression(domains: string[]): string | null {
     return `dns.fqdn == "${clean[0]}"`
   }
   return `dns.fqdn in {${clean.map((d) => `"${d}"`).join(" ")}}`
+}
+
+/** Domain selector — domain + all subdomains (Auto-Detect). */
+function buildDomainRootExpression(domains: string[]): string | null {
+  const clean = [...new Set(domains.map(sanitizeHostname).filter(Boolean))]
+  if (clean.length === 0) return null
+  if (clean.length === 1) {
+    return `any(dns.domains[*] == "${clean[0]}")`
+  }
+  return `any(dns.domains[*] in {${clean.map((d) => `"${d}"`).join(" ")}})`
+}
+
+/** Keyword tab — substring match on hostname. */
+function buildKeywordExpression(keywords: string[]): string | null {
+  const clean = [
+    ...new Set(
+      keywords
+        .map((k) => k.trim().toLowerCase())
+        .filter((k) => k.length > 0)
+    ),
+  ]
+  if (clean.length === 0) return null
+  const pattern = clean
+    .map((k) => `.*${escapeWirefilterRegex(k)}.*`)
+    .join("|")
+  return `dns.fqdn matches "${pattern}"`
 }
 
 function buildCategoryExpression(ids: number[]): string | null {
@@ -217,6 +259,12 @@ export async function buildTrafficExpression(
   const fqdnExpr = buildFqdnExpression(domains)
   if (fqdnExpr) parts.push(fqdnExpr)
 
+  const domainRootExpr = buildDomainRootExpression(input.domainRoots ?? [])
+  if (domainRootExpr) parts.push(domainRootExpr)
+
+  const keywordExpr = buildKeywordExpression(input.domainKeywords ?? [])
+  if (keywordExpr) parts.push(keywordExpr)
+
   const locationExpr = buildLocationExpression(input.locationIds)
   if (locationExpr) parts.push(locationExpr)
 
@@ -246,10 +294,10 @@ export async function buildTrafficExpression(
 }
 
 /**
- * Resolve which Cloudflare account to write policies to:
- * tenant child account when provisioned, else platform account.
+ * Cloudflare account ID used for Gateway policy operations for this user:
+ * ready tenant child account when provisioned, otherwise the platform account.
  */
-export async function resolvePolicyAccountId(
+export async function getPolicyCloudflareAccountId(
   userId?: string
 ): Promise<string> {
   if (userId) {
@@ -264,12 +312,33 @@ export async function resolvePolicyAccountId(
       }
     } catch (error) {
       console.warn(
-        "resolvePolicyAccountId: tenant lookup failed, using platform account:",
+        "getPolicyCloudflareAccountId: tenant lookup failed, using platform account:",
         error
       )
     }
   }
   return getCloudflareAccountId()
+}
+
+/**
+ * Load a Gateway rule from the tenant account when provisioned, otherwise
+ * the platform account. Retries the platform account on miss so policies
+ * created before tenant provision still open in the editor.
+ */
+async function getGatewayRuleForUser(
+  userId: string | undefined,
+  policyId: string
+): Promise<GatewayRule> {
+  const primaryAccountId = await getPolicyCloudflareAccountId(userId)
+  try {
+    return await getGatewayRule(primaryAccountId, policyId)
+  } catch (error) {
+    const platformAccountId = getCloudflareAccountId()
+    if (platformAccountId === primaryAccountId) throw error
+    const message = error instanceof Error ? error.message : String(error)
+    if (!/not found|could not find|404/i.test(message)) throw error
+    return await getGatewayRule(platformAccountId, policyId)
+  }
 }
 
 function mapGatewayActionToPolicyType(action: string | undefined): PolicyType {
@@ -311,10 +380,10 @@ export async function getGatewayPolicyById(
     data: { user },
   } = await supabase.auth.getUser()
 
-  const accountId = await resolvePolicyAccountId(user?.id)
+  const accountId = await getPolicyCloudflareAccountId(user?.id)
 
   try {
-    const rule = await getGatewayRule(accountId, policyId)
+    const rule = await getGatewayRuleForUser(user?.id, policyId)
     if (!rule?.id) return null
     return mapGatewayRuleToDetail(rule)
   } catch (error) {
@@ -422,7 +491,7 @@ export async function listGatewayPolicies(): Promise<PolicyListItem[]> {
     data: { user },
   } = await supabase.auth.getUser()
 
-  const accountId = await resolvePolicyAccountId(user?.id)
+  const accountId = await getPolicyCloudflareAccountId(user?.id)
 
   try {
     const rules = await listGatewayRules(accountId)
@@ -459,7 +528,7 @@ export async function createGatewayPolicy(
     throw new Error("Unauthorized")
   }
 
-  const accountId = await resolvePolicyAccountId(user.id)
+  const accountId = await getPolicyCloudflareAccountId(user.id)
 
   try {
     const { traffic, filters } = await buildTrafficExpression(accountId, input)
@@ -488,6 +557,271 @@ export async function createGatewayPolicy(
 }
 
 /**
+ * Update an existing Gateway DNS rule from the shared editor payload.
+ */
+export async function updateGatewayPolicy(
+  policyId: string,
+  input: CreateGatewayPolicyInput
+): Promise<GatewayRule> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    throw new Error("Unauthorized")
+  }
+
+  if (!policyId.trim()) {
+    throw new Error("Policy ID is required")
+  }
+
+  const accountId = await getPolicyCloudflareAccountId(user.id)
+
+  try {
+    const existing = await getGatewayRule(accountId, policyId)
+    if (!existing?.id) {
+      throw new Error("Policy not found")
+    }
+
+    const { traffic, filters } = await buildTrafficExpression(accountId, input)
+    const schedule = buildGatewaySchedule(input.schedules, input.timeZone)
+    const action = mapPolicyTypeToAction(input.type)
+
+    return await updateGatewayRule(accountId, policyId, {
+      name: input.name,
+      action,
+      description: input.description,
+      enabled: input.enabled ?? true,
+      filters,
+      traffic,
+      schedule,
+      precedence: input.precedence ?? existing.precedence,
+    })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    if (/authentication error/i.test(message)) {
+      throw new Error(
+        "Cloudflare Gateway authentication failed. Update CLOUDFARE_API_TOKEN with Zero Trust (Gateway) Read/Write permissions, then retry."
+      )
+    }
+    throw error
+  }
+}
+
+export type GatewayPolicyEditorPicked = {
+  id: string
+  label: string
+  groupLabel: string
+}
+
+export type GatewayPolicyEditorAddress = {
+  url: string
+  mode: "auto" | "address" | "keyword"
+}
+
+export type GatewayPolicyEditorSchedule = {
+  dayIndex: number
+  startHour: number
+  startMinute: number
+  durationMinutes: number
+}
+
+/** Serializable editor state for create-form prepopulation on edit. */
+export type GatewayPolicyEditorData = {
+  id: string
+  name: string
+  type: GatewayPolicyType
+  enabled: boolean
+  categories: GatewayPolicyEditorPicked[]
+  apps: GatewayPolicyEditorPicked[]
+  locations: GatewayPolicyEditorPicked[]
+  addresses: GatewayPolicyEditorAddress[]
+  schedules: GatewayPolicyEditorSchedule[]
+  timeZone?: string
+  precedence?: number | null
+  source: "gateway" | "access"
+}
+
+function flattenCategoryLabelMap(
+  categories: GatewayCategory[]
+): Map<number, { label: string; groupLabel: string }> {
+  const map = new Map<number, { label: string; groupLabel: string }>()
+
+  const walk = (nodes: GatewayCategory[], parentName?: string) => {
+    for (const node of nodes) {
+      if (node.id == null || !node.name?.trim()) continue
+      const label = node.name.trim()
+      map.set(node.id, {
+        label,
+        groupLabel: (parentName ?? label).toUpperCase(),
+      })
+      if (node.subcategories?.length) {
+        walk(node.subcategories, label)
+      }
+    }
+  }
+
+  walk(categories)
+  return map
+}
+
+/**
+ * Load a Gateway rule and map traffic/schedule into editor form fields.
+ */
+export async function getGatewayPolicyForEditor(
+  policyId: string
+): Promise<GatewayPolicyEditorData | null> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  let rule: GatewayRule | null = null
+  try {
+    rule = await getGatewayRuleForUser(user?.id, policyId)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    if (/authentication error|not found|could not find|404/i.test(message)) {
+      // Soft Access fallback (name/type only — no DNS traffic to parse).
+      try {
+        const { listAccessPolicies } = await import(
+          "@/lib/services/content-policies/access-policies"
+        )
+        const policies = await listAccessPolicies()
+        const match = policies.find((p) => p.id === policyId)
+        if (!match) return null
+        return {
+          id: match.id,
+          name: match.name,
+          type: match.type,
+          enabled: match.status === "active",
+          categories: [],
+          apps: [],
+          locations: [],
+          addresses: [],
+          schedules: [],
+          precedence: null,
+          source: "access",
+        }
+      } catch {
+        return null
+      }
+    }
+    throw error
+  }
+
+  if (!rule?.id) return null
+
+  const detail = mapGatewayRuleToDetail(rule)
+  const accountId = await getPolicyCloudflareAccountId(user?.id)
+
+  const parsed = parseTrafficExpression(detail.traffic)
+  const { blocks, timeZone } = parseGatewaySchedule(detail.schedule)
+
+  let categoryMap = new Map<number, { label: string; groupLabel: string }>()
+  let appMap = new Map<number, { label: string; groupLabel: string }>()
+  let locationMap = new Map<string, string>()
+
+  try {
+    const [categories, appTypes, locations] = await Promise.all([
+      listGatewayCategories(accountId),
+      listGatewayAppTypes(accountId),
+      listGatewayLocations(accountId),
+    ])
+    categoryMap = flattenCategoryLabelMap(categories)
+
+    const typeNames = new Map<number, string>()
+    for (const entry of appTypes) {
+      if (
+        entry.id != null &&
+        entry.name?.trim() &&
+        entry.application_type_id == null
+      ) {
+        typeNames.set(entry.id, entry.name.trim())
+      }
+    }
+    for (const entry of appTypes) {
+      if (
+        entry.id == null ||
+        !entry.name?.trim() ||
+        entry.application_type_id == null
+      ) {
+        continue
+      }
+      appMap.set(entry.id, {
+        label: entry.name.trim(),
+        groupLabel: (
+          typeNames.get(entry.application_type_id) ?? "APPLICATIONS"
+        ).toUpperCase(),
+      })
+    }
+
+    for (const loc of locations) {
+      if (loc.id && loc.name?.trim()) {
+        locationMap.set(loc.id, loc.name.trim())
+      }
+    }
+  } catch (error) {
+    console.warn("getGatewayPolicyForEditor: catalog enrich failed", error)
+  }
+
+  const categories = parsed.categoryIds.map((id) => {
+    const meta = categoryMap.get(id)
+    return {
+      id: String(id),
+      label: meta?.label ?? `Category ${id}`,
+      groupLabel: meta?.groupLabel ?? "CATEGORIES",
+    }
+  })
+
+  const apps = parsed.appIds.map((id) => {
+    const meta = appMap.get(id)
+    return {
+      id: String(id),
+      label: meta?.label ?? `App ${id}`,
+      groupLabel: meta?.groupLabel ?? "APPLICATIONS",
+    }
+  })
+
+  const locations = parsed.locationIds.map((id) => ({
+    id,
+    label: locationMap.get(id) ?? id,
+    groupLabel: "DNS LOCATIONS",
+  }))
+
+  const addresses: GatewayPolicyEditorAddress[] = [
+    ...parsed.domainRoots.map((url) => ({
+      url,
+      mode: "auto" as const,
+    })),
+    ...parsed.hosts.map((url) => ({
+      url,
+      mode: "address" as const,
+    })),
+    ...parsed.keywords.map((url) => ({
+      url,
+      mode: "keyword" as const,
+    })),
+  ]
+
+  return {
+    id: detail.id,
+    name: detail.name,
+    type: detail.type,
+    enabled: detail.enabled,
+    categories,
+    apps,
+    locations,
+    addresses,
+    schedules: blocks,
+    timeZone,
+    precedence: detail.precedence,
+    source: "gateway",
+  }
+}
+
+/**
  * Delete a Gateway DNS rule; falls back to Access app policy delete when
  * the list is served from Access (Gateway auth unavailable / not found).
  */
@@ -505,7 +839,7 @@ export async function deleteGatewayPolicy(policyId: string): Promise<void> {
     throw new Error("Policy ID is required")
   }
 
-  const accountId = await resolvePolicyAccountId(user.id)
+  const accountId = await getPolicyCloudflareAccountId(user.id)
 
   try {
     await deleteGatewayRule(accountId, policyId)

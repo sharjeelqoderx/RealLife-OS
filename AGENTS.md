@@ -6,7 +6,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 # RealLife OS — Agent Instructions
 
-**Har task se pehle `PROJECT.md` padho** — wahan structure, conventions, aur element registry hai.
+**Har task se pehle `PROJECT.md` padho** — wahan Tech Stack (packages), Folder Structure, conventions, aur element registry hai.
 
 Detailed rules: `.cursor/rules/` (auto-applied by Cursor).
 
@@ -15,7 +15,8 @@ Detailed rules: `.cursor/rules/` (auto-applied by Cursor).
 - Routes: `page.tsx` + `loading.tsx` + `_components/` (mandatory)
 - Shared components → `components/` | Page-only → `_components/`
 - Supabase → server-only via `lib/services/` | Client → `lib/api/client.ts` + React Query
+- Services: verb-first (`getUsers`, `createTask`) — avoid vague `resolve`/`handle`/`process` names
 - Forms → shadcn + Zod from `schemas/` (shared API + frontend)
 - Loading/error → React Query states only, never `useState`
 - Button API calls → `useMutation` + global `<GlobalSpinner />` (no inline "Loading..." text)
-- Har change ke baad → `PROJECT.md` update karo
+- Har change ke baad → `PROJECT.md` update: **Tech Stack / packages**, **Folder Structure**, Element Registry, Changelog (jo relevant ho) — yeh hamesha sync rehna chahiye

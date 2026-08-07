@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { listGatewayCategoryPickerGroups } from "@/lib/services/cloudflare/category-picker"
-import { resolvePolicyAccountId } from "@/lib/services/content-policies/gateway-policies"
+import { getPolicyCloudflareAccountId } from "@/lib/services/content-policies/gateway-policies"
 import { createClient } from "@/lib/supabase/server"
 
 /**
@@ -18,7 +18,7 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const accountId = await resolvePolicyAccountId(user.id)
+    const accountId = await getPolicyCloudflareAccountId(user.id)
     const groups = await listGatewayCategoryPickerGroups(accountId)
     return NextResponse.json({ groups })
   } catch (error) {

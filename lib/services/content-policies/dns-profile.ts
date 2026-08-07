@@ -1,5 +1,5 @@
 import { listGatewayLocations } from "@/lib/services/cloudflare/locations"
-import { resolvePolicyAccountId } from "@/lib/services/content-policies/gateway-policies"
+import { getPolicyCloudflareAccountId } from "@/lib/services/content-policies/gateway-policies"
 import { getTenantCloudflareAccountForUser } from "@/lib/services/tenants/provision"
 
 export type DnsProfileSource = {
@@ -17,7 +17,7 @@ export async function getDnsProfileSource(
   userId: string
 ): Promise<DnsProfileSource> {
   const tenant = await getTenantCloudflareAccountForUser(userId)
-  const accountId = await resolvePolicyAccountId(userId)
+  const accountId = await getPolicyCloudflareAccountId(userId)
 
   let dohSubdomain = tenant?.dohSubdomain ?? null
   let ipv4Addresses: string[] = []
