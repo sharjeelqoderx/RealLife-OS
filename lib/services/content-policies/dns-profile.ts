@@ -17,7 +17,6 @@ export async function getDnsProfileSource(
   userId: string
 ): Promise<DnsProfileSource> {
   const tenant = await getTenantCloudflareAccountForUser(userId)
-  const accountId = await getPolicyCloudflareAccountId(userId)
 
   let dohSubdomain = tenant?.dohSubdomain ?? null
   let ipv4Addresses: string[] = []
@@ -30,22 +29,45 @@ export async function getDnsProfileSource(
     ipv4Addresses.push(tenant.ipv4DestinationBackup)
   }
 
-  if (!dohSubdomain) {
-    try {
-      const locations = await listGatewayLocations(accountId)
-      const preferred =
-        locations.find((l) => l.client_default) ?? locations[0]
-      dohSubdomain = preferred?.doh_subdomain ?? null
-      displayName = preferred?.name ? `${preferred.name} DNS` : displayName
-      if (preferred?.ipv4_destination) {
-        ipv4Addresses = [
-          preferred.ipv4_destination,
-          preferred.ipv4_destination_backup,
-        ].filter((v): v is string => Boolean(v))
-      }
-    } catch (error) {
-      console.warn("getDnsProfileSource: locations lookup failed:", error)
+  if (dohSubdomain) {
+    return {
+      available: true,
+      dohSubdomain,
+      displayName,
+      ipv4Addresses,
     }
+  }
+
+  let accountId: string
+  try {
+    accountId = await getPolicyCloudflareAccountId(userId)
+  } catch (error) {
+    console.warn(
+      "getDnsProfileSource: Cloudflare account not configured:",
+      error
+    )
+    return {
+      available: false,
+      dohSubdomain: null,
+      displayName,
+      ipv4Addresses,
+    }
+  }
+
+  try {
+    const locations = await listGatewayLocations(accountId)
+    const preferred =
+      locations.find((l) => l.client_default) ?? locations[0]
+    dohSubdomain = preferred?.doh_subdomain ?? null
+    displayName = preferred?.name ? `${preferred.name} DNS` : displayName
+    if (preferred?.ipv4_destination) {
+      ipv4Addresses = [
+        preferred.ipv4_destination,
+        preferred.ipv4_destination_backup,
+      ].filter((v): v is string => Boolean(v))
+    }
+  } catch (error) {
+    console.warn("getDnsProfileSource: locations lookup failed:", error)
   }
 
   return {
