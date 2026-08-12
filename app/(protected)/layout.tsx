@@ -21,14 +21,18 @@ export default async function ProtectedLayout({
         status: "none",
         currentPeriodEnd: null,
         cancelAtPeriodEnd: false,
-        planId: null,
+        planId: undefined,
+        deviceLimit: 0,
+        planName: "Subscription",
       }))
     : {
         hasAccess: false,
         status: "none",
         currentPeriodEnd: null,
         cancelAtPeriodEnd: false,
-        planId: null,
+        planId: undefined,
+        deviceLimit: 0,
+        planName: "Subscription",
       }
 
   return (

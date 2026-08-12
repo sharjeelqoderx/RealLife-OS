@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Check, LogOut } from "lucide-react"
+import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useEffect } from "react"
 
@@ -18,8 +19,11 @@ import { apiClient } from "@/lib/api/client"
 import { queryKeys } from "@/lib/query/keys"
 import {
   BILLING_PLANS,
+  ENTERPRISE_CONTACT_HREF,
+  isPaidBillingPlanId,
   type BillingPlan,
   type BillingPlanId,
+  type PaidBillingPlanId,
 } from "@/lib/stripe/plans"
 import type { LogoutResponse } from "@/schemas/auth/logout"
 import type {
@@ -62,7 +66,7 @@ export function PaywallGate({ initialBillingStatus }: PaywallGateProps) {
   })
 
   const trial = useMutation({
-    mutationFn: (_planId: "personal") =>
+    mutationFn: (_planId: "free_trial") =>
       apiClient<CreateCheckoutSessionResponse>("/api/stripe/start-trial", {
         method: "POST",
       }),
@@ -72,7 +76,7 @@ export function PaywallGate({ initialBillingStatus }: PaywallGateProps) {
   })
 
   const checkout = useMutation({
-    mutationFn: (planId: Extract<BillingPlanId, "willpower_pro" | "family_pack">) =>
+    mutationFn: (planId: PaidBillingPlanId) =>
       apiClient<CreateCheckoutSessionResponse>("/api/stripe/checkout", {
         method: "POST",
         body: JSON.stringify({ planId }),
@@ -104,11 +108,13 @@ export function PaywallGate({ initialBillingStatus }: PaywallGateProps) {
 
   function onSelectPlan(plan: BillingPlan) {
     if (plan.kind === "trial") {
-      trial.mutate("personal")
+      trial.mutate("free_trial")
       return
     }
 
-    checkout.mutate(plan.id as "willpower_pro" | "family_pack")
+    if (plan.kind === "paid" && isPaidBillingPlanId(plan.id)) {
+      checkout.mutate(plan.id)
+    }
   }
 
   function isPlanLoading(planId: BillingPlanId) {
@@ -123,7 +129,7 @@ export function PaywallGate({ initialBillingStatus }: PaywallGateProps) {
         showCloseButton={false}
         onPointerDownOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => e.preventDefault()}
-        className="max-h-[90vh] w-full max-w-[calc(100%-1.5rem)] gap-0 overflow-y-auto border-0 bg-slate-50 p-0 shadow-[0_8px_40px_var(--brand-shadow)] sm:max-w-5xl"
+        className="max-h-[90vh] w-full max-w-[calc(100%-1.5rem)] gap-0 overflow-y-auto border-0 bg-slate-50 p-0 shadow-[0_8px_40px_var(--brand-shadow)] sm:max-w-6xl"
       >
         <div className="flex justify-end px-4 pt-4 sm:px-6">
           <Button
@@ -149,9 +155,10 @@ export function PaywallGate({ initialBillingStatus }: PaywallGateProps) {
         </DialogHeader>
 
         <div className="px-4 py-6 sm:px-8 sm:pb-8">
-          <div className="mx-auto grid max-w-5xl grid-cols-1 gap-6 lg:grid-cols-3 lg:items-stretch">
+          <div className="mx-auto grid max-w-6xl grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4 xl:items-stretch">
             {BILLING_PLANS.map((plan) => {
               const isLoading = isPlanLoading(plan.id)
+              const isEnterprise = plan.kind === "custom"
 
               return (
                 <div
@@ -179,6 +186,10 @@ export function PaywallGate({ initialBillingStatus }: PaywallGateProps) {
                       <span className="text-4xl font-bold text-brand-primary">
                         Free
                       </span>
+                    ) : plan.price === "custom" ? (
+                      <span className="text-4xl font-bold text-brand-primary">
+                        Custom
+                      </span>
                     ) : (
                       <div className="flex items-baseline gap-0.5">
                         <span className="text-4xl font-bold text-brand-primary">
@@ -195,19 +206,28 @@ export function PaywallGate({ initialBillingStatus }: PaywallGateProps) {
                     ))}
                   </ul>
 
-                  <Button
-                    type="button"
-                    disabled={planPending || logout.isPending}
-                    onClick={() => onSelectPlan(plan)}
-                    className={`mt-8 h-11 w-full ${
-                      plan.highlighted
-                        ? "bg-brand-primary text-brand-primary-foreground hover:bg-brand-primary/90"
-                        : "border border-brand-primary bg-white text-slate-900 hover:bg-slate-50"
-                    }`}
-                  >
-                    {isLoading ? <CustomSpinner /> : null}
-                    {plan.cta}
-                  </Button>
+                  {isEnterprise ? (
+                    <Button
+                      asChild
+                      className="mt-8 h-11 w-full border border-brand-primary bg-white text-slate-900 hover:bg-slate-50"
+                    >
+                      <Link href={ENTERPRISE_CONTACT_HREF}>{plan.cta}</Link>
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      disabled={planPending || logout.isPending}
+                      onClick={() => onSelectPlan(plan)}
+                      className={`mt-8 h-11 w-full ${
+                        plan.highlighted
+                          ? "bg-brand-primary text-brand-primary-foreground hover:bg-brand-primary/90"
+                          : "border border-brand-primary bg-white text-slate-900 hover:bg-slate-50"
+                      }`}
+                    >
+                      {isLoading ? <CustomSpinner /> : null}
+                      {plan.cta}
+                    </Button>
+                  )}
                 </div>
               )
             })}

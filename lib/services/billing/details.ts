@@ -1,30 +1,34 @@
 import type Stripe from "stripe"
 
 import {
-  getStripePriceBasicMonthly,
   getStripePriceFamilyMonthly,
+  getStripePriceFocusMonthly,
 } from "@/lib/env"
 import { getStripe } from "@/lib/stripe/client"
 import { getPlanDisplayName } from "@/lib/stripe/plans"
 import type { PaymentMethodInfo } from "@/schemas/billing/details"
 
 import { BillingError } from "./checkout"
+import { getDeviceQuotaForUser } from "@/lib/services/devices/device-quota"
 import {
   getBillingStatus,
   getSubscriptionByUserId,
 } from "./subscriptions"
 
-function resolvePlanName(stripePriceId: string | null): string {
-  if (!stripePriceId || stripePriceId === "personal_trial") {
+function getBillingPlanNameFromPriceId(stripePriceId: string | undefined): string {
+  if (!stripePriceId) {
     return getPlanDisplayName(stripePriceId)
   }
 
-  if (stripePriceId === getStripePriceBasicMonthly()) {
-    return "Willpower Pro"
-  }
-
-  if (stripePriceId === getStripePriceFamilyMonthly()) {
-    return "Family Pack"
+  try {
+    if (stripePriceId === getStripePriceFocusMonthly()) {
+      return "Focus"
+    }
+    if (stripePriceId === getStripePriceFamilyMonthly()) {
+      return "Family"
+    }
+  } catch {
+    // Env may be unavailable in some unit contexts; fall through to catalog.
   }
 
   return getPlanDisplayName(stripePriceId)
@@ -100,6 +104,7 @@ export async function getBillingDetails(userId: string) {
   const status = await getBillingStatus(userId)
   const row = await getSubscriptionByUserId(userId)
   const customerId = row?.stripe_customer_id ?? null
+  const quota = await getDeviceQuotaForUser(userId)
 
   let paymentMethod: PaymentMethodInfo | null = null
 
@@ -109,7 +114,11 @@ export async function getBillingDetails(userId: string) {
 
   return {
     ...status,
-    planName: resolvePlanName(status.planId),
+    planName: getBillingPlanNameFromPriceId(status.planId),
+    deviceLimit: quota.deviceLimit,
+    enrolledDeviceCount: quota.enrolledDeviceCount,
+    remainingDeviceSlots: quota.remainingDeviceSlots,
+    canAddDevice: quota.canAddDevice,
     paymentMethod,
     canManagePayment: Boolean(customerId),
     needsPaymentMethod: !paymentMethod && status.hasAccess,

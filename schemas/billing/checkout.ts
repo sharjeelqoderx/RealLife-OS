@@ -1,7 +1,7 @@
 import { z } from "zod"
 
 export const createCheckoutSessionSchema = z.object({
-  planId: z.enum(["willpower_pro", "family_pack"]),
+  planId: z.enum(["focus", "family"]),
 })
 
 export type CreateCheckoutSessionResponse = {
@@ -13,5 +13,7 @@ export type BillingStatusResponse = {
   status: string
   currentPeriodEnd: string | null
   cancelAtPeriodEnd: boolean
-  planId: string | null
+  planId: string | undefined
+  deviceLimit: number
+  planName: string
 }

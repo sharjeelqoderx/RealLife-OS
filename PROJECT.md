@@ -116,7 +116,7 @@ reallife-os/
 │   ├── query/                       # queryKeys factory
 │   ├── services/                    # Business logic (verb-first)
 │   │   ├── auth/
-│   │   ├── billing/
+│   │   ├── billing/                 # checkout, details, subscriptions, webhook/
 │   │   ├── cloudflare/              # categories, locations, rules, …
 │   │   ├── content-policies/
 │   │   ├── devices/
@@ -256,6 +256,7 @@ page.tsx (RSC fetch via lib/services)
 | PickerDialog | `app/(protected)/content-policies/(editor)/_components/picker-dialog.tsx` | Search modal; empty / no-match can show `emptyCreate` (name + Create). Categories, Apps, Audience | PolicyDetail | ✅ ready |
 | UnderDevelopment | `app/(protected)/[slug]/_components/under-development.tsx` | Placeholder for unimplemented protected nav routes | `/[slug]` catch-all | ✅ ready |
 | SetupGuideImage | `app/(protected)/devices/_components/setup-guide-image.tsx` | Shared `next/image` wrapper + `DEVICE_SETUP_IMAGES` paths under `public/devices/` | Device setup flows | ✅ ready |
+| WarningAlert | `components/feedback/warning-alert.tsx` | Amber status/warning message | Devices quota, shared | ✅ ready |
 | ErrorAlert | `components/feedback/error-alert.tsx` | Generic error display | Policy delete confirm, shared | ✅ ready |
 
 ### Supabase (`lib/supabase/`)
@@ -274,7 +275,7 @@ page.tsx (RSC fetch via lib/services)
 | Module | Path | Purpose | Status |
 |--------|------|---------|--------|
 | Stripe client | `lib/stripe/client.ts` | Server-only Stripe SDK singleton | ✅ ready |
-| Plans | `lib/stripe/plans.ts` | Client-safe plan catalog (Willpower Pro) | ✅ ready |
+| Plans | `lib/stripe/plans.ts` | Client-safe catalog: Free Trial / Focus / Family / Enterprise + configurable `deviceLimit` | ✅ ready |
 
 ### Navigation (`lib/navigation/`)
 
@@ -295,7 +296,10 @@ page.tsx (RSC fetch via lib/services)
 | createCheckoutSession / createTrialCheckoutSession / createPaymentSetupSession | `lib/services/billing/checkout.ts` | Trial setup checkout + paid checkout + add card | checkout / start-trial / setup-payment APIs | ✅ ready |
 | getBillingStatus / saveSubscription | `lib/services/billing/subscriptions.ts` | Subscription DB | billing-status + webhook | ✅ ready |
 | getBillingDetails / createBillingPortalSession | `lib/services/billing/details.ts` | Subscription + card + Stripe Customer Portal | billing-details + billing-portal APIs | ✅ ready |
-| processStripeWebhookEvent | `lib/services/billing/webhook.ts` | Event → handler → DB | `/api/stripe/webhook` | ✅ ready |
+| getDeviceQuotaForUser / requireDeviceSlotAvailable | `lib/services/devices/device-quota.ts` | Fail-closed quota; server gate for setup writes | Devices UI + `/api/devices/setup-session` | ✅ ready |
+| getSubscriptionDeviceLimit / getDeviceLimitFromStripePriceId | `lib/services/billing/plan-limits.ts` | Plan-config caps + account override (`0` = no slots) | Devices quota, billing status | ✅ ready |
+| setAccountDeviceLimit | `lib/services/billing/subscriptions.ts` | Set/clear per-account `device_limit` override | Enterprise deals (ops) | ✅ ready |
+| processStripeWebhookEvent | `lib/services/billing/webhook/` | Event → dedicated handler module → DB | `/api/stripe/webhook` | ✅ ready |
 | getPolicies | `lib/services/content-policies/get-policies.ts` | Content policies list helpers / mock filter | `/content-policies` client filter | ✅ ready |
 | listAccessPolicies / createAccessPolicy | `lib/services/content-policies/access-policies.ts` | Cloudflare Access app policies list + create | `/api/access-policies` | ✅ ready |
 | listGatewayPolicies / createGatewayPolicy / updateGatewayPolicy / getGatewayPolicyById / getGatewayPolicyForEditor / deleteGatewayPolicy | `lib/services/content-policies/gateway-policies.ts` | Gateway DNS policies CRUD + editor prepopulation | `/api/gateway-policies`, list/view/create/edit | ✅ ready |
@@ -397,6 +401,7 @@ page.tsx (RSC fetch via lib/services)
 | `20260716120000_user_subscriptions.sql` | `user_subscriptions` + `stripe_webhook_events` tables + RLS | ✅ applied to Reallife-OS [Production] |
 | `20260803120000_tenant_cloudflare_accounts.sql` | Per-user Cloudflare child account + Gateway location mapping + RLS | ⚪ apply to Supabase |
 | `20260811120000_tenant_devices.sql` | `tenant_device_metadata`, `device_setup_sessions`, `device_app_preferences` + RLS | ⚪ apply to Supabase — **required for device setup persistence** |
+| `20260812130000_user_subscriptions_device_limit.sql` | `user_subscriptions.device_limit` override for Enterprise/custom caps | ⚪ apply to Supabase — **required for plan-aligned device quotas** |
 
 ### Generic Validators (`schemas/generic/`)
 
@@ -414,6 +419,11 @@ page.tsx (RSC fetch via lib/services)
 
 | Date | Change | Updated By |
 |------|--------|------------|
+| 2026-08-12 | Applied pending migrations remotely; `device_limit` NOT NULL; regenerated `types/supabase.ts` from live DB (`npm run db:types`); billing uses generated Tables types | Agent |
+| 2026-08-12 | Use `types/supabase.ts` Database types on Supabase clients; billing reads/writes `Tables`/`TablesInsert`/`TablesUpdate` directly (removed mapSubscriptionRow) | Agent |
+| 2026-08-12 | Strict device quota types (required numbers, fail-closed); rename away from resolve*; server gate `requireDeviceSlotAvailable` on setup-session writes | Agent |
+| 2026-08-12 | Pricing system alignment: plan device caps enforced in Devices/Billing via configurable limits + `device_limit` override; quota UI + setup gate; WarningAlert | Agent |
+| 2026-08-12 | Pricing tiers: Free Trial (1), Focus (5), Family (20), Enterprise (custom); configurable `deviceLimit`; webhook handlers split per Stripe event | Agent |
 | 2026-08-12 | Device setup/app-preferences: soft-fail when `device_setup_sessions` / related tables missing (PGRST205) so UI loads before migrations applied | Agent |
 | 2026-08-12 | Devices UI: `next/image` placeholders in `public/devices/*`, missing `loading.tsx` for devices/setup/cloudflare-one/install-certificate, supervised iPhone guide aligned to mockups | Agent |
 | 2026-08-06 | Protected `[slug]` catch-all: unknown routes (devices, settings, …) show Under development UI | Agent |

@@ -7,7 +7,7 @@ import { Plus } from "lucide-react"
 
 import { ConnectedDeviceRow } from "@/app/(protected)/devices/_components/connected-device-row"
 import { DeviceTypePicker } from "@/app/(protected)/devices/_components/device-type-picker"
-import { ErrorAlert } from "@/components/feedback"
+import { ErrorAlert, WarningAlert } from "@/components/feedback"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { apiClient } from "@/lib/api/client"
@@ -19,6 +19,13 @@ export interface ConnectedDevicesViewProps {
   initialDevices: ConnectedDevice[]
   enrollmentInfo: DeviceEnrollmentInfo
   initialPlatform?: DevicePlatform
+}
+
+function formatDeviceQuota(info: DeviceEnrollmentInfo): string {
+  if (info.deviceLimit < 1) {
+    return `${info.enrolledDeviceCount} enrolled · no device allowance`
+  }
+  return `${info.enrolledDeviceCount} / ${info.deviceLimit} devices`
 }
 
 export function ConnectedDevicesView({
@@ -35,7 +42,16 @@ export function ConnectedDevicesView({
     initialData: initialDevices,
   })
 
+  const enrollmentQuery = useQuery({
+    queryKey: queryKeys.devices.enrollmentInfo(),
+    queryFn: () =>
+      apiClient<DeviceEnrollmentInfo>("/api/devices/enrollment-info"),
+    initialData: enrollmentInfo,
+  })
+
   const devices = devicesQuery.data ?? []
+  const quota = enrollmentQuery.data ?? enrollmentInfo
+  const canAdd = quota.canAddDevice
 
   return (
     <div className="flex min-h-[calc(100svh-8rem)] flex-col gap-8">
@@ -45,23 +61,42 @@ export function ConnectedDevicesView({
             Connected Devices
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-brand-text-muted">
-            Manage devices enrolled with Cloudflare One. Protect traffic with the
-            Cloudflare One client and enforce content policies on each device.
+            Manage devices enrolled with Cloudflare One. Content policies and
+            analytics apply per device on every plan ({quota.planName}).
+          </p>
+          <p className="mt-2 text-sm font-medium text-brand-text-heading">
+            {formatDeviceQuota(quota)}
+            {quota.deviceLimit > 0
+              ? ` · ${quota.remainingDeviceSlots} remaining`
+              : null}
           </p>
         </div>
-        <Button asChild size="lg" className="shrink-0">
-          <Link href={`/devices/setup?platform=${selectedPlatform}`}>
-            <Plus aria-hidden className="size-4" />
-            Add Device
-          </Link>
-        </Button>
+        {canAdd ? (
+          <Button asChild size="lg" className="shrink-0">
+            <Link href={`/devices/setup?platform=${selectedPlatform}`}>
+              <Plus aria-hidden className="size-4" />
+              Add Device
+            </Link>
+          </Button>
+        ) : (
+          <Button asChild size="lg" variant="brandOutline" className="shrink-0">
+            <Link href="/billing">Upgrade plan</Link>
+          </Button>
+        )}
       </div>
 
-      {!enrollmentInfo.tenantReady ? (
-        <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-brand-text-heading">
-          Cloudflare tenant is not ready yet. Provision your account before enrolling
-          devices.
-        </p>
+      {!quota.tenantReady ? (
+        <WarningAlert message="Cloudflare tenant is not ready yet. Provision your account before enrolling devices." />
+      ) : null}
+
+      {!canAdd && quota.tenantReady ? (
+        <WarningAlert
+          message={
+            quota.deviceLimit < 1
+              ? "Your account has no device allowance. Contact sales to set an Enterprise cap, or upgrade your plan."
+              : `Device limit reached (${quota.enrolledDeviceCount}/${quota.deviceLimit}). Remove a device or upgrade your plan.`
+          }
+        />
       ) : null}
 
       {devicesQuery.isError ? (
@@ -102,11 +137,17 @@ export function ConnectedDevicesView({
             <p className="mt-1 text-sm text-brand-text-muted">
               Add a device to start enforcing your content policies.
             </p>
-            <Button asChild className="mt-4">
-              <Link href={`/devices/setup?platform=${selectedPlatform}`}>
-                Set up a device
-              </Link>
-            </Button>
+            {canAdd ? (
+              <Button asChild className="mt-4">
+                <Link href={`/devices/setup?platform=${selectedPlatform}`}>
+                  Set up a device
+                </Link>
+              </Button>
+            ) : (
+              <Button asChild className="mt-4" variant="brandOutline">
+                <Link href="/billing">View billing</Link>
+              </Button>
+            )}
           </div>
         ) : (
           <div className="space-y-3">

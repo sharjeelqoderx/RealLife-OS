@@ -39,6 +39,12 @@ export const deviceEnrollmentInfoSchema = z.object({
   dohSubdomain: z.string().nullable(),
   gatewayPolicyCount: z.number().int().nonnegative(),
   enrolledDeviceCount: z.number().int().nonnegative(),
+  /** Effective cap (plan config or account override). `0` = no slots. */
+  deviceLimit: z.number().int().nonnegative(),
+  remainingDeviceSlots: z.number().int().nonnegative(),
+  canAddDevice: z.boolean(),
+  planName: z.string().min(1),
+  limitSource: z.enum(["plan", "account_override", "none"]),
   storeUrls: z.object({
     android: z.string().url(),
     iphone: z.string().url(),

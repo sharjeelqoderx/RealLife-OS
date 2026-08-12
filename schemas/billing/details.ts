@@ -15,8 +15,12 @@ export type BillingDetailsResponse = {
   status: string
   currentPeriodEnd: string | null
   cancelAtPeriodEnd: boolean
-  planId: string | null
+  planId: string | undefined
   planName: string
+  deviceLimit: number
+  enrolledDeviceCount: number
+  remainingDeviceSlots: number
+  canAddDevice: boolean
   paymentMethod: PaymentMethodInfo | null
   canManagePayment: boolean
   needsPaymentMethod: boolean

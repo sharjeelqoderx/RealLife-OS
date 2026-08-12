@@ -331,6 +331,8 @@ export function DeviceSetupView({
     [persistAnswers]
   )
 
+  const atDeviceLimit = enrollmentInfo != null && !enrollmentInfo.canAddDevice
+
   const steps = useMemo((): QuestionnaireStep[] => {
     const platformSteps =
       platform === "android"
@@ -350,7 +352,7 @@ export function DeviceSetupView({
       },
       ...platformSteps,
     ]
-  }, [answers, enrollmentInfo?.enrolledDeviceCount, handleAnswersChange, handlePlatformChange, platform])
+  }, [answers, handleAnswersChange, handlePlatformChange, platform])
 
   return (
     <div className="flex min-h-[calc(100svh-8rem)] flex-col gap-8">
@@ -374,23 +376,47 @@ export function DeviceSetupView({
           >
             Cloudflare One
           </a>
-          . Steps update based on your answers.
+          . Steps update based on your answers. Policies apply per device.
         </p>
+        {enrollmentInfo && enrollmentInfo.deviceLimit > 0 ? (
+          <p className="mt-2 text-sm font-medium text-brand-text-heading">
+            Plan: {enrollmentInfo.planName} · {enrollmentInfo.enrolledDeviceCount}/
+            {enrollmentInfo.deviceLimit} devices
+          </p>
+        ) : null}
       </div>
 
-      <div className="max-w-3xl">
-        {steps.map((step, index) => (
-          <SetupStep
-            key={step.id}
-            step={index + 1}
-            title={step.title}
-            description={step.description}
-            isLast={index === steps.length - 1}
-          >
-            {step.content}
-          </SetupStep>
-        ))}
-      </div>
+      {atDeviceLimit ? (
+        <div className="max-w-3xl space-y-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-6 py-8">
+          <p className="text-sm font-medium text-brand-text-heading">
+            {enrollmentInfo.deviceLimit < 1
+              ? "Your account has no device allowance. Contact sales to set an Enterprise cap, or choose a plan."
+              : `Device limit reached (${enrollmentInfo.enrolledDeviceCount}/${enrollmentInfo.deviceLimit}). Remove a device or upgrade your plan to continue setup.`}
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <Button asChild>
+              <Link href="/billing">View billing</Link>
+            </Button>
+            <Button asChild variant="brandOutline">
+              <Link href="/devices">Back to devices</Link>
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="max-w-3xl">
+          {steps.map((step, index) => (
+            <SetupStep
+              key={step.id}
+              step={index + 1}
+              title={step.title}
+              description={step.description}
+              isLast={index === steps.length - 1}
+            >
+              {step.content}
+            </SetupStep>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

@@ -3,6 +3,7 @@ import {
   DeviceServiceError,
   requireAuthenticatedUserId,
 } from "@/lib/services/devices/context"
+import { requireDeviceSlotAvailable } from "@/lib/services/devices/device-quota"
 import type { DeviceSetupSession } from "@/schemas/devices/api"
 import type { DevicePlatform, DeviceSetupAnswers } from "@/schemas/devices/device"
 
@@ -86,6 +87,8 @@ export async function updateDeviceSetupSession(input: {
   cloudflareWizardStep?: number
 }): Promise<DeviceSetupSession> {
   const userId = await requireAuthenticatedUserId()
+  await requireDeviceSlotAvailable(userId)
+
   const admin = createAdminClient()
 
   const existing = await getDeviceSetupSession(input.platform ?? "android")

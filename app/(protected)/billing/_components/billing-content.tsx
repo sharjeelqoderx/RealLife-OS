@@ -59,8 +59,9 @@ function formatDate(iso: string | null): string {
   }).format(new Date(iso))
 }
 
-function formatPlanPrice(price: "free" | number): string {
+function formatPlanPrice(price: "free" | "custom" | number): string {
   if (price === "free") return "Free trial"
+  if (price === "custom") return "Custom"
   return `$${price}/month`
 }
 
@@ -217,12 +218,23 @@ export function BillingContent({ initialData }: BillingContentProps) {
               </div>
               <div>
                 <p className="text-xs font-medium tracking-wide text-brand-text-muted uppercase">
-                  Access
+                  Devices
                 </p>
                 <p className="mt-1 text-sm font-medium text-brand-text-heading">
-                  {data.hasAccess ? "Full access enabled" : "Limited access"}
+                  {data.deviceLimit < 1
+                    ? `${data.enrolledDeviceCount} enrolled · no allowance set`
+                    : `${data.enrolledDeviceCount} / ${data.deviceLimit} used`}
                 </p>
               </div>
+            </div>
+
+            <div>
+              <p className="text-xs font-medium tracking-wide text-brand-text-muted uppercase">
+                Access
+              </p>
+              <p className="mt-1 text-sm font-medium text-brand-text-heading">
+                {data.hasAccess ? "Full access enabled" : "Limited access"}
+              </p>
             </div>
 
             {data.cancelAtPeriodEnd && (

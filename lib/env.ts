@@ -47,19 +47,20 @@ export function getStripeWebhookSecret(): string {
   return requireEnv("STRIPE_WEBHOOK_SECRET")
 }
 
-export function getStripePriceBasicMonthly(): string {
-  return requireEnv("STRIPE_PRICE_BASIC_MONTHLY")
+/** Focus tier monthly price. Falls back to legacy BASIC env name. */
+export function getStripePriceFocusMonthly(): string {
+  return (
+    process.env.STRIPE_PRICE_FOCUS_MONTHLY ??
+    requireEnv("STRIPE_PRICE_BASIC_MONTHLY")
+  )
 }
 
 export function getStripePriceFamilyMonthly(): string {
   return requireEnv("STRIPE_PRICE_FAMILY_MONTHLY")
 }
 
-export function getStripePriceForPlan(
-  planId: "willpower_pro" | "family_pack"
-): string {
-  return planId === "family_pack"
+export function getStripePriceForPlan(planId: "focus" | "family"): string {
+  return planId === "family"
     ? getStripePriceFamilyMonthly()
-    : getStripePriceBasicMonthly()
+    : getStripePriceFocusMonthly()
 }
-

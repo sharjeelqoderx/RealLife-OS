@@ -11,14 +11,16 @@ import {
   Shield,
   ShieldCheck,
   Smartphone,
-  Sparkles,
   Users,
   Wifi,
   Zap,
 } from "lucide-react";
 import Image from "next/image";
 
-import { BILLING_PLANS } from "@/lib/stripe/plans";
+import {
+  BILLING_PLANS,
+  ENTERPRISE_CONTACT_HREF,
+} from "@/lib/stripe/plans";
 
 const pageMaxWidthClass = "mx-auto w-full max-w-7xl";
 const pagePaddingClass = "px-4 sm:px-6 lg:px-8";
@@ -500,7 +502,7 @@ export default function Home() {
               </p>
             </div>
 
-            <div className="mx-auto mt-12 grid max-w-5xl grid-cols-1 gap-6 lg:grid-cols-3 lg:items-stretch">
+            <div className="mx-auto mt-12 grid max-w-6xl grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4 xl:items-stretch">
               {BILLING_PLANS.map((plan) => (
                 <div
                   key={plan.id}
@@ -524,6 +526,8 @@ export default function Home() {
                   <div className="mt-3">
                     {plan.price === "free" ? (
                       <span className="text-4xl font-bold text-brand-primary">Free</span>
+                    ) : plan.price === "custom" ? (
+                      <span className="text-4xl font-bold text-brand-primary">Custom</span>
                     ) : (
                       <div className="flex items-baseline gap-0.5">
                         <span className="text-4xl font-bold text-brand-primary">
@@ -541,7 +545,7 @@ export default function Home() {
                   </ul>
 
                   <Link
-                    href="/sign-up"
+                    href={plan.kind === "custom" ? ENTERPRISE_CONTACT_HREF : "/sign-up"}
                     className={`mt-8 flex w-full items-center justify-center rounded-lg px-6 py-3 text-sm font-semibold transition-all ${plan.highlighted
                       ? "bg-brand-primary text-brand-primary-foreground hover:bg-brand-primary/90"
                       : "border border-brand-primary bg-white text-slate-900 hover:bg-slate-50"
@@ -665,12 +669,12 @@ export default function Home() {
                   >
                     Get Started for Free
                   </Link>
-                  <button
-                    type="button"
+                  <Link
+                    href={ENTERPRISE_CONTACT_HREF}
                     className="w-full rounded-xl border border-white/60 bg-transparent px-8 py-3.5 text-sm font-semibold text-white transition-all hover:bg-white/10 sm:w-auto"
                   >
                     Talk to Sales
-                  </button>
+                  </Link>
                 </div>
                 <p className="mt-8 text-sm text-white/90">
                   No setup fee. No hardware required. Cancel anytime.

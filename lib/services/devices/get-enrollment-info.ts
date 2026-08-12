@@ -6,8 +6,9 @@ import {
 } from "@/lib/services/cloudflare/devices"
 import { getDnsProfileSource } from "@/lib/services/content-policies/dns-profile"
 import { listGatewayPolicies } from "@/lib/services/content-policies/gateway-policies"
-import { getEnrolledDeviceCount } from "@/lib/services/devices/list-connected-devices"
+import { getDeviceQuotaForUser } from "@/lib/services/devices/device-quota"
 import {
+  DeviceServiceError,
   getDeviceAccountContext,
   requireAuthenticatedUserId,
   slugifyTeamNameFallback,
@@ -65,13 +66,19 @@ export async function getDeviceEnrollmentInfo(): Promise<DeviceEnrollmentInfo> {
     console.warn("getDeviceEnrollmentInfo: gateway policies lookup failed:", error)
   }
 
-  let enrolledDeviceCount = 0
-  if (tenantReady) {
-    try {
-      enrolledDeviceCount = await getEnrolledDeviceCount()
-    } catch (error) {
-      console.warn("getDeviceEnrollmentInfo: device count lookup failed:", error)
+  // Fail closed: quota errors must not advertise canAddDevice=true.
+  let quota: Awaited<ReturnType<typeof getDeviceQuotaForUser>>
+  try {
+    quota = await getDeviceQuotaForUser(userId)
+  } catch (error) {
+    if (error instanceof DeviceServiceError) {
+      throw error
     }
+    throw new DeviceServiceError(
+      "Unable to load device quota",
+      503,
+      "DEVICE_QUOTA_UNAVAILABLE"
+    )
   }
 
   return {
@@ -81,7 +88,12 @@ export async function getDeviceEnrollmentInfo(): Promise<DeviceEnrollmentInfo> {
     dnsProfileAvailable,
     dohSubdomain,
     gatewayPolicyCount,
-    enrolledDeviceCount,
+    enrolledDeviceCount: quota.enrolledDeviceCount,
+    deviceLimit: quota.deviceLimit,
+    remainingDeviceSlots: quota.remainingDeviceSlots,
+    canAddDevice: quota.canAddDevice && tenantReady,
+    planName: quota.planName,
+    limitSource: quota.limitSource,
     storeUrls: {
       android: PLAY_STORE_CLOUDFLARE_ONE,
       iphone: APP_STORE_CLOUDFLARE_ONE,

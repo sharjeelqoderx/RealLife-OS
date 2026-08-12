@@ -1,3 +1,9 @@
+import type { Tables } from "@/types/supabase"
+
+/** Supabase `user_subscriptions` row — from generated `types/supabase.ts`. */
+export type UserSubscription = Tables<"user_subscriptions">
+
+/** App-level status union matching DB check constraint. */
 export type SubscriptionStatus =
   | "none"
   | "incomplete"
@@ -9,22 +15,29 @@ export type SubscriptionStatus =
   | "unpaid"
   | "paused"
 
-export interface UserSubscription {
-  user_id: string
-  stripe_customer_id: string | null
-  stripe_subscription_id: string | null
-  stripe_price_id: string | null
-  status: SubscriptionStatus
-  current_period_end: string | null
-  cancel_at_period_end: boolean
-  created_at: string
-  updated_at: string
-}
-
 export const ACTIVE_SUBSCRIPTION_STATUSES: SubscriptionStatus[] = [
   "active",
   "trialing",
 ]
+
+export function isSubscriptionStatus(value: string): value is SubscriptionStatus {
+  return (
+    value === "none" ||
+    value === "incomplete" ||
+    value === "incomplete_expired" ||
+    value === "trialing" ||
+    value === "active" ||
+    value === "past_due" ||
+    value === "canceled" ||
+    value === "unpaid" ||
+    value === "paused"
+  )
+}
+
+export function asSubscriptionStatus(value: string | undefined): SubscriptionStatus {
+  if (value && isSubscriptionStatus(value)) return value
+  return "none"
+}
 
 export function hasActiveAccess(
   status: SubscriptionStatus,
@@ -43,4 +56,3 @@ export function hasActiveAccess(
 
   return true
 }
-
