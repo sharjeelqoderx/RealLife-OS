@@ -420,6 +420,7 @@ page.tsx (RSC fetch via lib/services)
 
 | Date | Change | Updated By |
 |------|--------|------------|
+| 2026-08-12 | Free trial row no longer wiped to `canceled` by `customer.deleted` / canceled subscription webhooks; confirm-checkout restores trial from completed setup session | Agent |
 | 2026-08-12 | Free trial: confirm-checkout on return + paywall cache sync so paywall does not reopen before trial expiry | Agent |
 | 2026-08-12 | Applied pending migrations remotely; `device_limit` NOT NULL; regenerated `types/supabase.ts` from live DB (`npm run db:types`); billing uses generated Tables types | Agent |
 | 2026-08-12 | Use `types/supabase.ts` Database types on Supabase clients; billing reads/writes `Tables`/`TablesInsert`/`TablesUpdate` directly (removed mapSubscriptionRow) | Agent |

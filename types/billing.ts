@@ -56,3 +56,27 @@ export function hasActiveAccess(
 
   return true
 }
+
+function isStoredFreeTrialPriceId(priceId: string | null): boolean {
+  return (
+    priceId === "free_trial" ||
+    priceId === "personal_trial" ||
+    priceId === "personal"
+  )
+}
+
+/**
+ * Card-setup free trial lives only in our DB (no Stripe subscription id).
+ * Destructive Stripe webhooks must not wipe it.
+ */
+export function isLocalFreeTrialRow(
+  row: Pick<
+    UserSubscription,
+    "status" | "stripe_subscription_id" | "stripe_price_id" | "current_period_end"
+  > | null
+): boolean {
+  if (!row) return false
+  if (row.stripe_subscription_id) return false
+  if (!isStoredFreeTrialPriceId(row.stripe_price_id)) return false
+  return hasActiveAccess(asSubscriptionStatus(row.status), row.current_period_end)
+}

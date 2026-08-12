@@ -178,31 +178,37 @@ export async function confirmCheckoutReturn() {
     limit: 10,
   })
 
-  const completed = sessions.data.find(
+  const ownedSessions = sessions.data.filter(
     (session) =>
       session.status === "complete" &&
       (session.metadata?.user_id === user.id ||
         session.client_reference_id === user.id)
   )
 
-  if (!completed) {
-    return current
+  const trialSession = ownedSessions.find(
+    (session) =>
+      session.mode === "setup" &&
+      (session.metadata?.plan_id === "free_trial" ||
+        session.metadata?.plan_id === "personal")
+  )
+
+  if (trialSession) {
+    await setDefaultPaymentMethodFromSetup(
+      customerId,
+      trialSession.setup_intent
+    )
+    await startFreeTrial(
+      user.id,
+      asCustomerId(trialSession.customer) ?? customerId
+    )
+    return getBillingStatus(user.id)
   }
 
-  if (completed.mode === "setup") {
-    const planId = completed.metadata?.plan_id
-    if (planId === "free_trial" || planId === "personal") {
-      await setDefaultPaymentMethodFromSetup(
-        customerId,
-        completed.setup_intent
-      )
-      await startFreeTrial(
-        user.id,
-        asCustomerId(completed.customer) ?? customerId
-      )
-    }
-  } else if (completed.mode === "subscription") {
-    const subscriptionId = asSubscriptionId(completed.subscription)
+  const paidSession = ownedSessions.find(
+    (session) => session.mode === "subscription"
+  )
+  if (paidSession) {
+    const subscriptionId = asSubscriptionId(paidSession.subscription)
     if (subscriptionId) {
       await writeSubscriptionById(subscriptionId, user.id)
     }

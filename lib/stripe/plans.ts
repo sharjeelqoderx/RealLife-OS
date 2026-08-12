@@ -106,6 +106,11 @@ const LEGACY_FREE_TRIAL_PRICE_IDS = new Set([
   "personal",
 ])
 
+export function isFreeTrialPriceId(priceId: string | null | undefined): boolean {
+  if (!priceId) return false
+  return LEGACY_FREE_TRIAL_PRICE_IDS.has(priceId)
+}
+
 export const ENTERPRISE_CONTACT_HREF = "mailto:sales@reallifeos.com"
 
 export function getBillingPlan(planId: BillingPlanId): BillingPlan {

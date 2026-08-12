@@ -8,7 +8,11 @@ import {
 } from "@/lib/services/billing/subscriptions"
 import { getStripe } from "@/lib/stripe/client"
 import { FREE_TRIAL_DAYS, FREE_TRIAL_PRICE_ID, getSelfServePlanDeviceLimit } from "@/lib/stripe/plans"
-import { asSubscriptionStatus } from "@/types/billing"
+import {
+  asSubscriptionStatus,
+  hasActiveAccess,
+  isLocalFreeTrialRow,
+} from "@/types/billing"
 
 export function asCustomerId(
   value: string | Stripe.Customer | Stripe.DeletedCustomer | null
@@ -51,6 +55,19 @@ export async function writeSubscription(
   userId: string,
   subscription: Stripe.Subscription
 ) {
+  const existing = await getSubscriptionByUserId(userId)
+
+  // Protect active local free trial from canceled/incomplete Stripe subscription noise.
+  if (isLocalFreeTrialRow(existing)) {
+    const isLivePaid =
+      subscription.status === "active" ||
+      subscription.status === "trialing" ||
+      subscription.status === "past_due"
+    if (!isLivePaid) {
+      return
+    }
+  }
+
   const metaLimit = Number(subscription.metadata?.device_limit)
   await saveSubscription({
     userId,
@@ -127,7 +144,14 @@ export async function startFreeTrial(
   customerId: string | null
 ) {
   const existing = await getSubscriptionByUserId(userId)
-  if (existing?.status === "active" || existing?.status === "trialing") {
+
+  if (
+    existing &&
+    hasActiveAccess(
+      asSubscriptionStatus(existing.status),
+      existing.current_period_end
+    )
+  ) {
     return
   }
 
@@ -136,7 +160,7 @@ export async function startFreeTrial(
 
   await saveSubscription({
     userId,
-    stripeCustomerId: customerId,
+    stripeCustomerId: customerId ?? existing?.stripe_customer_id ?? null,
     stripeSubscriptionId: null,
     stripePriceId: FREE_TRIAL_PRICE_ID,
     status: "trialing",
