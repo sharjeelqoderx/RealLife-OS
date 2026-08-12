@@ -25,7 +25,7 @@ export async function GET() {
       return NextResponse.json(
         {
           error:
-            "No Gateway DNS location found. Provision a tenant or create a DNS location in Cloudflare Zero Trust first.",
+            "No Gateway DNS location found. Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN in .env.local, provision a tenant (POST /api/tenants/provision), or create a DNS location in Cloudflare Zero Trust.",
         },
         { status: 404 }
       )

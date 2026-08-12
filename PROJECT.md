@@ -86,6 +86,7 @@ reallife-os/
 │   │   ├── gateway-locations/
 │   │   ├── gateway-presets/
 │   │   ├── cloudflare/
+│   │   ├── devices/
 │   │   ├── tenants/
 │   │   └── dns-profile/
 │   ├── layout.tsx
@@ -118,6 +119,7 @@ reallife-os/
 │   │   ├── billing/
 │   │   ├── cloudflare/              # categories, locations, rules, …
 │   │   ├── content-policies/
+│   │   ├── devices/
 │   │   └── tenants/
 │   ├── stripe/                      # Stripe SDK + plans
 │   ├── supabase/                    # server / admin / gotrue / stateless
@@ -130,7 +132,8 @@ reallife-os/
 ├── supabase/
 │   └── migrations/                  # SQL migrations
 ├── scripts/                         # One-off / ops scripts
-├── public/                          # Static assets
+├── public/
+│   └── devices/                     # Device setup Image placeholders (swap for real screenshots)
 ├── .cursor/rules/                   # Always-on agent rules
 ├── PROJECT.md                       # This file (registry + stack + tree)
 ├── AGENTS.md
@@ -196,6 +199,13 @@ page.tsx (RSC fetch via lib/services)
 | `/content-policies/[policyId]` | View policy details (read-only) | `app/(protected)/content-policies/(editor)/[policyId]/page.tsx` | `app/(protected)/content-policies/(editor)/[policyId]/loading.tsx` | `policy-view` | ✅ ready |
 | `/content-policies/[policyId]/edit` | Edit Gateway policy — same form as create, prepopulated; Save enabled only when dirty → PUT update | `app/(protected)/content-policies/(editor)/[policyId]/edit/page.tsx` | `app/(protected)/content-policies/(editor)/[policyId]/edit/loading.tsx` | `policy-detail` | ✅ ready |
 | `/[slug]` (protected) | Unknown protected routes (devices, settings, …) → under development | `app/(protected)/[slug]/page.tsx` | `app/(protected)/[slug]/loading.tsx` | `under-development` | ✅ ready |
+| `/devices` | Connected devices list — Cloudflare WARP devices + rename/remove | `app/(protected)/devices/page.tsx` | `app/(protected)/devices/loading.tsx` | `connected-devices-view`, `connected-device-row`, `device-type-picker` | ✅ ready |
+| `/devices/setup` | Device setup questionnaire — Android/iPhone conditional steps | `app/(protected)/devices/setup/page.tsx` | `app/(protected)/devices/setup/loading.tsx` | `device-setup-view` | ✅ ready |
+| `/devices/setup/cloudflare-one` | Cloudflare One 4-step wizard — team name, emails, DNS leak test, app prefs | `app/(protected)/devices/setup/cloudflare-one/page.tsx` | `app/(protected)/devices/setup/cloudflare-one/loading.tsx` | `cloudflare-one-wizard` | ✅ ready |
+| `/devices/setup/andoff` | iPhone supervised mode / WARP Enforcer guide (8 steps + Image slots) | `app/(protected)/devices/setup/andoff/page.tsx` | `app/(protected)/devices/setup/andoff/loading.tsx` | `andoff-guide-view` | ✅ ready (UI mock) |
+| `/devices/setup/install-certificate` | WARP Desktop certificate install guide — 8-step flow with Image placeholders | `app/(protected)/devices/setup/install-certificate/page.tsx` | `app/(protected)/devices/setup/install-certificate/loading.tsx` | `install-certificate-view`, `install-certificate-mockups` | ✅ ready (UI mock) |
+| `/devices/setup/apple-shortcuts` | iPhone Apple Shortcuts guide — auto-reconnect Cloudflare VPN | `app/(protected)/devices/setup/apple-shortcuts/page.tsx` | `app/(protected)/devices/setup/apple-shortcuts/loading.tsx` | `apple-shortcuts-view` | ✅ ready (UI mock) |
+| `/[slug]` (protected) | Unknown protected routes (settings, …) → under development | `app/(protected)/[slug]/page.tsx` | `app/(protected)/[slug]/loading.tsx` | `under-development` | ✅ ready |
 
 ### Shared Components
 
@@ -245,6 +255,7 @@ page.tsx (RSC fetch via lib/services)
 | ScheduleSheet | `app/(protected)/content-policies/(editor)/_components/schedule-sheet.tsx` | Right-side Sheet with weekly 24h calendar grid — click-to-add, click-to-remove, drag-to-resize (15-min snap) | PolicyDetail schedules | ✅ ready |
 | PickerDialog | `app/(protected)/content-policies/(editor)/_components/picker-dialog.tsx` | Search modal; empty / no-match can show `emptyCreate` (name + Create). Categories, Apps, Audience | PolicyDetail | ✅ ready |
 | UnderDevelopment | `app/(protected)/[slug]/_components/under-development.tsx` | Placeholder for unimplemented protected nav routes | `/[slug]` catch-all | ✅ ready |
+| SetupGuideImage | `app/(protected)/devices/_components/setup-guide-image.tsx` | Shared `next/image` wrapper + `DEVICE_SETUP_IMAGES` paths under `public/devices/` | Device setup flows | ✅ ready |
 | ErrorAlert | `components/feedback/error-alert.tsx` | Generic error display | Policy delete confirm, shared | ✅ ready |
 
 ### Supabase (`lib/supabase/`)
@@ -304,6 +315,11 @@ page.tsx (RSC fetch via lib/services)
 | ensureZeroTrustGateway | `lib/services/cloudflare/gateway.ts` | Enable Zero Trust Gateway on child account | tenant provision | ✅ ready |
 | createGatewayLocation | `lib/services/cloudflare/locations.ts` | DoH/DoT DNS location for device setup | tenant provision, Audience picker create | ✅ ready |
 | seedBaselineDnsPolicies | `lib/services/cloudflare/baseline-rules.ts` | Phase 1 SafeSearch + DoH provider block rules | tenant provision | ✅ ready |
+| listPhysicalDevices / revokeDeviceRegistrations / getZeroTrustTeamName | `lib/services/cloudflare/devices.ts` | Cloudflare One WARP device list + revoke + team name | `/api/devices` | ✅ ready |
+| listConnectedDevices / renameConnectedDevice / removeConnectedDevice | `lib/services/devices/list-connected-devices.ts`, `rename-device.ts`, `remove-device.ts` | Merge CF devices with local display names | `/api/devices` | ✅ ready |
+| getDeviceEnrollmentInfo | `lib/services/devices/get-enrollment-info.ts` | Team name, DNS profile, store/WARP URLs, enrolled count | `/api/devices/enrollment-info` | ✅ ready |
+| getDeviceSetupSession / updateDeviceSetupSession | `lib/services/devices/setup-session.ts` | Persist questionnaire + wizard step | `/api/devices/setup-session` | ✅ ready |
+| getDeviceAppPreferences / updateDeviceAppPreferences | `lib/services/devices/app-preferences.ts` | Lock filter + prevent logout toggles | `/api/devices/app-preferences` | ✅ ready |
 | provisionTenantCloudflareAccount / getTenantCloudflareAccountForUser | `lib/services/tenants/provision.ts` | Full tenant onboarding orchestration + DB mapping | `/api/tenants/provision` | ✅ ready |
 
 ### Cloudflare (`lib/cloudflare/`)
@@ -348,6 +364,12 @@ page.tsx (RSC fetch via lib/services)
 | `/api/tenants/provision` | GET | `getTenantCloudflareAccountForUser` | — | ✅ ready |
 | `/api/tenants/provision` | POST | `provisionTenantCloudflareAccount` | `provisionTenantSchema` | ✅ ready |
 | `/api/dns-profile/mobileconfig` | GET | `buildDohMobileconfig` + Gateway location | Auth required; downloads .mobileconfig | ✅ ready |
+| `/api/devices` | GET | `listConnectedDevices` | — | ✅ ready |
+| `/api/devices/[deviceId]` | PATCH | `renameConnectedDevice` | `renameDeviceSchema` | ✅ ready |
+| `/api/devices/[deviceId]` | DELETE | `removeConnectedDevice` | — | ✅ ready |
+| `/api/devices/enrollment-info` | GET | `getDeviceEnrollmentInfo` | — | ✅ ready |
+| `/api/devices/setup-session` | GET, PATCH | `getDeviceSetupSession` / `updateDeviceSetupSession` | `updateDeviceSetupSessionSchema` | ✅ ready |
+| `/api/devices/app-preferences` | GET, PATCH | `getDeviceAppPreferences` / `updateDeviceAppPreferences` | `updateDeviceAppPreferencesSchema` | ✅ ready |
 
 ### Schemas (`schemas/`)
 
@@ -365,6 +387,8 @@ page.tsx (RSC fetch via lib/services)
 | `createCloudflareAccountSchema` | `schemas/cloudflare/account.ts` | Create Account API + `/api/cloudflare/accounts` POST | ✅ ready |
 | `provisionTenantSchema` | `schemas/tenants/provision.ts` | Tenant onboarding + `/api/tenants/provision` POST | ✅ ready |
 | `createGatewayLocationSchema` | `schemas/content-policies/gateway-location.ts` | Audience picker create + `/api/gateway-locations` POST | ✅ ready |
+| `connectedDeviceSchema` | `schemas/devices/device.ts` | Device platform, connected device, setup answers | `/devices`, `/devices/setup` | ✅ ready |
+| `deviceEnrollmentInfoSchema` | `schemas/devices/api.ts` | Enrollment info + setup session + app preferences API | `/api/devices/*` | ✅ ready |
 
 ### DB migrations (`supabase/migrations/`)
 
@@ -372,6 +396,7 @@ page.tsx (RSC fetch via lib/services)
 |-----------|---------|--------|
 | `20260716120000_user_subscriptions.sql` | `user_subscriptions` + `stripe_webhook_events` tables + RLS | ✅ applied to Reallife-OS [Production] |
 | `20260803120000_tenant_cloudflare_accounts.sql` | Per-user Cloudflare child account + Gateway location mapping + RLS | ⚪ apply to Supabase |
+| `20260811120000_tenant_devices.sql` | `tenant_device_metadata`, `device_setup_sessions`, `device_app_preferences` + RLS | ⚪ apply to Supabase — **required for device setup persistence** |
 
 ### Generic Validators (`schemas/generic/`)
 
@@ -389,6 +414,8 @@ page.tsx (RSC fetch via lib/services)
 
 | Date | Change | Updated By |
 |------|--------|------------|
+| 2026-08-12 | Device setup/app-preferences: soft-fail when `device_setup_sessions` / related tables missing (PGRST205) so UI loads before migrations applied | Agent |
+| 2026-08-12 | Devices UI: `next/image` placeholders in `public/devices/*`, missing `loading.tsx` for devices/setup/cloudflare-one/install-certificate, supervised iPhone guide aligned to mockups | Agent |
 | 2026-08-06 | Protected `[slug]` catch-all: unknown routes (devices, settings, …) show Under development UI | Agent |
 | 2026-08-06 | Edit prepopulation: parse live CF traffic/schedule exactly; platform-account fallback; sync form state from `initialData` | Agent |
 | 2026-08-06 | Policy edit: same create form prepopulated via `getGatewayPolicyForEditor`; Save only when dirty; PUT `updateGatewayPolicy` | Agent |
@@ -428,6 +455,10 @@ page.tsx (RSC fetch via lib/services)
 | 2026-07-27 | Add Category / Add App / Add Member modal pickers: reusable `PickerDialog` centered modal with top search bar + ✕ close, uppercase section headers (ADS, BUSINESS & ECONOMY, LOGIN EMAIL...), group-labeled list with selected-row indicator. 10+ category groups, 80+ app titles, email/member audience lists. PolicyDetail Categories/Apps/Audience sections now show group-divided pill cards with hover remove action and live counts. | Agent |
 | 2026-07-27 | Schedule: right-side `ScheduleSheet` component with weekly 24h calendar grid (Sun-Sat x 24h, 15-min snap). Click empty space → add block, click block → remove, drag bottom handle → resize. "Add Rule Schedule" / "Edit Rule Schedule" header with subtitle instructions, Close + Save footer. PolicyDetail schedules section now shows day-grouped cards with edit/remove actions and opens sheet on Add/Edit. | Agent |
 | 2026-07-27 | Content Policies: `/content-policies` list page + `/content-policies/[policyId]` detail page with rules sidebar, categories, apps, web addresses, audience, schedules sections + saved-state pill | Agent |
+| 2026-08-11 | Devices setup: add missing `apple-shortcuts` and `andoff` route pages + `loading.tsx` | Agent |
+| 2026-08-11 | DNS profile: skip platform `CLOUDFLARE_ACCOUNT_ID` when tenant row has `doh_subdomain`; graceful 404 when Cloudflare env missing | Agent |
+| 2026-08-11 | Devices functionality: Cloudflare physical-devices API list/revoke, enrollment info, setup session persistence, rename/remove, app preferences | Agent |
+| 2026-08-11 | Devices UI: `/devices` connected devices list (platform picker, rename/remove) + initial setup wizard | Agent |
 | 2026-07-23 | Billing: premium theme UI, visual payment card with full Stripe metadata, attach-card placeholder | Agent |
 | 2026-07-23 | Dashboard: full network-security UI on `/dashboard` — metrics cards, Recharts traffic chart, setup progress, blocked-activity table | Agent |
 | 2026-07-23 | Billing: AttachCardPanel empty state + setup checkout for all users without a card on file | Agent |

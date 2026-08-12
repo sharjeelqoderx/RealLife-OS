@@ -31,4 +31,14 @@ export const queryKeys = {
     all: ["cloudflare-accounts"] as const,
     list: () => [...queryKeys.cloudflareAccounts.all, "list"] as const,
   },
+  devices: {
+    all: ["devices"] as const,
+    list: () => [...queryKeys.devices.all, "list"] as const,
+    enrollmentInfo: () =>
+      [...queryKeys.devices.all, "enrollment-info"] as const,
+    setupSession: (platform: string) =>
+      [...queryKeys.devices.all, "setup-session", platform] as const,
+    appPreferences: () =>
+      [...queryKeys.devices.all, "app-preferences"] as const,
+  },
 } as const
