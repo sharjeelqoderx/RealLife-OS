@@ -66,6 +66,8 @@ export function CloudflareOneWizard({
 
   const info = enrollmentQuery.data
   const teamName = info?.teamName ?? "your-team"
+  const teamDomain =
+    info?.teamDomain ?? `${teamName}.cloudflareaccess.com`
   const installEmails =
     info?.installEmails.length ? info.installEmails : ["admin@example.com"]
   const storeUrl = info?.storeUrls[platform] ?? getStoreUrlFallback(platform)
@@ -126,7 +128,7 @@ export function CloudflareOneWizard({
       <CloudflareOneAppHeader platform={platform} />
 
       {!info?.tenantReady ? (
-        <ErrorAlert message="Cloudflare tenant is not ready. Complete tenant provisioning before enrolling devices." />
+        <ErrorAlert message="Device enrollment is temporarily unavailable. Please try again shortly." />
       ) : null}
 
       {currentStep === 1 ? (
@@ -192,9 +194,12 @@ export function CloudflareOneWizard({
           <WizardSubStep
             step={1}
             title="Copy your Team Name"
-            description="You'll need to enter this into the app."
+            description="You'll need to enter this into the Cloudflare One app (not the full domain)."
           >
             <CopyField value={teamName} />
+            <p className="mt-2 text-xs text-brand-text-muted">
+              Team domain: {teamDomain}
+            </p>
           </WizardSubStep>
 
           <WizardSubStep
@@ -234,11 +239,14 @@ export function CloudflareOneWizard({
                 variant="outline"
                 size="icon"
                 aria-label="Refresh enrollment info"
-                onClick={() =>
+                onClick={() => {
                   void queryClient.invalidateQueries({
                     queryKey: queryKeys.devices.enrollmentInfo(),
                   })
-                }
+                  void queryClient.invalidateQueries({
+                    queryKey: queryKeys.devices.list(),
+                  })
+                }}
               >
                 <RefreshCw aria-hidden className="size-4" />
               </Button>

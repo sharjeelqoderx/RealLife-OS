@@ -2,10 +2,10 @@ import Image from "next/image"
 
 import { cn } from "@/lib/utils"
 
-/** Paths under `public/devices/` — drop real PNGs/JPGs with the same names. */
+/** Paths under `public/` / `public/devices/` — drop real assets with the same names. */
 export const DEVICE_SETUP_IMAGES = {
-  androidPhoneTop: "/devices/android-phone-top.svg",
-  iphonePhoneTop: "/devices/iphone-phone-top.svg",
+  androidPhoneTop: "/android.png",
+  iphonePhoneTop: "/iphone.png",
   qrCode: "/devices/qr-code.svg",
   cloudflareOneStoreListing: "/devices/cloudflare-one-store-listing.svg",
   cloudflareOneScreenshot: "/devices/cloudflare-one-screenshot.svg",

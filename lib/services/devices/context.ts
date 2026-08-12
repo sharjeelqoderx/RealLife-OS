@@ -1,5 +1,7 @@
-import { getPolicyCloudflareAccountId } from "@/lib/services/content-policies/gateway-policies"
-import { getTenantCloudflareAccountForUser } from "@/lib/services/tenants/provision"
+import {
+  getCloudflareAccountId,
+  hasCloudflarePlatformConfig,
+} from "@/lib/cloudflare/config"
 import { createClient } from "@/lib/supabase/server"
 
 export class DeviceServiceError extends Error {
@@ -27,16 +29,22 @@ export async function requireAuthenticatedUserId(): Promise<string> {
   return user.id
 }
 
-export async function getDeviceAccountContext(userId: string): Promise<{
+/**
+ * Shared Zero Trust account context (Model B).
+ * `tenantReady` means the platform Cloudflare account is configured —
+ * not that a per-user child account was provisioned.
+ */
+export async function getDeviceAccountContext(_userId: string): Promise<{
   accountId: string
   tenantReady: boolean
 }> {
-  const tenant = await getTenantCloudflareAccountForUser(userId)
-  const accountId = await getPolicyCloudflareAccountId(userId)
+  if (!hasCloudflarePlatformConfig()) {
+    return { accountId: "", tenantReady: false }
+  }
 
   return {
-    accountId,
-    tenantReady: tenant?.status === "ready",
+    accountId: getCloudflareAccountId(),
+    tenantReady: true,
   }
 }
 

@@ -5,7 +5,9 @@ import type { DeviceEnrollmentInfo } from "@/schemas/devices/api"
 
 const emptyEnrollmentInfo: DeviceEnrollmentInfo = {
   tenantReady: false,
+  hasAccess: false,
   teamName: null,
+  teamDomain: null,
   installEmails: [],
   dnsProfileAvailable: false,
   dohSubdomain: null,

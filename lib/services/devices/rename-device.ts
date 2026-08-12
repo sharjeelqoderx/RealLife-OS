@@ -12,15 +12,34 @@ export async function renameConnectedDevice(
   const userId = await requireAuthenticatedUserId()
   const admin = createAdminClient()
 
-  const { error } = await admin.from("tenant_device_metadata").upsert(
-    {
-      user_id: userId,
-      cloudflare_device_id: cloudflareDeviceId,
+  const { data: owned, error: lookupError } = await admin
+    .from("tenant_device_metadata")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("cloudflare_device_id", cloudflareDeviceId)
+    .maybeSingle()
+
+  if (lookupError) {
+    console.error("renameConnectedDevice: lookup:", lookupError)
+    throw new DeviceServiceError(
+      "Failed to rename device",
+      500,
+      "DB_ERROR"
+    )
+  }
+
+  if (!owned) {
+    throw new DeviceServiceError("Device not found", 404, "NOT_FOUND")
+  }
+
+  const { error } = await admin
+    .from("tenant_device_metadata")
+    .update({
       display_name: input.displayName,
       updated_at: new Date().toISOString(),
-    },
-    { onConflict: "user_id,cloudflare_device_id" }
-  )
+    })
+    .eq("user_id", userId)
+    .eq("cloudflare_device_id", cloudflareDeviceId)
 
   if (error) {
     console.error("renameConnectedDevice:", error)

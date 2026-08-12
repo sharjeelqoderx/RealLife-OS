@@ -331,7 +331,9 @@ export function DeviceSetupView({
     [persistAnswers]
   )
 
-  const atDeviceLimit = enrollmentInfo != null && !enrollmentInfo.canAddDevice
+  const blockedFromSetup =
+    enrollmentInfo != null &&
+    (!enrollmentInfo.hasAccess || !enrollmentInfo.canAddDevice)
 
   const steps = useMemo((): QuestionnaireStep[] => {
     const platformSteps =
@@ -386,16 +388,20 @@ export function DeviceSetupView({
         ) : null}
       </div>
 
-      {atDeviceLimit ? (
+      {blockedFromSetup ? (
         <div className="max-w-3xl space-y-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-6 py-8">
           <p className="text-sm font-medium text-brand-text-heading">
-            {enrollmentInfo.deviceLimit < 1
-              ? "Your account has no device allowance. Contact sales to set an Enterprise cap, or choose a plan."
-              : `Device limit reached (${enrollmentInfo.enrolledDeviceCount}/${enrollmentInfo.deviceLimit}). Remove a device or upgrade your plan to continue setup.`}
+            {!enrollmentInfo.hasAccess
+              ? "An active trial or subscription is required to set up a device."
+              : enrollmentInfo.deviceLimit < 1
+                ? "Your account has no device allowance. Contact sales to set an Enterprise cap, or choose a plan."
+                : `Device limit reached (${enrollmentInfo.enrolledDeviceCount}/${enrollmentInfo.deviceLimit}). Remove a device or upgrade your plan to continue setup.`}
           </p>
           <div className="flex flex-wrap gap-3">
             <Button asChild>
-              <Link href="/billing">View billing</Link>
+              <Link href="/billing">
+                {!enrollmentInfo.hasAccess ? "View billing" : "Upgrade plan"}
+              </Link>
             </Button>
             <Button asChild variant="brandOutline">
               <Link href="/devices">Back to devices</Link>

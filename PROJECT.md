@@ -320,11 +320,12 @@ page.tsx (RSC fetch via lib/services)
 | createGatewayLocation | `lib/services/cloudflare/locations.ts` | DoH/DoT DNS location for device setup | tenant provision, Audience picker create | ✅ ready |
 | seedBaselineDnsPolicies | `lib/services/cloudflare/baseline-rules.ts` | Phase 1 SafeSearch + DoH provider block rules | tenant provision | ✅ ready |
 | listPhysicalDevices / revokeDeviceRegistrations / getZeroTrustTeamName | `lib/services/cloudflare/devices.ts` | Cloudflare One WARP device list + revoke + team name | `/api/devices` | ✅ ready |
-| listConnectedDevices / renameConnectedDevice / removeConnectedDevice | `lib/services/devices/list-connected-devices.ts`, `rename-device.ts`, `remove-device.ts` | Merge CF devices with local display names | `/api/devices` | ✅ ready |
+| listConnectedDevices / renameConnectedDevice / removeConnectedDevice | `lib/services/devices/list-connected-devices.ts`, `rename-device.ts`, `remove-device.ts` | Shared Zero Trust account; list filtered by DB ownership (`tenant_device_metadata`) | `/api/devices` | ✅ ready |
+| claimMatchingDevicesForUser | `lib/services/devices/claim-devices.ts` | Auto-claim unowned CF devices matching user email (quota-aware) | `listConnectedDevices` | ✅ ready |
 | getDeviceEnrollmentInfo | `lib/services/devices/get-enrollment-info.ts` | Team name, DNS profile, store/WARP URLs, enrolled count | `/api/devices/enrollment-info` | ✅ ready |
 | getDeviceSetupSession / updateDeviceSetupSession | `lib/services/devices/setup-session.ts` | Persist questionnaire + wizard step | `/api/devices/setup-session` | ✅ ready |
 | getDeviceAppPreferences / updateDeviceAppPreferences | `lib/services/devices/app-preferences.ts` | Lock filter + prevent logout toggles | `/api/devices/app-preferences` | ✅ ready |
-| provisionTenantCloudflareAccount / getTenantCloudflareAccountForUser | `lib/services/tenants/provision.ts` | Full tenant onboarding orchestration + DB mapping | `/api/tenants/provision` | ✅ ready |
+| provisionTenantCloudflareAccount / getTenantCloudflareAccountForUser | `lib/services/tenants/provision.ts` | Legacy MSP child-account provision (not used for Model B enrollment) | `/api/tenants/provision` | ⚪ optional / unused for enrollment |
 
 ### Cloudflare (`lib/cloudflare/`)
 
@@ -403,6 +404,7 @@ page.tsx (RSC fetch via lib/services)
 | `20260803120000_tenant_cloudflare_accounts.sql` | Per-user Cloudflare child account + Gateway location mapping + RLS | ⚪ apply to Supabase |
 | `20260811120000_tenant_devices.sql` | `tenant_device_metadata`, `device_setup_sessions`, `device_app_preferences` + RLS | ⚪ apply to Supabase — **required for device setup persistence** |
 | `20260812130000_user_subscriptions_device_limit.sql` | `user_subscriptions.device_limit` override for Enterprise/custom caps | ⚪ apply to Supabase — **required for plan-aligned device quotas** |
+| `20260812140000_tenant_device_ownership_unique.sql` | Unique `cloudflare_device_id` so one shared-ZT device maps to one RealLife user | ✅ applied remotely |
 
 ### Generic Validators (`schemas/generic/`)
 
@@ -420,6 +422,12 @@ page.tsx (RSC fetch via lib/services)
 
 | Date | Change | Updated By |
 |------|--------|------------|
+| 2026-08-12 | Zero Trust: team name `delicate-sun-0d4f` + team domain `delicate-sun-0d4f.cloudflareaccess.com` in enrollment | Agent |
+| 2026-08-12 | Zero Trust team name: prefer `CLOUDFARE_ZERO_TRUST_TEAM_NAME` (`delicate-sun-0d4f`) for device enrollment | Agent |
+| 2026-08-12 | Devices UI: use `public/android.png` + `public/iphone.png` for platform previews and device rows | Agent |
+| 2026-08-12 | Cloudflare devices list: fix invalid `sort_by=last_seen` → `last_seen_at`; map `last_seen_user` / revoke via physical-device endpoint | Agent |
+| 2026-08-12 | Model B devices: shared Zero Trust account; `tenantReady` = platform CF configured; claim/filter devices via `tenant_device_metadata` (unique CF device id) | Agent |
+| 2026-08-12 | Devices empty state: CTA is Set up / tenant wait / upgrade by quota+access, not View billing when a free-trial slot is available | Agent |
 | 2026-08-12 | Free trial row no longer wiped to `canceled` by `customer.deleted` / canceled subscription webhooks; confirm-checkout restores trial from completed setup session | Agent |
 | 2026-08-12 | Free trial: confirm-checkout on return + paywall cache sync so paywall does not reopen before trial expiry | Agent |
 | 2026-08-12 | Applied pending migrations remotely; `device_limit` NOT NULL; regenerated `types/supabase.ts` from live DB (`npm run db:types`); billing uses generated Tables types | Agent |

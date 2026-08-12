@@ -32,8 +32,12 @@ export type UpdateDeviceAppPreferencesInput = z.infer<
 >
 
 export const deviceEnrollmentInfoSchema = z.object({
+  /** Shared Zero Trust platform configured (Model B — not per-user child tenant). */
   tenantReady: z.boolean(),
+  hasAccess: z.boolean(),
   teamName: z.string().nullable(),
+  /** Full Access domain, e.g. `delicate-sun-0d4f.cloudflareaccess.com`. */
+  teamDomain: z.string().nullable(),
   installEmails: z.array(z.string()),
   dnsProfileAvailable: z.boolean(),
   dohSubdomain: z.string().nullable(),
@@ -42,6 +46,7 @@ export const deviceEnrollmentInfoSchema = z.object({
   /** Effective cap (plan config or account override). `0` = no slots. */
   deviceLimit: z.number().int().nonnegative(),
   remainingDeviceSlots: z.number().int().nonnegative(),
+  /** Plan quota allows another device (ignores Cloudflare tenant readiness). */
   canAddDevice: z.boolean(),
   planName: z.string().min(1),
   limitSource: z.enum(["plan", "account_override", "none"]),

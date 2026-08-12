@@ -28,6 +28,52 @@ function formatDeviceQuota(info: DeviceEnrollmentInfo): string {
   return `${info.enrolledDeviceCount} / ${info.deviceLimit} devices`
 }
 
+function EmptyStateAction({
+  quota,
+  selectedPlatform,
+}: {
+  quota: DeviceEnrollmentInfo
+  selectedPlatform: DevicePlatform
+}) {
+  const hasSlot = quota.canAddDevice
+  const atLimit =
+    quota.hasAccess &&
+    quota.deviceLimit > 0 &&
+    quota.enrolledDeviceCount >= quota.deviceLimit
+
+  if (hasSlot && quota.tenantReady) {
+    return (
+      <Button asChild className="mt-4">
+        <Link href={`/devices/setup?platform=${selectedPlatform}`}>
+          Set up a device
+        </Link>
+      </Button>
+    )
+  }
+
+  if (hasSlot && !quota.tenantReady) {
+    return (
+      <p className="mt-4 text-sm text-brand-text-muted">
+        Device enrollment is temporarily unavailable. Please try again shortly.
+      </p>
+    )
+  }
+
+  if (atLimit) {
+    return (
+      <Button asChild className="mt-4" variant="brandOutline">
+        <Link href="/billing">Upgrade plan</Link>
+      </Button>
+    )
+  }
+
+  return (
+    <Button asChild className="mt-4" variant="brandOutline">
+      <Link href="/billing">View billing</Link>
+    </Button>
+  )
+}
+
 export function ConnectedDevicesView({
   initialDevices,
   enrollmentInfo,
@@ -51,7 +97,11 @@ export function ConnectedDevicesView({
 
   const devices = devicesQuery.data ?? []
   const quota = enrollmentQuery.data ?? enrollmentInfo
-  const canAdd = quota.canAddDevice
+  const canSetupDevice = quota.canAddDevice && quota.tenantReady
+  const atDeviceLimit =
+    quota.hasAccess &&
+    quota.deviceLimit > 0 &&
+    quota.enrolledDeviceCount >= quota.deviceLimit
 
   return (
     <div className="flex min-h-[calc(100svh-8rem)] flex-col gap-8">
@@ -71,32 +121,36 @@ export function ConnectedDevicesView({
               : null}
           </p>
         </div>
-        {canAdd ? (
+        {canSetupDevice ? (
           <Button asChild size="lg" className="shrink-0">
             <Link href={`/devices/setup?platform=${selectedPlatform}`}>
               <Plus aria-hidden className="size-4" />
               Add Device
             </Link>
           </Button>
-        ) : (
+        ) : atDeviceLimit ? (
           <Button asChild size="lg" variant="brandOutline" className="shrink-0">
             <Link href="/billing">Upgrade plan</Link>
           </Button>
-        )}
+        ) : !quota.hasAccess ? (
+          <Button asChild size="lg" variant="brandOutline" className="shrink-0">
+            <Link href="/billing">View billing</Link>
+          </Button>
+        ) : null}
       </div>
 
       {!quota.tenantReady ? (
-        <WarningAlert message="Cloudflare tenant is not ready yet. Provision your account before enrolling devices." />
+        <WarningAlert message="Device enrollment is temporarily unavailable. Please try again shortly." />
       ) : null}
 
-      {!canAdd && quota.tenantReady ? (
+      {atDeviceLimit ? (
         <WarningAlert
-          message={
-            quota.deviceLimit < 1
-              ? "Your account has no device allowance. Contact sales to set an Enterprise cap, or upgrade your plan."
-              : `Device limit reached (${quota.enrolledDeviceCount}/${quota.deviceLimit}). Remove a device or upgrade your plan.`
-          }
+          message={`Device limit reached (${quota.enrolledDeviceCount}/${quota.deviceLimit}). Remove a device or upgrade your plan.`}
         />
+      ) : null}
+
+      {!quota.hasAccess ? (
+        <WarningAlert message="An active trial or subscription is required to connect devices." />
       ) : null}
 
       {devicesQuery.isError ? (
@@ -137,17 +191,10 @@ export function ConnectedDevicesView({
             <p className="mt-1 text-sm text-brand-text-muted">
               Add a device to start enforcing your content policies.
             </p>
-            {canAdd ? (
-              <Button asChild className="mt-4">
-                <Link href={`/devices/setup?platform=${selectedPlatform}`}>
-                  Set up a device
-                </Link>
-              </Button>
-            ) : (
-              <Button asChild className="mt-4" variant="brandOutline">
-                <Link href="/billing">View billing</Link>
-              </Button>
-            )}
+            <EmptyStateAction
+              quota={quota}
+              selectedPlatform={selectedPlatform}
+            />
           </div>
         ) : (
           <div className="space-y-3">

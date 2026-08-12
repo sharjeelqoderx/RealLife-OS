@@ -40,7 +40,7 @@ export const PLAY_STORE_CLOUDFLARE_ONE =
 export const APP_STORE_CLOUDFLARE_ONE =
   "https://apps.apple.com/app/cloudflare-one/id6443476492"
 
-export const MOCK_TEAM_NAME = "sully-u-7"
+export const MOCK_TEAM_NAME = "delicate-sun-0d4f"
 
 export const MOCK_INSTALL_EMAILS = [
   "p.sully@icloud.com",

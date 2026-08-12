@@ -15,9 +15,7 @@ export function PhonePreview({ platform, className }: PhonePreviewProps) {
   const src = isAndroid
     ? DEVICE_SETUP_IMAGES.androidPhoneTop
     : DEVICE_SETUP_IMAGES.iphonePhoneTop
-  const alt = isAndroid
-    ? "Android device preview — replace public/devices/android-phone-top.svg"
-    : "iPhone device preview — replace public/devices/iphone-phone-top.svg"
+  const alt = isAndroid ? "Android device preview" : "iPhone device preview"
 
   return (
     <SetupGuideImage

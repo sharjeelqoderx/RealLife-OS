@@ -1,5 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin"
-import { revokeDeviceRegistrations } from "@/lib/services/cloudflare/devices"
+import { revokePhysicalDevice } from "@/lib/services/cloudflare/devices"
 import { listConnectedDevices } from "@/lib/services/devices/list-connected-devices"
 import {
   DeviceServiceError,
@@ -20,19 +20,17 @@ export async function removeConnectedDevice(
     throw new DeviceServiceError("Device not found", 404, "NOT_FOUND")
   }
 
-  if (target.registrationId) {
-    try {
-      await revokeDeviceRegistrations(accountId, [target.registrationId])
-    } catch (error) {
-      console.error("removeConnectedDevice: revoke failed:", error)
-      throw new DeviceServiceError(
-        error instanceof Error
-          ? error.message
-          : "Failed to revoke device in Cloudflare",
-        502,
-        "CLOUDFLARE_REVOKE_FAILED"
-      )
-    }
+  try {
+    await revokePhysicalDevice(accountId, cloudflareDeviceId)
+  } catch (error) {
+    console.error("removeConnectedDevice: revoke failed:", error)
+    throw new DeviceServiceError(
+      error instanceof Error
+        ? error.message
+        : "Failed to revoke device in Cloudflare",
+      502,
+      "CLOUDFLARE_REVOKE_FAILED"
+    )
   }
 
   const admin = createAdminClient()

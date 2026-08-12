@@ -1,8 +1,8 @@
 "use client"
 
+import Image from "next/image"
 import { useState } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { Smartphone } from "lucide-react"
 
 import { ErrorAlert } from "@/components/feedback"
 import { Button } from "@/components/ui/button"
@@ -73,8 +73,16 @@ export function ConnectedDeviceRow({ device, className }: ConnectedDeviceRowProp
         )}
       >
         <div className="flex min-w-0 items-start gap-3">
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-brand-primary/10 text-brand-primary">
-            <Smartphone aria-hidden className="size-5" />
+          <div className="relative size-10 shrink-0 overflow-hidden rounded-lg bg-brand-surface">
+            <Image
+              src={
+                device.platform === "android" ? "/android.png" : "/iphone.png"
+              }
+              alt=""
+              width={40}
+              height={40}
+              className="size-full object-cover object-top"
+            />
           </div>
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-brand-text-heading">

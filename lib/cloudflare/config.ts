@@ -45,6 +45,23 @@ export function getCloudflareAccountId(): string {
   return requireFirstEnv("CLOUDFARE_ACCOUNT_ID", "CLOUDFLARE_ACCOUNT_ID")
 }
 
+/** Optional read — does not throw when unset. */
+export function tryGetCloudflareAccountId(): string | undefined {
+  return firstEnv("CLOUDFARE_ACCOUNT_ID", "CLOUDFLARE_ACCOUNT_ID")
+}
+
+export function tryGetCloudflareApiToken(): string | undefined {
+  return firstEnv("CLOUDFARE_API_TOKEN", "CLOUDFLARE_API_TOKEN")
+}
+
+/**
+ * Shared Zero Trust (Model B): one platform account for every RealLife user.
+ * Ready when account id + API token are present — no per-user child tenant.
+ */
+export function hasCloudflarePlatformConfig(): boolean {
+  return Boolean(tryGetCloudflareAccountId() && tryGetCloudflareApiToken())
+}
+
 export function getCloudflareAccessAppId(): string {
   return requireFirstEnv("CLOUDFARE_APP_ID", "CLOUDFLARE_APP_ID")
 }

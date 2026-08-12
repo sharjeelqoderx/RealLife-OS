@@ -9,7 +9,14 @@ export type CloudflarePhysicalDevice = {
   manufacturer?: string
   os_version?: string
   active_registrations?: number
+  /** @deprecated Prefer last_seen_at (current CF API). */
   last_seen?: string
+  last_seen_at?: string
+  last_seen_user?: {
+    id?: string
+    email?: string
+    name?: string
+  }
   last_seen_registration?: {
     id?: string
     last_seen?: string
@@ -43,7 +50,7 @@ export async function listPhysicalDevices(
       per_page: 50,
       active_registrations: "include",
       include: "last_seen_registration.policy",
-      sort_by: "last_seen",
+      sort_by: "last_seen_at",
       sort_order: "desc",
     },
   })
@@ -52,7 +59,23 @@ export async function listPhysicalDevices(
 }
 
 /**
- * Revoke WARP device registrations (disconnect device).
+ * Revoke all WARP registrations for a physical device.
+ * @see https://developers.cloudflare.com/api/resources/zero_trust/subresources/devices/subresources/devices/methods/revoke/
+ */
+export async function revokePhysicalDevice(
+  accountId: string,
+  deviceId: string
+): Promise<void> {
+  await cloudflareRequest<unknown>({
+    method: "POST",
+    path: `/accounts/${accountId}/devices/physical-devices/${deviceId}/revoke`,
+    auth: getCloudflareGatewayAuth(),
+  })
+}
+
+/**
+ * Revoke WARP device registrations by registration ID list.
+ * Prefer {@link revokePhysicalDevice} when only the device id is known.
  * @see https://developers.cloudflare.com/api/resources/zero_trust/subresources/devices/subresources/registrations/methods/revoke/
  */
 export async function revokeDeviceRegistrations(

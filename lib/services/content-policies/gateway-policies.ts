@@ -20,7 +20,6 @@ import {
   parseGatewaySchedule,
   parseTrafficExpression,
 } from "@/lib/services/content-policies/parse-gateway-rule"
-import { getTenantCloudflareAccountForUser } from "@/lib/services/tenants/provision"
 import { createClient } from "@/lib/supabase/server"
 import type {
   CreateGatewayPolicyInput,
@@ -294,29 +293,12 @@ export async function buildTrafficExpression(
 }
 
 /**
- * Cloudflare account ID used for Gateway policy operations for this user:
- * ready tenant child account when provisioned, otherwise the platform account.
+ * Cloudflare account ID for Gateway policy operations.
+ * Model B: always the shared platform Zero Trust account.
  */
 export async function getPolicyCloudflareAccountId(
-  userId?: string
+  _userId?: string
 ): Promise<string> {
-  if (userId) {
-    try {
-      const tenant = await getTenantCloudflareAccountForUser(userId)
-      if (
-        tenant?.status === "ready" &&
-        tenant.cloudflareAccountId &&
-        tenant.cloudflareAccountId !== "pending"
-      ) {
-        return tenant.cloudflareAccountId
-      }
-    } catch (error) {
-      console.warn(
-        "getPolicyCloudflareAccountId: tenant lookup failed, using platform account:",
-        error
-      )
-    }
-  }
   return getCloudflareAccountId()
 }
 

@@ -11,15 +11,43 @@ import {
   DeviceServiceError,
   getDeviceAccountContext,
   requireAuthenticatedUserId,
-  slugifyTeamNameFallback,
 } from "@/lib/services/devices/context"
-import { getTenantCloudflareAccountForUser } from "@/lib/services/tenants/provision"
 import { createClient } from "@/lib/supabase/server"
 import type { DeviceEnrollmentInfo } from "@/schemas/devices/api"
 import {
   APP_STORE_CLOUDFLARE_ONE,
   PLAY_STORE_CLOUDFLARE_ONE,
 } from "@/schemas/devices/device"
+
+/** Strip scheme/path and `.cloudflareaccess.com` → Cloudflare One team name. */
+function normalizeZeroTrustTeamName(value: string): string {
+  return value
+    .trim()
+    .replace(/^https?:\/\//i, "")
+    .split("/")[0]
+    .replace(/\.cloudflareaccess\.com$/i, "")
+}
+
+function getConfiguredTeamName(): string | null {
+  const raw = firstEnv(
+    "CLOUDFLARE_ZERO_TRUST_TEAM_NAME",
+    "CLOUDFARE_ZERO_TRUST_TEAM_NAME",
+    "CLOUDFLARE_ZERO_TRUST_TEAM_DOMAIN",
+    "CLOUDFARE_ZERO_TRUST_TEAM_DOMAIN"
+  )
+  return raw ? normalizeZeroTrustTeamName(raw) : null
+}
+
+function getConfiguredTeamDomain(teamName: string | null): string | null {
+  const raw = firstEnv(
+    "CLOUDFLARE_ZERO_TRUST_TEAM_DOMAIN",
+    "CLOUDFARE_ZERO_TRUST_TEAM_DOMAIN"
+  )
+  if (raw) {
+    return `${normalizeZeroTrustTeamName(raw)}.cloudflareaccess.com`
+  }
+  return teamName ? `${teamName}.cloudflareaccess.com` : null
+}
 
 export async function getDeviceEnrollmentInfo(): Promise<DeviceEnrollmentInfo> {
   const userId = await requireAuthenticatedUserId()
@@ -28,21 +56,17 @@ export async function getDeviceEnrollmentInfo(): Promise<DeviceEnrollmentInfo> {
     data: { user },
   } = await supabase.auth.getUser()
 
-  const tenant = await getTenantCloudflareAccountForUser(userId)
-  const { tenantReady } = await getDeviceAccountContext(userId)
+  const { accountId, tenantReady } = await getDeviceAccountContext(userId)
 
-  let teamName: string | null = null
-  if (tenant?.cloudflareAccountId && tenant.cloudflareAccountId !== "pending") {
-    teamName = await getZeroTrustTeamName(tenant.cloudflareAccountId)
+  // Prefer configured team name (shared Zero Trust) over API org lookup.
+  let teamName = getConfiguredTeamName()
+
+  if (!teamName && tenantReady && accountId) {
+    const fromApi = await getZeroTrustTeamName(accountId)
+    teamName = fromApi ? normalizeZeroTrustTeamName(fromApi) : null
   }
 
-  if (!teamName) {
-    teamName =
-      firstEnv("CLOUDFLARE_ZERO_TRUST_TEAM_NAME", "CLOUDFARE_ZERO_TRUST_TEAM_NAME") ??
-      (tenant?.cloudflareAccountName
-        ? slugifyTeamNameFallback(tenant.cloudflareAccountName)
-        : null)
-  }
+  const teamDomain = getConfiguredTeamDomain(teamName)
 
   const installEmails = [user?.email].filter(
     (email): email is string => Boolean(email)
@@ -83,7 +107,9 @@ export async function getDeviceEnrollmentInfo(): Promise<DeviceEnrollmentInfo> {
 
   return {
     tenantReady,
+    hasAccess: quota.hasAccess,
     teamName,
+    teamDomain,
     installEmails,
     dnsProfileAvailable,
     dohSubdomain,
@@ -91,7 +117,7 @@ export async function getDeviceEnrollmentInfo(): Promise<DeviceEnrollmentInfo> {
     enrolledDeviceCount: quota.enrolledDeviceCount,
     deviceLimit: quota.deviceLimit,
     remainingDeviceSlots: quota.remainingDeviceSlots,
-    canAddDevice: quota.canAddDevice && tenantReady,
+    canAddDevice: quota.canAddDevice,
     planName: quota.planName,
     limitSource: quota.limitSource,
     storeUrls: {
