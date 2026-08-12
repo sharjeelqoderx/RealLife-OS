@@ -344,6 +344,7 @@ page.tsx (RSC fetch via lib/services)
 | `/api/auth/change-password/validate` | GET | `validateRecoverySession` | — | ✅ ready |
 | `/api/auth/change-password` | POST | `changePassword` | `changePasswordSchema` | ✅ ready |
 | `/api/auth/logout` | POST | `logoutUser` | — | ✅ ready |
+| `/api/stripe/confirm-checkout` | POST | `confirmCheckoutReturn` | Activate trial / sync paid plan after Stripe redirect | ✅ ready |
 | `/api/stripe/webhook` | POST | `processStripeWebhookEvent` | Stripe signature | ✅ ready |
 | `/api/stripe/checkout` | POST | `createCheckoutSession` | `createCheckoutSessionSchema` | ✅ ready |
 | `/api/stripe/start-trial` | POST | `createTrialCheckoutSession` | Stripe setup checkout | ✅ ready |
@@ -419,6 +420,7 @@ page.tsx (RSC fetch via lib/services)
 
 | Date | Change | Updated By |
 |------|--------|------------|
+| 2026-08-12 | Free trial: confirm-checkout on return + paywall cache sync so paywall does not reopen before trial expiry | Agent |
 | 2026-08-12 | Applied pending migrations remotely; `device_limit` NOT NULL; regenerated `types/supabase.ts` from live DB (`npm run db:types`); billing uses generated Tables types | Agent |
 | 2026-08-12 | Use `types/supabase.ts` Database types on Supabase clients; billing reads/writes `Tables`/`TablesInsert`/`TablesUpdate` directly (removed mapSubscriptionRow) | Agent |
 | 2026-08-12 | Strict device quota types (required numbers, fail-closed); rename away from resolve*; server gate `requireDeviceSlotAvailable` on setup-session writes | Agent |

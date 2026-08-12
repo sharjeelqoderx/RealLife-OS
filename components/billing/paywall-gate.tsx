@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Check, LogOut } from "lucide-react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
 
 import { CustomSpinner } from "@/components/feedback/custom-spinner"
 import { Button } from "@/components/ui/button"
@@ -48,14 +48,23 @@ export function PaywallGate({ initialBillingStatus }: PaywallGateProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const queryClient = useQueryClient()
+  const confirmingCheckout = useRef(false)
 
   const billingQuery = useQuery({
     queryKey: queryKeys.billing.status(),
     queryFn: () =>
       apiClient<BillingStatusResponse>("/api/stripe/billing-status"),
     initialData: initialBillingStatus,
+    // Prefer fresh server props after navigation (e.g. trial activated).
+    initialDataUpdatedAt: Date.now(),
     refetchInterval: (q) => (q.state.data?.hasAccess ? false : 4000),
   })
+
+  // Keep React Query cache aligned with SSR billing status so an old
+  // hasAccess:false cache cannot reopen the paywall during an active trial.
+  useEffect(() => {
+    queryClient.setQueryData(queryKeys.billing.status(), initialBillingStatus)
+  }, [initialBillingStatus, queryClient])
 
   const logout = useMutation({
     mutationFn: () =>
@@ -89,14 +98,40 @@ export function PaywallGate({ initialBillingStatus }: PaywallGateProps) {
   useEffect(() => {
     const result = searchParams.get("checkout")
     if (!result) return
+    if (result === "canceled") {
+      router.replace("/dashboard")
+      return
+    }
+    if (result !== "success" || confirmingCheckout.current) return
 
-    void queryClient.invalidateQueries({
-      queryKey: queryKeys.billing.status(),
-    })
-    router.replace("/dashboard")
+    confirmingCheckout.current = true
+
+    void (async () => {
+      try {
+        const status = await apiClient<BillingStatusResponse>(
+          "/api/stripe/confirm-checkout",
+          { method: "POST" }
+        )
+        queryClient.setQueryData(queryKeys.billing.status(), status)
+        await queryClient.invalidateQueries({
+          queryKey: queryKeys.billing.status(),
+        })
+      } catch {
+        await queryClient.invalidateQueries({
+          queryKey: queryKeys.billing.status(),
+        })
+      } finally {
+        confirmingCheckout.current = false
+        router.replace("/dashboard")
+        router.refresh()
+      }
+    })()
   }, [queryClient, router, searchParams])
 
-  if (billingQuery.data.hasAccess) return null
+  const hasAccess =
+    billingQuery.data.hasAccess || initialBillingStatus.hasAccess
+
+  if (hasAccess) return null
 
   const planPending = trial.isPending || checkout.isPending
   const error =

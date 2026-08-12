@@ -11,6 +11,13 @@ import {
   getSubscriptionByUserId,
   saveCustomerId,
 } from "@/lib/services/billing/subscriptions"
+import {
+  asCustomerId,
+  asSubscriptionId,
+  setDefaultPaymentMethodFromSetup,
+  startFreeTrial,
+  writeSubscriptionById,
+} from "@/lib/services/billing/webhook/helpers"
 import { createClient } from "@/lib/supabase/server"
 
 export class BillingError extends Error {
@@ -147,4 +154,59 @@ export async function createCheckoutSession(
   }
 
   return { url: session.url }
+}
+
+/**
+ * After Stripe Checkout redirect: activate trial / sync subscription without
+ * waiting for the webhook, so the paywall does not stay up during a valid trial.
+ */
+export async function confirmCheckoutReturn() {
+  const user = await getAuthUser()
+  const current = await getBillingStatus(user.id)
+  if (current.hasAccess) {
+    return current
+  }
+
+  const row = await getSubscriptionByUserId(user.id)
+  const customerId = row?.stripe_customer_id
+  if (!customerId) {
+    return current
+  }
+
+  const sessions = await getStripe().checkout.sessions.list({
+    customer: customerId,
+    limit: 10,
+  })
+
+  const completed = sessions.data.find(
+    (session) =>
+      session.status === "complete" &&
+      (session.metadata?.user_id === user.id ||
+        session.client_reference_id === user.id)
+  )
+
+  if (!completed) {
+    return current
+  }
+
+  if (completed.mode === "setup") {
+    const planId = completed.metadata?.plan_id
+    if (planId === "free_trial" || planId === "personal") {
+      await setDefaultPaymentMethodFromSetup(
+        customerId,
+        completed.setup_intent
+      )
+      await startFreeTrial(
+        user.id,
+        asCustomerId(completed.customer) ?? customerId
+      )
+    }
+  } else if (completed.mode === "subscription") {
+    const subscriptionId = asSubscriptionId(completed.subscription)
+    if (subscriptionId) {
+      await writeSubscriptionById(subscriptionId, user.id)
+    }
+  }
+
+  return getBillingStatus(user.id)
 }
