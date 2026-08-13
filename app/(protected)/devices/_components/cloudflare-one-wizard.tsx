@@ -145,7 +145,11 @@ export function CloudflareOneWizard({
             description="This app will connect to your Content Policy"
           >
             <div className="flex flex-col items-center gap-4 md:flex-row md:items-start md:gap-8">
-              <QrCodePlaceholder caption="Scan this QR Code on your smartphone" />
+              <QrCodePlaceholder
+                value={storeUrl}
+                caption="Scan this QR Code on your smartphone"
+                size={140}
+              />
               <div className="space-y-3 text-sm text-brand-text-muted">
                 <p>
                   Open the {storeLabel} on your {platformLabel} device and search
@@ -305,7 +309,11 @@ export function CloudflareOneWizard({
             description="Run a DNS leak test to verify that your device is connected to Cloudflare correctly."
           >
             <div className="flex flex-col items-center gap-4">
-              <QrCodePlaceholder caption="Scan this QR Code on your smartphone" />
+              <QrCodePlaceholder
+                value={DNS_LEAK_TEST_URL}
+                caption="Scan this QR Code on your smartphone"
+                size={140}
+              />
               <Button asChild variant="brandOutline" size="sm">
                 <a href={DNS_LEAK_TEST_URL} target="_blank" rel="noopener noreferrer">
                   Open DNS Leak Test

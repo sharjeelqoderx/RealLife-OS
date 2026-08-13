@@ -15,9 +15,9 @@ export function IphoneSupervisedSettingsPreview({
     <SetupGuideImage
       src={DEVICE_SETUP_IMAGES.iphoneSettingsSupervised}
       alt="iPhone Settings supervised banner — replace public/devices/iphone-settings-supervised.svg"
-      width={480}
-      height={640}
-      className={cn("mx-auto max-w-sm", className)}
+      width={360}
+      height={420}
+      className={cn("mx-auto max-w-xs", className)}
     />
   )
 }

@@ -7,22 +7,23 @@ export const DEVICE_SETUP_IMAGES = {
   androidPhoneTop: "/android.png",
   iphonePhoneTop: "/iphone.png",
   qrCode: "/devices/qr-code.svg",
-  cloudflareOneStoreListing: "/devices/cloudflare-one-store-listing.svg",
-  cloudflareOneScreenshot: "/devices/cloudflare-one-screenshot.svg",
-  orgNamePrompt: "/devices/org-name-prompt.svg",
-  accessLogin: "/devices/access-login.svg",
-  loginPinEmail: "/devices/login-pin-email.svg",
-  dnsLeakStandardTest: "/devices/dns-leak-standard-test.svg",
-  dnsLeakResults: "/devices/dns-leak-results.svg",
-  iphoneSettingsSupervised: "/devices/iphone-settings-supervised.svg",
+  cloudflareOneStoreListing: "/DevicesImages/instal the app.png",
+  cloudflareOneScreenshot: "/DevicesImages/instal the app.png",
+  orgNamePrompt: "/DevicesImages/enter your team name.png",
+  accessLogin: "/DevicesImages/sign in when promoted.png",
+  loginPinEmail: "/DevicesImages/get login pin.png",
+  dnsLeakStandardTest: "/DevicesImages/run a standard test.png",
+  dnsLeakResults: "/DevicesImages/Check results for Cloudflare.png",
+  iphoneSettingsSupervised: "/DevicesImages/images HD.png",
   supervisedDownload: "/devices/supervised-download.svg",
-  supervisedFinder: "/devices/supervised-finder.svg",
-  supervisedConnect: "/devices/supervised-connect.svg",
-  supervisedConfirm: "/devices/supervised-confirm.svg",
-  supervisedStolenDevice: "/devices/supervised-stolen-device.svg",
-  supervisedFindMy: "/devices/supervised-find-my.svg",
-  supervisedAppleId: "/devices/supervised-apple-id.svg",
-  supervisedPrivateRelay: "/devices/supervised-private-relay.svg",
+  supervisedFinder: "/DevicesImages/8 step/Open the downloaded file.png",
+  supervisedConnect: "/DevicesImages/8 step/Plug the iPhone into your computer.png",
+  supervisedConfirm: "/DevicesImages/8 step/Confirm Connected Device.png",
+  supervisedStolenDevice: "/DevicesImages/8 step/Turn off Stolen Device Protection.png",
+  supervisedFindMy: "/DevicesImages/8 step/Turn off Find My iPhone.png",
+  supervisedAppleId: "/DevicesImages/8 step/Here's exactly how to turn off Find My iPhone.png",
+  supervisedPrivateRelay: "/DevicesImages/8 step/Turn off Private Relay.png",
+  supervisedPrivateRelayStep8: "/DevicesImages/8 step/Turn off Private Relay 8.png",
   installCertFinder: "/devices/install-cert-finder.svg",
   installCertDesktop: "/devices/install-cert-desktop.svg",
   installCertSpotlight: "/devices/install-cert-spotlight.svg",
@@ -39,6 +40,7 @@ export interface SetupGuideImageProps {
   priority?: boolean
   className?: string
   imageClassName?: string
+  style?: React.CSSProperties
 }
 
 export function SetupGuideImage({
@@ -49,21 +51,31 @@ export function SetupGuideImage({
   priority = false,
   className,
   imageClassName,
+  style,
 }: SetupGuideImageProps) {
+  const aspectRatio = width && height ? `${width} / ${height}` : undefined
+
   return (
     <div
+      style={{
+        ...style,
+        width: style?.width ?? (width ? `${width}px` : undefined),
+        maxWidth: style?.maxWidth ?? "100%",
+        aspectRatio,
+      }}
       className={cn(
-        "relative overflow-hidden rounded-xl border border-border bg-brand-surface",
+        "relative overflow-hidden rounded-xl border border-border bg-brand-surface h-auto",
         className
       )}
     >
       <Image
         src={src}
         alt={alt}
-        width={width}
-        height={height}
         priority={priority}
-        className={cn("h-auto w-full object-contain", imageClassName)}
+        unoptimized
+        fill
+        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+        className={cn("object-contain", imageClassName)}
       />
     </div>
   )
