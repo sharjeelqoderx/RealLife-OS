@@ -36,6 +36,8 @@ export const queryKeys = {
     list: () => [...queryKeys.devices.all, "list"] as const,
     enrollmentInfo: () =>
       [...queryKeys.devices.all, "enrollment-info"] as const,
+    enrollmentStatus: (enrollmentId: string) =>
+      [...queryKeys.devices.all, "enrollment-status", enrollmentId] as const,
     setupSession: (platform: string) =>
       [...queryKeys.devices.all, "setup-session", platform] as const,
     appPreferences: () =>

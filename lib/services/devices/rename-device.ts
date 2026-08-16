@@ -6,7 +6,7 @@ import {
 import type { RenameDeviceInput } from "@/schemas/devices/api"
 
 export async function renameConnectedDevice(
-  cloudflareDeviceId: string,
+  deviceId: string,
   input: RenameDeviceInput
 ): Promise<void> {
   const userId = await requireAuthenticatedUserId()
@@ -16,7 +16,7 @@ export async function renameConnectedDevice(
     .from("tenant_device_metadata")
     .select("id")
     .eq("user_id", userId)
-    .eq("cloudflare_device_id", cloudflareDeviceId)
+    .eq("id", deviceId)
     .maybeSingle()
 
   if (lookupError) {
@@ -39,7 +39,7 @@ export async function renameConnectedDevice(
       updated_at: new Date().toISOString(),
     })
     .eq("user_id", userId)
-    .eq("cloudflare_device_id", cloudflareDeviceId)
+    .eq("id", deviceId)
 
   if (error) {
     console.error("renameConnectedDevice:", error)

@@ -11,7 +11,7 @@ import {
 } from "@/schemas/devices/device"
 
 export interface DeviceTypePickerProps {
-  selectedPlatform: DevicePlatform
+  selectedPlatform: DevicePlatform | null
   onSelect?: (platform: DevicePlatform) => void
   setupHref?: string
   className?: string
@@ -34,13 +34,18 @@ export function DeviceTypePicker({
         const card = (
           <div
             className={cn(
-              "flex flex-col overflow-hidden rounded-xl border bg-white transition-colors",
+              "flex flex-col overflow-hidden rounded-xl border transition-colors",
               isSelected
-                ? "border-brand-primary ring-2 ring-brand-primary/20"
-                : "border-border hover:border-brand-primary/40"
+                ? "border-brand-primary bg-brand-primary/5"
+                : "border-border bg-white hover:border-brand-primary/40"
             )}
           >
-            <div className="border-b border-border px-4 py-3">
+            <div
+              className={cn(
+                "border-b px-4 py-3",
+                isSelected ? "border-brand-primary/20" : "border-border"
+              )}
+            >
               <p className="text-sm font-semibold text-brand-text-heading">{label}</p>
             </div>
             <div className="flex flex-1 items-end justify-center px-4 pt-4 pb-0">

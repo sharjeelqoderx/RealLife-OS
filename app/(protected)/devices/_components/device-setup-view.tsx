@@ -1,360 +1,162 @@
 "use client"
 
 import Link from "next/link"
-import { useCallback, useMemo, useState } from "react"
-import { useMutation } from "@tanstack/react-query"
-import {
-  ArrowLeft,
-  GraduationCap,
-  ShieldCheck,
-  Wrench,
-  Zap,
-} from "lucide-react"
+import { useEffect, useState } from "react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { ArrowLeft, ExternalLink } from "lucide-react"
 
 import { DeviceTypePicker } from "@/app/(protected)/devices/_components/device-type-picker"
-import { IphoneSupervisedSettingsPreview } from "@/app/(protected)/devices/_components/iphone-supervised-settings-preview"
-import { RadioOptionGroup } from "@/app/(protected)/devices/_components/radio-option-group"
-import { SetupActionCard } from "@/app/(protected)/devices/_components/setup-action-card"
-import { SetupStep } from "@/app/(protected)/devices/_components/setup-step"
+import { ErrorAlert, WarningAlert } from "@/components/feedback"
+import { CustomSpinner } from "@/components/feedback/custom-spinner"
 import { Button } from "@/components/ui/button"
 import { apiClient } from "@/lib/api/client"
+import { queryKeys } from "@/lib/query/keys"
 import {
-  CLOUDFLARE_MANAGED_ANDROID_DOCS,
-  CLOUDFLARE_ONE_CLIENT_DOCS,
+  devicePlatformSchema,
   type DevicePlatform,
-  type DeviceSetupAnswers,
 } from "@/schemas/devices/device"
-import type { DeviceEnrollmentInfo, DeviceSetupSession } from "@/schemas/devices/api"
+import type { DeviceEnrollmentInfo } from "@/schemas/devices/api"
 
 export interface DeviceSetupViewProps {
-  initialPlatform: DevicePlatform
-  initialSession: DeviceSetupSession
+  initialPlatform: DevicePlatform | null
   enrollmentInfo: DeviceEnrollmentInfo | null
 }
 
-type QuestionnaireStep = {
-  id: string
-  title: string
-  description?: string
-  content: React.ReactNode
+type EnrollmentCreateResponse = {
+  success: true
+  data: {
+    enrollmentId: string
+    status: "pending"
+    teamName: string
+    enrollmentEmail: string
+    platform: DevicePlatform
+    resumed: boolean
+    platformInstructions: Record<string, string>
+  }
 }
 
-function buildAndroidSteps(
-  platform: DevicePlatform,
-  answers: DeviceSetupAnswers,
-  setAnswers: (updater: (current: DeviceSetupAnswers) => DeviceSetupAnswers) => void
-): QuestionnaireStep[] {
-  const items: QuestionnaireStep[] = [
-    {
-      id: "is-managed",
-      title: "Is your Android device managed?",
-      description: "Managed Android devices are more reliable at preventing bypass.",
-      content: (
-        <RadioOptionGroup
-          name="is-managed"
-          value={answers.isManaged}
-          options={[
-            { value: "yes", label: "Yes" },
-            { value: "no", label: "No" },
-          ]}
-          onChange={(value) =>
-            setAnswers((current) => ({ ...current, isManaged: value }))
-          }
-        />
-      ),
-    },
-  ]
-
-  if (answers.isManaged === "no") {
-    items.push({
-      id: "managed-mode-guide",
-      title: "Consider enabling managed mode",
-      description:
-        "Managed mode is a more reliable way to prevent bypass on Android devices.",
-      content: (
-        <SetupActionCard
-          href={CLOUDFLARE_MANAGED_ANDROID_DOCS}
-          label="Follow the Cloudflare guide on how to enable managed mode to get started"
-          description="developers.cloudflare.com"
-          icon={GraduationCap}
-        />
-      ),
-    })
+type EnrollmentStatusResponse = {
+  success: true
+  data: {
+    status: "pending" | "completed" | "expired" | "failed" | "ambiguous"
   }
-
-  items.push({
-    id: "is-connected",
-    title: "Is your Android device connected to your Content Policy?",
-    content: (
-      <RadioOptionGroup
-        name="is-connected-to-policy"
-        value={answers.isConnectedToPolicy}
-        options={[
-          { value: "yes", label: "Yes" },
-          { value: "no", label: "No" },
-        ]}
-        onChange={(value) =>
-          setAnswers((current) => ({ ...current, isConnectedToPolicy: value }))
-        }
-      />
-    ),
-  })
-
-  if (answers.isConnectedToPolicy === "no") {
-    items.push({
-      id: "connect-policy",
-      title: "Connect an Android device to your Content Policy",
-      description: "Ensure that content filtering is enabled on any internet connection.",
-      content: (
-        <SetupActionCard
-          href={`/devices/setup/cloudflare-one?platform=${platform}`}
-          label="Install VPN app"
-          icon={Zap}
-          external={false}
-        />
-      ),
-    })
-  }
-
-  if (answers.isConnectedToPolicy === "yes") {
-    items.push(...buildCertificateSteps(platform, answers, setAnswers))
-  }
-
-  return items
 }
 
-function buildIphoneSteps(
-  platform: DevicePlatform,
-  answers: DeviceSetupAnswers,
-  setAnswers: (updater: (current: DeviceSetupAnswers) => DeviceSetupAnswers) => void
-): QuestionnaireStep[] {
-  const items: QuestionnaireStep[] = [
-    {
-      id: "is-supervised",
-      title: "Is your iPhone / iPad supervised?",
-      description:
-        "Open up settings and confirm that the message \"This iPhone is supervised...\" appears at the top",
-      content: (
-        <div className="space-y-5">
-          <RadioOptionGroup
-            name="is-supervised"
-            value={answers.isManaged}
-            options={[
-              { value: "yes", label: "Yes, it is supervised" },
-              { value: "no", label: "No, it is not supervised" },
-            ]}
-            onChange={(value) =>
-              setAnswers((current) => ({ ...current, isManaged: value }))
-            }
-          />
-          <IphoneSupervisedSettingsPreview />
-        </div>
-      ),
-    },
-  ]
-
-  if (answers.isManaged === "no") {
-    items.push({
-      id: "enable-supervised-mode",
-      title: "Enable supervised mode",
-      description:
-        "This process only takes a few minutes and unlocks a more reliable way to prevent bypass on iOS devices.",
-      content: (
-        <SetupActionCard
-          href="/devices/setup/andoff"
-          label="Enable Supervised Mode"
-          description="Takes less than 5 minutes and no data is lost."
-          icon={Zap}
-          external={false}
-        />
-      ),
-    })
+function syncPlatformQuery(
+  pathname: string,
+  router: ReturnType<typeof useRouter>,
+  platform: DevicePlatform | null
+) {
+  const params = new URLSearchParams()
+  if (platform) {
+    params.set("platform", platform)
   }
-
-  items.push({
-    id: "is-connected",
-    title: "Is your iPhone / iPad connected to your Content Policy?",
-    content: (
-      <RadioOptionGroup
-        name="is-connected-to-policy"
-        value={answers.isConnectedToPolicy}
-        options={[
-          { value: "yes", label: "Yes" },
-          { value: "no", label: "No" },
-        ]}
-        onChange={(value) =>
-          setAnswers((current) => ({ ...current, isConnectedToPolicy: value }))
-        }
-      />
-    ),
-  })
-
-  if (answers.isConnectedToPolicy === "no") {
-    items.push({
-      id: "connect-policy",
-      title: "Connect an iPhone device to your Content Policy",
-      description: "Ensure that content filtering is enabled on any internet connection.",
-      content: (
-        <SetupActionCard
-          href={`/devices/setup/cloudflare-one?platform=${platform}`}
-          label="Install VPN app"
-          icon={Zap}
-          external={false}
-        />
-      ),
-    })
-  }
-
-  if (answers.isConnectedToPolicy === "yes") {
-    items.push(...buildCertificateSteps(platform, answers, setAnswers))
-
-    if (
-      answers.certificateInstalled === "yes" ||
-      answers.certificateInstalled === "skip"
-    ) {
-      items.push({
-        id: "apple-shortcuts",
-        title: "Enable Apple Shortcuts",
-        description: "Use Apple Shortcuts to automatically connect the Cloudflare VPN.",
-        content: (
-          <SetupActionCard
-            href="/devices/setup/apple-shortcuts"
-            label="Enable Apple Shortcuts"
-            description="Use Apple Shortcuts to automatically re-connect the Cloudflare VPN."
-            icon={Wrench}
-            external={false}
-          />
-        ),
-      })
-    }
-  }
-
-  return items
-}
-
-function buildCertificateSteps(
-  platform: DevicePlatform,
-  answers: DeviceSetupAnswers,
-  setAnswers: (updater: (current: DeviceSetupAnswers) => DeviceSetupAnswers) => void
-): QuestionnaireStep[] {
-  const items: QuestionnaireStep[] = [
-    {
-      id: "certificate-question",
-      title: "Have you installed and trusted the Cloudflare certificate?",
-      description:
-        "This is recommended so that you can see a helpful block page when a website is blocked.",
-      content: (
-        <RadioOptionGroup
-          name="certificate-installed"
-          value={answers.certificateInstalled}
-          options={[
-            { value: "yes", label: "Yes" },
-            { value: "no", label: "No" },
-            { value: "skip", label: "Skip for now" },
-          ]}
-          onChange={(value) =>
-            setAnswers((current) => ({
-              ...current,
-              certificateInstalled: value,
-            }))
-          }
-        />
-      ),
-    },
-  ]
-
-  if (answers.certificateInstalled === "no") {
-    items.push({
-      id: "certificate-install",
-      title: "Certificate Setup",
-      description: "Install and trust the certificate",
-      content: (
-        <SetupActionCard
-          href={
-            platform === "iphone"
-              ? `/devices/setup/install-certificate?platform=${platform}`
-              : "/api/dns-profile/mobileconfig"
-          }
-          label="Install Certificate"
-          icon={ShieldCheck}
-          external={platform !== "iphone"}
-        />
-      ),
-    })
-  }
-
-  return items
+  const query = params.toString()
+  router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false })
 }
 
 export function DeviceSetupView({
   initialPlatform,
-  initialSession,
   enrollmentInfo,
 }: DeviceSetupViewProps) {
-  const [platform, setPlatform] = useState<DevicePlatform>(initialPlatform)
-  const [answers, setAnswers] = useState<DeviceSetupAnswers>(initialSession.answers)
-
-  const saveSessionMutation = useMutation({
-    mutationFn: (payload: {
-      platform?: DevicePlatform
-      answers?: DeviceSetupAnswers
-    }) =>
-      apiClient<DeviceSetupSession>("/api/devices/setup-session", {
-        method: "PATCH",
-        body: JSON.stringify(payload),
-      }),
-  })
-
-  const persistAnswers = useCallback(
-    (nextAnswers: DeviceSetupAnswers) => {
-      saveSessionMutation.mutate({ platform, answers: nextAnswers })
-    },
-    [platform, saveSessionMutation]
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const queryPlatform = devicePlatformSchema.safeParse(
+    searchParams.get("platform")
   )
-
-  const handlePlatformChange = useCallback(
-    (nextPlatform: DevicePlatform) => {
-      setPlatform(nextPlatform)
-      saveSessionMutation.mutate({ platform: nextPlatform, answers })
-    },
-    [answers, saveSessionMutation]
+  const [platform, setPlatform] = useState<DevicePlatform | null>(
+    queryPlatform.success ? queryPlatform.data : initialPlatform
   )
-
-  const handleAnswersChange = useCallback(
-    (updater: (current: DeviceSetupAnswers) => DeviceSetupAnswers) => {
-      setAnswers((current) => {
-        const next = updater(current)
-        persistAnswers(next)
-        return next
-      })
-    },
-    [persistAnswers]
+  const [enrollment, setEnrollment] = useState<EnrollmentCreateResponse["data"] | null>(
+    null
   )
+  const [waiting, setWaiting] = useState(false)
+  const [pollCount, setPollCount] = useState(0)
+  const queryClient = useQueryClient()
 
   const blockedFromSetup =
     enrollmentInfo != null &&
     (!enrollmentInfo.hasAccess || !enrollmentInfo.canAddDevice)
 
-  const steps = useMemo((): QuestionnaireStep[] => {
-    const platformSteps =
-      platform === "android"
-        ? buildAndroidSteps(platform, answers, handleAnswersChange)
-        : buildIphoneSteps(platform, answers, handleAnswersChange)
+  useEffect(() => {
+    const parsed = devicePlatformSchema.safeParse(searchParams.get("platform"))
+    const next = parsed.success ? parsed.data : null
+    setPlatform((current) => (current === next ? current : next))
+  }, [searchParams])
 
-    return [
-      {
-        id: "select-device",
-        title: "Select a Device",
-        content: (
-          <DeviceTypePicker
-            selectedPlatform={platform}
-            onSelect={handlePlatformChange}
-          />
-        ),
-      },
-      ...platformSteps,
-    ]
-  }, [answers, handleAnswersChange, handlePlatformChange, platform])
+  const selectPlatform = (nextPlatform: DevicePlatform) => {
+    setPlatform(nextPlatform)
+    syncPlatformQuery(pathname, router, nextPlatform)
+  }
+
+  const startEnrollmentMutation = useMutation({
+    mutationFn: (nextPlatform: DevicePlatform) =>
+      apiClient<EnrollmentCreateResponse>("/api/devices/enrollment", {
+        method: "POST",
+        body: JSON.stringify({
+          platform: nextPlatform,
+          deviceName:
+            nextPlatform === "android" ? "Android device" : "iPhone or iPad",
+        }),
+      }),
+    onSuccess: (response) => {
+      setPlatform(response.data.platform)
+      syncPlatformQuery(pathname, router, response.data.platform)
+      setEnrollment(response.data)
+      setWaiting(true)
+      setPollCount(0)
+    },
+  })
+
+  const cancelEnrollmentMutation = useMutation({
+    mutationFn: (enrollmentId: string) =>
+      apiClient<{ success: true; data: { status: "cancelled" } }>(
+        `/api/devices/enrollment/${enrollmentId}/cancel`,
+        { method: "POST" }
+      ),
+    onSuccess: () => {
+      setEnrollment(null)
+      setWaiting(false)
+      setPollCount(0)
+      startEnrollmentMutation.reset()
+    },
+  })
+
+  const statusQuery = useQuery({
+    queryKey: queryKeys.devices.enrollmentStatus(enrollment?.enrollmentId ?? "none"),
+    queryFn: () =>
+      apiClient<EnrollmentStatusResponse>(
+        `/api/devices/enrollment/${enrollment?.enrollmentId}/status`
+      ),
+    enabled: waiting && Boolean(enrollment) && pollCount < 40,
+    refetchInterval: 4_000,
+  })
+
+  useEffect(() => {
+    if (statusQuery.dataUpdatedAt && waiting) {
+      setPollCount((count) => count + 1)
+    }
+  }, [statusQuery.dataUpdatedAt, waiting])
+
+  useEffect(() => {
+    if (statusQuery.data?.data.status === "completed") {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.devices.list() })
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.devices.enrollmentInfo(),
+      })
+    }
+  }, [queryClient, statusQuery.data?.data.status])
+
+  const status = statusQuery.data?.data.status
+  const activePlatform = enrollment?.platform ?? platform
+  const installUrl =
+    activePlatform === "android"
+      ? enrollmentInfo?.storeUrls.android
+      : activePlatform === "iphone"
+        ? enrollmentInfo?.storeUrls.iphone
+        : undefined
 
   return (
     <div className="flex min-h-[calc(100svh-8rem)] flex-col gap-8">
@@ -366,19 +168,13 @@ export function DeviceSetupView({
           </Link>
         </Button>
         <h1 className="text-2xl font-bold tracking-tight text-brand-text-heading md:text-3xl">
-          Device Setup
+          Add a device
         </h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-brand-text-muted">
-          Answer a few questions to connect your device with{" "}
-          <a
-            href={CLOUDFLARE_ONE_CLIENT_DOCS}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-medium text-brand-link underline-offset-4 hover:underline"
-          >
-            Cloudflare One
-          </a>
-          . Steps update based on your answers. Policies apply per device.
+          Install Cloudflare One, connect to our organization, and sign in with
+          the same email as this account. We register that email for enrollment
+          when you continue. Use Traffic and DNS mode for identity-scoped
+          Gateway policies.
         </p>
         {enrollmentInfo && enrollmentInfo.deviceLimit > 0 ? (
           <p className="mt-2 text-sm font-medium text-brand-text-heading">
@@ -409,18 +205,170 @@ export function DeviceSetupView({
           </div>
         </div>
       ) : (
-        <div className="max-w-3xl">
-          {steps.map((step, index) => (
-            <SetupStep
-              key={step.id}
-              step={index + 1}
-              title={step.title}
-              description={step.description}
-              isLast={index === steps.length - 1}
-            >
-              {step.content}
-            </SetupStep>
-          ))}
+        <div className="max-w-3xl space-y-6">
+          {!enrollment ? (
+            <section className="rounded-xl border border-border bg-brand-surface p-6">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex flex-col gap-1">
+                  <h2 className="text-lg font-semibold text-brand-text-heading">
+                    1. Choose device
+                  </h2>
+                  <p className="mt-1 text-sm text-brand-text-muted">
+                    What type of device are you connecting?
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  disabled={!platform || startEnrollmentMutation.isPending}
+                  onClick={() => {
+                    if (!platform) return
+                    startEnrollmentMutation.mutate(platform)
+                  }}
+                >
+                  {startEnrollmentMutation.isPending ? <CustomSpinner /> : null}
+                  Continue
+                </Button>
+              </div>
+              <div className="mt-5">
+                <DeviceTypePicker
+                  selectedPlatform={platform}
+                  onSelect={selectPlatform}
+                />
+              </div>
+              {startEnrollmentMutation.isError ? (
+                <div className="mt-4">
+                  <ErrorAlert
+                    message={
+                      startEnrollmentMutation.error instanceof Error
+                        ? startEnrollmentMutation.error.message
+                        : "Unable to start enrollment."
+                    }
+                  />
+                </div>
+              ) : null}
+            </section>
+          ) : (
+            <section className="rounded-xl border border-border bg-brand-surface p-6">
+              <h2 className="text-lg font-semibold text-brand-text-heading">
+                Connect your{" "}
+                {activePlatform === "android"
+                  ? "Android device"
+                  : "iPhone or iPad"}
+              </h2>
+
+              {enrollment.resumed ? (
+                <WarningAlert message="You already have a device enrollment in progress. Finish connecting that device here, or cancel it to start over." />
+              ) : null}
+
+              <p className="mt-2 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-sm text-brand-text-heading">
+                Enrollment email registered:{" "}
+                <strong>{enrollment.enrollmentEmail}</strong>
+              </p>
+
+              <ol className="mt-4 list-decimal space-y-2 pl-5 text-sm text-brand-text-muted">
+                <li>Install Cloudflare One from the official app store.</li>
+                <li>Open Cloudflare One and choose to connect to an organization.</li>
+                <li>
+                  Enter{" "}
+                  <strong className="text-brand-text-heading">
+                    {enrollment.teamName}
+                  </strong>
+                  .
+                </li>
+                <li>
+                  Complete One-Time PIN sign-in with{" "}
+                  <strong className="text-brand-text-heading">
+                    {enrollment.enrollmentEmail}
+                  </strong>
+                  .
+                </li>
+                <li>Keep Cloudflare One connected while we detect the device.</li>
+              </ol>
+
+              <div className="mt-5 rounded-lg border border-border bg-white/70 px-4 py-4">
+                <h3 className="text-sm font-semibold text-brand-text-heading">
+                  Waiting for your device
+                </h3>
+                <p className="mt-1 text-sm text-brand-text-muted">
+                  {enrollment.resumed
+                    ? "We're continuing your existing enrollment request and will link the device once Cloudflare confirms it."
+                    : "Complete the Cloudflare One setup on your device. We'll automatically detect it when enrollment is complete."}
+                </p>
+
+                {!status || status === "pending" ? (
+                  <p className="mt-3 flex items-center gap-2 text-sm text-brand-text-muted">
+                    <CustomSpinner />
+                    Checking Cloudflare enrollment…
+                  </p>
+                ) : null}
+
+                {statusQuery.isError ? (
+                  <div className="mt-3">
+                    <ErrorAlert message="Unable to check enrollment. Please try again shortly." />
+                  </div>
+                ) : null}
+
+                {status === "completed" ? (
+                  <p className="mt-3 text-sm font-medium text-emerald-700">
+                    Device enrolled and linked to your account.
+                  </p>
+                ) : null}
+                {status === "expired" ? (
+                  <WarningAlert message="This enrollment expired. Cancel it or start a new device enrollment." />
+                ) : null}
+                {status === "ambiguous" ? (
+                  <WarningAlert message="More than one new device matched this enrollment. Contact support so we can safely identify the device." />
+                ) : null}
+                {status === "failed" ? (
+                  <ErrorAlert message="This device could not be linked to your account." />
+                ) : null}
+                {pollCount >= 40 && (!status || status === "pending") ? (
+                  <WarningAlert message="Automatic checking paused. Keep Cloudflare One connected and try again." />
+                ) : null}
+              </div>
+
+              <div className="mt-5 flex flex-wrap gap-3">
+                {installUrl ? (
+                  <Button asChild>
+                    <a href={installUrl} target="_blank" rel="noopener noreferrer">
+                      Install Cloudflare One
+                      <ExternalLink aria-hidden className="size-4" />
+                    </a>
+                  </Button>
+                ) : null}
+                {status !== "completed" ? (
+                  <Button
+                    type="button"
+                    variant="brandOutline"
+                    disabled={cancelEnrollmentMutation.isPending}
+                    onClick={() => {
+                      if (!enrollment) return
+                      cancelEnrollmentMutation.mutate(enrollment.enrollmentId)
+                    }}
+                  >
+                    {cancelEnrollmentMutation.isPending ? <CustomSpinner /> : null}
+                    Cancel enrollment
+                  </Button>
+                ) : (
+                  <Button asChild variant="brandOutline">
+                    <Link href="/devices">Back to devices</Link>
+                  </Button>
+                )}
+              </div>
+
+              {cancelEnrollmentMutation.isError ? (
+                <div className="mt-4">
+                  <ErrorAlert
+                    message={
+                      cancelEnrollmentMutation.error instanceof Error
+                        ? cancelEnrollmentMutation.error.message
+                        : "Unable to cancel enrollment."
+                    }
+                  />
+                </div>
+              ) : null}
+            </section>
+          )}
         </div>
       )}
     </div>

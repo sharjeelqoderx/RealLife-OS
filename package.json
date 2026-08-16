@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "db:types": "node scripts/gen-supabase-types.cjs"
+    "test": "vitest run",
+    "db:push": "npx supabase db push",
+    "db:types": "npx supabase gen types typescript --linked --schema public > types/supabase.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",
@@ -36,8 +38,9 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
-    "pg": "^8.23.0",
+    "supabase": "^2.58.5",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.7"
   }
 }

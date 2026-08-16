@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      audit_log: {
+        Row: {
+          id: string
+          user_id: string | null
+          action: string
+          resource_type: string
+          resource_id: string | null
+          metadata: Json
+          ip_address: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id?: string | null
+          action: string
+          resource_type: string
+          resource_id?: string | null
+          metadata?: Json
+          ip_address?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string | null
+          action?: string
+          resource_type?: string
+          resource_id?: string | null
+          metadata?: Json
+          ip_address?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
       device_app_preferences: {
         Row: {
           user_id: string
@@ -32,6 +65,42 @@ export type Database = {
           lock_filter_switch?: boolean
           prevent_logout?: boolean
           updated_at?: string
+        }
+        Relationships: []
+      }
+      device_enrollments: {
+        Row: {
+          id: string
+          user_id: string
+          requested_device_name: string
+          status: string
+          expires_at: string
+          cloudflare_device_id: string | null
+          cloudflare_registration_id: string | null
+          created_at: string
+          completed_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          requested_device_name: string
+          status?: string
+          expires_at: string
+          cloudflare_device_id?: string | null
+          cloudflare_registration_id?: string | null
+          created_at?: string
+          completed_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          requested_device_name?: string
+          status?: string
+          expires_at?: string
+          cloudflare_device_id?: string | null
+          cloudflare_registration_id?: string | null
+          created_at?: string
+          completed_at?: string | null
         }
         Relationships: []
       }
@@ -59,6 +128,21 @@ export type Database = {
         }
         Relationships: []
       }
+      schema_migrations: {
+        Row: {
+          version: string
+          applied_at: string
+        }
+        Insert: {
+          version: string
+          applied_at?: string
+        }
+        Update: {
+          version?: string
+          applied_at?: string
+        }
+        Relationships: []
+      }
       stripe_webhook_events: {
         Row: {
           id: string
@@ -74,57 +158,6 @@ export type Database = {
           id?: string
           type?: string
           processed_at?: string
-        }
-        Relationships: []
-      }
-      tenant_cloudflare_accounts: {
-        Row: {
-          id: string
-          user_id: string
-          cloudflare_account_id: string
-          cloudflare_account_name: string
-          account_type: string | null
-          gateway_tag: string | null
-          gateway_location_id: string | null
-          doh_subdomain: string | null
-          ipv4_destination: string | null
-          ipv4_destination_backup: string | null
-          status: string
-          last_error: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          cloudflare_account_id: string
-          cloudflare_account_name: string
-          account_type?: string | null
-          gateway_tag?: string | null
-          gateway_location_id?: string | null
-          doh_subdomain?: string | null
-          ipv4_destination?: string | null
-          ipv4_destination_backup?: string | null
-          status?: string
-          last_error?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          cloudflare_account_id?: string
-          cloudflare_account_name?: string
-          account_type?: string | null
-          gateway_tag?: string | null
-          gateway_location_id?: string | null
-          doh_subdomain?: string | null
-          ipv4_destination?: string | null
-          ipv4_destination_backup?: string | null
-          status?: string
-          last_error?: string | null
-          created_at?: string
-          updated_at?: string
         }
         Relationships: []
       }
@@ -150,6 +183,54 @@ export type Database = {
           user_id?: string
           cloudflare_device_id?: string
           display_name?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      tenant_gateway_policies: {
+        Row: {
+          id: string
+          user_id: string
+          name: string
+          description: string | null
+          type: string
+          cloudflare_rule_id: string
+          action: string
+          enabled: boolean
+          precedence: number
+          configuration_json: Json
+          status: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          name: string
+          description?: string | null
+          type?: string
+          cloudflare_rule_id: string
+          action: string
+          enabled?: boolean
+          precedence?: number
+          configuration_json?: Json
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          name?: string
+          description?: string | null
+          type?: string
+          cloudflare_rule_id?: string
+          action?: string
+          enabled?: boolean
+          precedence?: number
+          configuration_json?: Json
+          status?: string
           created_at?: string
           updated_at?: string
         }

@@ -1,6 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin"
-import { revokePhysicalDevice } from "@/lib/services/cloudflare/devices"
-import { listConnectedDevices } from "@/lib/services/devices/list-connected-devices"
+import { deletePhysicalDevice } from "@/lib/services/cloudflare/devices"
 import {
   DeviceServiceError,
   getDeviceAccountContext,
@@ -8,39 +7,50 @@ import {
 } from "@/lib/services/devices/context"
 
 export async function removeConnectedDevice(
-  cloudflareDeviceId: string
+  deviceId: string
 ): Promise<void> {
   const userId = await requireAuthenticatedUserId()
   const { accountId } = await getDeviceAccountContext(userId)
+  const admin = createAdminClient()
 
-  const devices = await listConnectedDevices()
-  const target = devices.find((device) => device.id === cloudflareDeviceId)
-
-  if (!target) {
+  const { data: owned, error: ownershipError } = await admin
+    .from("tenant_device_metadata")
+    .select("cloudflare_device_id")
+    .eq("id", deviceId)
+    .eq("user_id", userId)
+    .maybeSingle()
+  if (ownershipError || !owned) {
     throw new DeviceServiceError("Device not found", 404, "NOT_FOUND")
   }
 
   try {
-    await revokePhysicalDevice(accountId, cloudflareDeviceId)
+    await deletePhysicalDevice(accountId, owned.cloudflare_device_id)
   } catch (error) {
-    console.error("removeConnectedDevice: revoke failed:", error)
+    console.error("removeConnectedDevice: delete failed:", error)
     throw new DeviceServiceError(
-      error instanceof Error
-        ? error.message
-        : "Failed to revoke device in Cloudflare",
+      "Unable to remove device.",
       502,
-      "CLOUDFLARE_REVOKE_FAILED"
+      "CLOUDFLARE_DELETE_FAILED"
     )
   }
 
-  const admin = createAdminClient()
   const { error } = await admin
     .from("tenant_device_metadata")
     .delete()
     .eq("user_id", userId)
-    .eq("cloudflare_device_id", cloudflareDeviceId)
+    .eq("id", deviceId)
 
   if (error) {
     console.warn("removeConnectedDevice: metadata delete failed:", error.message)
+  }
+
+  const { error: auditError } = await admin.from("audit_log").insert({
+    user_id: userId,
+    action: "DEVICE_DELETED",
+    resource_type: "device",
+    resource_id: deviceId,
+  })
+  if (auditError) {
+    console.error("removeConnectedDevice: audit log write failed")
   }
 }

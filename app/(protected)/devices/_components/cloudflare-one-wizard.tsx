@@ -8,6 +8,7 @@ import { ArrowLeft, Info, RefreshCw } from "lucide-react"
 
 import { CloudflareOneAppHeader } from "@/app/(protected)/devices/_components/cloudflare-one-app-header"
 import { CopyField } from "@/app/(protected)/devices/_components/copy-field"
+import { DeviceEnrollmentChecker } from "@/app/(protected)/devices/_components/device-enrollment-checker"
 import { QrCodePlaceholder } from "@/app/(protected)/devices/_components/qr-code-placeholder"
 import {
   DEVICE_SETUP_IMAGES,
@@ -339,10 +340,10 @@ export function CloudflareOneWizard({
           <WizardSubStep
             step={3}
             title="Check results for Cloudflare"
-            description="The test results should show that your ISP is cloudflare."
+            description="Seeing Cloudflare as the DNS provider confirms DNS routing. It does not by itself prove that your identity-scoped Gateway policy matched a query."
           >
             <p className="mb-3 text-xs font-medium text-red-500">
-              Cloudflare should appear in the ISP column
+              Cloudflare should appear in the ISP column when DNS is routed
             </p>
             <SetupGuideImage
               src={DEVICE_SETUP_IMAGES.dnsLeakResults}
@@ -360,13 +361,16 @@ export function CloudflareOneWizard({
             <h3 className="text-lg font-bold text-brand-text-heading">
               Customize App Settings
             </h3>
-            <p className="mt-1 text-sm text-brand-text-muted">Enforce the app settings</p>
+            <p className="mt-1 text-sm text-brand-text-muted">
+              Save preferred setup reminders in RealLife OS. These do not change
+              Cloudflare device profiles or WARP lock settings.
+            </p>
           </div>
 
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <h4 className="text-sm font-semibold text-brand-text-heading">
-                Lock the Cloudflare App Filter Switch
+                Remember: lock the filter switch
               </h4>
               <Info aria-hidden className="size-4 text-brand-text-muted" />
             </div>
@@ -387,15 +391,15 @@ export function CloudflareOneWizard({
               </div>
             </div>
             <p className="text-xs italic text-brand-text-muted">
-              For your future reference: This setting is managed in your RealLife OS
-              account &gt; Settings &gt; App Preferences.
+              Preference only — configure the actual lock in Cloudflare One Client
+              / Zero Trust device settings if your plan supports it.
             </p>
           </div>
 
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <h4 className="text-sm font-semibold text-brand-text-heading">
-                Prevent Logging Out of the Cloudflare App
+                Remember: avoid logging out of Cloudflare One
               </h4>
               <Info aria-hidden className="size-4 text-brand-text-muted" />
             </div>
@@ -416,10 +420,12 @@ export function CloudflareOneWizard({
               </div>
             </div>
             <p className="text-xs italic text-brand-text-muted">
-              For your future reference: This setting is managed in your RealLife OS
-              account &gt; Settings &gt; App Preferences.
+              Preference only — RealLife OS does not remotely disable logout in
+              the Cloudflare One Client.
             </p>
           </div>
+
+          <DeviceEnrollmentChecker />
         </section>
       ) : null}
 

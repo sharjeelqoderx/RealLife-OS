@@ -111,8 +111,10 @@ export function ConnectedDevicesView({
             Connected Devices
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-brand-text-muted">
-            Manage devices enrolled with Cloudflare One. Content policies and
-            analytics apply per device on every plan ({quota.planName}).
+            Manage devices enrolled with Cloudflare One. Gateway DNS policies
+            are scoped by your signed-in identity after enrollment
+            ({quota.planName}). Identity-scoped enforcement requires Cloudflare
+            One Traffic and DNS mode.
           </p>
           <p className="mt-2 text-sm font-medium text-brand-text-heading">
             {formatDeviceQuota(quota)}

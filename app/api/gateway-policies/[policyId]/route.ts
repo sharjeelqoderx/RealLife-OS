@@ -63,7 +63,7 @@ export async function PUT(req: Request, context: RouteContext) {
 }
 
 /**
- * Delete a Gateway DNS policy (Access fallback when applicable).
+ * Delete an owned Gateway DNS policy on the shared Zero Trust account.
  */
 export async function DELETE(_req: Request, context: RouteContext) {
   try {

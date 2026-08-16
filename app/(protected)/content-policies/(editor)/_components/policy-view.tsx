@@ -212,11 +212,8 @@ export function PolicyView({
                     : "bg-gray-200 text-gray-600 hover:bg-gray-200"
                 )}
               >
-                {policy.status.toUpperCase()}
+                {policy.status === "active" ? "DEPLOYED" : "INACTIVE"}
               </Badge>
-              <span className="truncate text-xs text-brand-text-muted">
-                ID: {policy.id}
-              </span>
             </div>
           </div>
         </div>

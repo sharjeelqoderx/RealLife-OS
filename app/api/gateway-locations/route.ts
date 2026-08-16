@@ -65,9 +65,10 @@ export async function POST(req: Request) {
     }
 
     const accountId = await getPolicyCloudflareAccountId(user.id)
+    // Never let customers flip the shared-account default DNS location.
     const location = await createGatewayLocation(accountId, {
       name: parsed.data.name,
-      clientDefault: parsed.data.clientDefault,
+      clientDefault: false,
       enableDoh: true,
       enableDot: true,
     })

@@ -3,7 +3,6 @@ import {
   listPhysicalDevices,
   type CloudflarePhysicalDevice,
 } from "@/lib/services/cloudflare/devices"
-import { claimMatchingDevicesForUser } from "@/lib/services/devices/claim-devices"
 import {
   DeviceServiceError,
   getDeviceAccountContext,
@@ -13,11 +12,16 @@ import {
 } from "@/lib/services/devices/context"
 import type { ConnectedDevice } from "@/schemas/devices/device"
 
+type DeviceMetadata = {
+  id: string
+  displayName: string | null
+}
+
 function getDeviceDisplayName(
   device: CloudflarePhysicalDevice,
-  metadata: Map<string, string | null>
+  metadata: Map<string, DeviceMetadata>
 ): string {
-  const override = metadata.get(device.id)
+  const override = metadata.get(device.id)?.displayName
   if (override?.trim()) {
     return override.trim()
   }
@@ -26,7 +30,7 @@ function getDeviceDisplayName(
     return device.name.trim()
   }
 
-  const userName = device.last_seen_registration?.last_seen_user?.name?.trim()
+  const userName = device.last_seen_user?.name?.trim()
   if (userName) {
     return userName
   }
@@ -41,18 +45,15 @@ function getDeviceDisplayName(
 
 function mapPhysicalDevice(
   device: CloudflarePhysicalDevice,
-  metadata: Map<string, string | null>
+  metadata: Map<string, DeviceMetadata>
 ): ConnectedDevice {
   const platform = mapCloudflareDeviceType(device.device_type)
-  const lastSeenIso =
-    device.last_seen_at ??
-    device.last_seen_registration?.last_seen ??
-    device.last_seen
+  const lastSeenIso = device.last_seen_at ?? device.last_seen
   const hasActiveRegistration = (device.active_registrations ?? 0) > 0
 
   return {
-    id: device.id,
-    registrationId: device.last_seen_registration?.id ?? null,
+    id: metadata.get(device.id)!.id,
+    registrationId: null,
     name: getDeviceDisplayName(device, metadata),
     platform: platform === "unknown" ? "iphone" : platform,
     status: hasActiveRegistration ? "active" : "inactive",
@@ -61,15 +62,14 @@ function mapPhysicalDevice(
     model: device.model ?? null,
     osVersion: device.os_version ?? null,
     userEmail:
-      device.last_seen_user?.email ??
-      device.last_seen_registration?.last_seen_user?.email ??
-      null,
+      device.last_seen_user?.email ?? null,
   }
 }
 
 /**
- * Devices for the signed-in user only (DB ownership on shared Zero Trust account).
- * Auto-claims unowned CF devices whose WARP login email matches this user.
+ * Devices for the signed-in user only. Ownership is established by a completed
+ * pending enrollment, never by a browser-supplied Cloudflare ID or by merely
+ * observing a matching email in the shared Zero Trust inventory.
  */
 export async function listConnectedDevices(): Promise<ConnectedDevice[]> {
   const userId = await requireAuthenticatedUserId()
@@ -93,19 +93,30 @@ export async function listConnectedDevices(): Promise<ConnectedDevice[]> {
     )
   }
 
-  const metadata = await claimMatchingDevicesForUser(userId, physicalDevices)
-
   const admin = createAdminClient()
-  const { data: ownedRows } = await admin
+  const { data: ownedRows, error: ownershipError } = await admin
     .from("tenant_device_metadata")
-    .select("cloudflare_device_id, display_name")
+    .select("id, cloudflare_device_id, display_name")
     .eq("user_id", userId)
 
-  for (const row of ownedRows ?? []) {
-    if (!metadata.has(row.cloudflare_device_id)) {
-      metadata.set(row.cloudflare_device_id, row.display_name)
-    }
+  if (ownershipError) {
+    console.error(
+      "listConnectedDevices: ownership lookup failed:",
+      ownershipError.message
+    )
+    throw new DeviceServiceError(
+      "Unable to verify device ownership. Try again shortly.",
+      503,
+      "DEVICE_OWNERSHIP_UNAVAILABLE"
+    )
   }
+
+  const metadata = new Map(
+    (ownedRows ?? []).map((row) => [
+      row.cloudflare_device_id,
+      { id: row.id, displayName: row.display_name },
+    ])
+  )
 
   return physicalDevices
     .filter((device) => metadata.has(device.id))

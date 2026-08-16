@@ -30,8 +30,10 @@ function normalizeZeroTrustTeamName(value: string): string {
 
 function getConfiguredTeamName(): string | null {
   const raw = firstEnv(
+    "CLOUDFLARE_TEAM_NAME",
     "CLOUDFLARE_ZERO_TRUST_TEAM_NAME",
     "CLOUDFARE_ZERO_TRUST_TEAM_NAME",
+    "CLOUDFLARE_TEAM_DOMAIN",
     "CLOUDFLARE_ZERO_TRUST_TEAM_DOMAIN",
     "CLOUDFARE_ZERO_TRUST_TEAM_DOMAIN"
   )
@@ -40,6 +42,7 @@ function getConfiguredTeamName(): string | null {
 
 function getConfiguredTeamDomain(teamName: string | null): string | null {
   const raw = firstEnv(
+    "CLOUDFLARE_TEAM_DOMAIN",
     "CLOUDFLARE_ZERO_TRUST_TEAM_DOMAIN",
     "CLOUDFARE_ZERO_TRUST_TEAM_DOMAIN"
   )

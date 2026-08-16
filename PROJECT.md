@@ -24,6 +24,7 @@
 | Payments | Stripe (server) | `stripe` |
 | Charts | Recharts (billing/dashboard) | `recharts` |
 | Lint | ESLint + Next config | `eslint`, `eslint-config-next@16.2.10` |
+| Tests | Vitest | `vitest@^3` |
 | Types | Supabase generated | `types/supabase.ts` |
 
 ### Package inventory (`package.json`)
@@ -52,6 +53,8 @@
 | `typescript` | Types |
 | `tailwindcss` / `@tailwindcss/postcss` | Styling pipeline |
 | `eslint` / `eslint-config-next` | Lint |
+| `vitest` | Unit tests |
+| `supabase` | CLI for `db push` + generated DB types |
 | `@types/node` / `@types/react` / `@types/react-dom` | TS defs |
 
 Source of truth for exact versions: root `package.json`. Jab package add/remove/upgrade ho → is section ko sync karo.
@@ -74,10 +77,13 @@ reallife-os/
 │   │   ├── dashboard/
 │   │   ├── billing/
 │   │   ├── content-policies/        # list + (editor) create/edit/view
+│   │   ├── devices/                 # connected devices + setup wizards
+│   │   ├── admin/cloudflare/        # admin-only CF health / sync UI
 │   │   └── [slug]/                   # Unknown routes → under development
 │   ├── (public)/                    # Marketing / landing
 │   ├── api/                         # Thin route handlers → lib/services/*
 │   │   ├── auth/
+│   │   ├── me/
 │   │   ├── stripe/
 │   │   ├── access-policies/
 │   │   ├── gateway-policies/
@@ -85,12 +91,17 @@ reallife-os/
 │   │   ├── gateway-apps/
 │   │   ├── gateway-locations/
 │   │   ├── gateway-presets/
-│   │   ├── cloudflare/
 │   │   ├── devices/
-│   │   ├── tenants/
+│   │   ├── admin/
 │   │   └── dns-profile/
-│   ├── layout.tsx
-│   └── globals.css
+│
+├── docs/                            # Cloudflare architecture + setup docs
+│   ├── cloudflare-architecture.md
+│   ├── cloudflare-setup.md
+│   ├── CLOUDFLARE_DEVICE_ENROLLMENT_SETUP.md
+│   ├── device-enrollment.md
+│   ├── policy-management.md
+│   └── api-reference.md
 │
 ├── components/                      # Shared / reusable UI
 │   ├── ui/                          # shadcn primitives
@@ -103,24 +114,23 @@ reallife-os/
 │   ├── generic/                     # email, password, personName, …
 │   ├── auth/
 │   ├── billing/
-│   ├── cloudflare/
 │   ├── content-policies/
-│   └── tenants/
+│   └── devices/
 │
 ├── lib/
 │   ├── api/                         # Client fetch helper (React Query)
 │   ├── auth/                        # Auth helpers
-│   ├── cloudflare/                  # CF config + HTTP client
+│   ├── cloudflare/                  # CF config + HTTP client + providers
 │   ├── content-policies/            # Policy UI helpers (if any)
 │   ├── navigation/                  # Sidebar / nav config
 │   ├── query/                       # queryKeys factory
 │   ├── services/                    # Business logic (verb-first)
+│   │   ├── admin/
 │   │   ├── auth/
 │   │   ├── billing/                 # checkout, details, subscriptions, webhook/
-│   │   ├── cloudflare/              # categories, locations, rules, …
+│   │   ├── cloudflare/              # categories, locations, rules, sync …
 │   │   ├── content-policies/
-│   │   ├── devices/
-│   │   └── tenants/
+│   │   └── devices/
 │   ├── stripe/                      # Stripe SDK + plans
 │   ├── supabase/                    # server / admin / gotrue / stateless
 │   ├── env.ts
@@ -130,13 +140,16 @@ reallife-os/
 ├── types/
 │   └── supabase.ts                  # Generated DB types
 ├── supabase/
-│   └── migrations/                  # SQL migrations
-├── scripts/                         # One-off / ops scripts
+│   ├── config.toml                  # Local/linked Supabase project config
+│   └── migrations/                  # All SQL migrations (single source of truth)
+├── scripts/
+│   └── stripe-listen.cmd            # Local Stripe webhook forwarder
 ├── public/
 │   └── devices/                     # Device setup Image placeholders (swap for real screenshots)
 ├── .cursor/rules/                   # Always-on agent rules
 ├── PROJECT.md                       # This file (registry + stack + tree)
 ├── AGENTS.md
+├── vitest.config.ts
 └── package.json                     # Exact dependency versions
 ```
 
@@ -205,6 +218,7 @@ page.tsx (RSC fetch via lib/services)
 | `/devices/setup/andoff` | iPhone supervised mode / WARP Enforcer guide (8 steps + Image slots) | `app/(protected)/devices/setup/andoff/page.tsx` | `app/(protected)/devices/setup/andoff/loading.tsx` | `andoff-guide-view` | ✅ ready (UI mock) |
 | `/devices/setup/install-certificate` | WARP Desktop certificate install guide — 8-step flow with Image placeholders | `app/(protected)/devices/setup/install-certificate/page.tsx` | `app/(protected)/devices/setup/install-certificate/loading.tsx` | `install-certificate-view`, `install-certificate-mockups` | ✅ ready (UI mock) |
 | `/devices/setup/apple-shortcuts` | iPhone Apple Shortcuts guide — auto-reconnect Cloudflare VPN | `app/(protected)/devices/setup/apple-shortcuts/page.tsx` | `app/(protected)/devices/setup/apple-shortcuts/loading.tsx` | `apple-shortcuts-view` | ✅ ready (UI mock) |
+| `/admin/cloudflare` | Admin-only Cloudflare health + manual device sync | `app/(protected)/admin/cloudflare/page.tsx` | `app/(protected)/admin/cloudflare/loading.tsx` | `admin-cloudflare-panel` | ✅ ready |
 | `/[slug]` (protected) | Unknown protected routes (settings, …) → under development | `app/(protected)/[slug]/page.tsx` | `app/(protected)/[slug]/loading.tsx` | `under-development` | ✅ ready |
 
 ### Shared Components
@@ -256,6 +270,8 @@ page.tsx (RSC fetch via lib/services)
 | PickerDialog | `app/(protected)/content-policies/(editor)/_components/picker-dialog.tsx` | Search modal; empty / no-match can show `emptyCreate` (name + Create). Categories, Apps, Audience | PolicyDetail | ✅ ready |
 | UnderDevelopment | `app/(protected)/[slug]/_components/under-development.tsx` | Placeholder for unimplemented protected nav routes | `/[slug]` catch-all | ✅ ready |
 | SetupGuideImage | `app/(protected)/devices/_components/setup-guide-image.tsx` | Shared `next/image` wrapper + `DEVICE_SETUP_IMAGES` paths under `public/devices/` | Device setup flows | ✅ ready |
+| DeviceEnrollmentChecker | `app/(protected)/devices/_components/device-enrollment-checker.tsx` | Starts pending enrollment + polls Cloudflare verification | Cloudflare One wizard | ✅ ready |
+| AdminCloudflarePanel | `app/(protected)/admin/cloudflare/_components/admin-cloudflare-panel.tsx` | Admin CF health cards + sync action | `/admin/cloudflare` | ✅ ready |
 | WarningAlert | `components/feedback/warning-alert.tsx` | Amber status/warning message | Devices quota, shared | ✅ ready |
 | ErrorAlert | `components/feedback/error-alert.tsx` | Generic error display | Policy delete confirm, shared | ✅ ready |
 
@@ -314,25 +330,29 @@ page.tsx (RSC fetch via lib/services)
 | listGatewayAppTypes / listGatewayAppPickerGroups | `lib/services/cloudflare/app-types.ts` | Gateway app_types → picker groups | Policy editor Add app | ✅ ready |
 | listGatewayAudiencePickerGroups | `lib/services/cloudflare/audience-picker.ts` | Gateway locations → Audience picker | Policy editor Add location | ✅ ready |
 | listGatewayPresets | `lib/services/content-policies/gateway-presets.ts` | Curated presets resolved against CF categories/apps | `/api/gateway-presets`, Create Rule Presets tab | ✅ ready |
-| createGatewayRule / listGatewayRules | `lib/services/cloudflare/rules.ts` | Low-level Gateway rules API | gateway-policies, baseline-rules | ✅ ready |
-| createCloudflareAccount / listCloudflareAccounts / getCloudflareAccount | `lib/services/cloudflare/accounts.ts` | Tenant API create/list/get child accounts | `/api/cloudflare/accounts`, tenant provision | ✅ ready |
-| ensureZeroTrustGateway | `lib/services/cloudflare/gateway.ts` | Enable Zero Trust Gateway on child account | tenant provision | ✅ ready |
-| createGatewayLocation | `lib/services/cloudflare/locations.ts` | DoH/DoT DNS location for device setup | tenant provision, Audience picker create | ✅ ready |
-| seedBaselineDnsPolicies | `lib/services/cloudflare/baseline-rules.ts` | Phase 1 SafeSearch + DoH provider block rules | tenant provision | ✅ ready |
-| listPhysicalDevices / revokeDeviceRegistrations / getZeroTrustTeamName | `lib/services/cloudflare/devices.ts` | Cloudflare One WARP device list + revoke + team name | `/api/devices` | ✅ ready |
+| createGatewayRule / listGatewayRules | `lib/services/cloudflare/rules.ts` | Low-level shared-account Gateway rules API | gateway-policies | ✅ ready |
+| createGatewayLocation | `lib/services/cloudflare/locations.ts` | Create a location in the shared Cloudflare account | Audience picker create | ✅ ready |
+| listPhysicalDevices / getPhysicalDevice / deletePhysicalDevice / revokePhysicalDevice / listRegistrations / getRegistration / revokeDeviceRegistrations / unrevokeRegistrations / getZeroTrustTeamName | `lib/services/cloudflare/devices.ts` | Cloudflare One physical devices + registrations (cursor pagination) | `/api/devices`, admin CF APIs | ✅ ready |
+| registerEnrollmentEmail | `lib/services/cloudflare/enrollment-access.ts` | Adds SaaS email to WARP Access enrollment allow policy | `createDeviceEnrollment` | ✅ ready |
+| syncCloudflareDevices | `lib/services/cloudflare/sync-devices.ts` | Reconcile owned devices vs Cloudflare inventory (no auto-claim) | `/api/admin/cloudflare/sync` | ✅ ready |
+| createDeviceEnrollment / getDeviceEnrollmentStatus | `lib/services/devices/enrollments.ts` | Pending enrollment + email/time-bound ownership claim | `/api/devices/enrollment*` | ✅ ready |
+| revokeConnectedDevice | `lib/services/devices/revoke-device.ts` | Ownership-checked physical-device revoke | `/api/devices/[id]/revoke` | ✅ ready |
+| requireAdminUser | `lib/services/admin/require-admin.ts` | Gate admin routes via `ADMIN_EMAILS` | `/api/admin/*`, `/admin/cloudflare` | ✅ ready |
+| getAdminCloudflareStatus | `lib/services/admin/cloudflare-status.ts` | Health probe for account/token/devices/gateway APIs | `/api/admin/cloudflare/status` | ✅ ready |
 | listConnectedDevices / renameConnectedDevice / removeConnectedDevice | `lib/services/devices/list-connected-devices.ts`, `rename-device.ts`, `remove-device.ts` | Shared Zero Trust account; list filtered by DB ownership (`tenant_device_metadata`) | `/api/devices` | ✅ ready |
-| claimMatchingDevicesForUser | `lib/services/devices/claim-devices.ts` | Auto-claim unowned CF devices matching user email (quota-aware) | `listConnectedDevices` | ✅ ready |
 | getDeviceEnrollmentInfo | `lib/services/devices/get-enrollment-info.ts` | Team name, DNS profile, store/WARP URLs, enrolled count | `/api/devices/enrollment-info` | ✅ ready |
 | getDeviceSetupSession / updateDeviceSetupSession | `lib/services/devices/setup-session.ts` | Persist questionnaire + wizard step | `/api/devices/setup-session` | ✅ ready |
 | getDeviceAppPreferences / updateDeviceAppPreferences | `lib/services/devices/app-preferences.ts` | Lock filter + prevent logout toggles | `/api/devices/app-preferences` | ✅ ready |
-| provisionTenantCloudflareAccount / getTenantCloudflareAccountForUser | `lib/services/tenants/provision.ts` | Legacy MSP child-account provision (not used for Model B enrollment) | `/api/tenants/provision` | ⚪ optional / unused for enrollment |
 
 ### Cloudflare (`lib/cloudflare/`)
 
 | Module | Path | Purpose | Status |
 |--------|------|---------|--------|
-| Config | `lib/cloudflare/config.ts` | Env helpers (`CLOUDFARE_*` / `CLOUDFLARE_*`), Tenant admin auth | ✅ ready |
-| Client | `lib/cloudflare/client.ts` | Shared Cloudflare API fetch + error type | ✅ ready |
+| Config | `lib/cloudflare/config.ts` | Shared-account API token, account ID, team name/domain env helpers | ✅ ready |
+| Client | `lib/cloudflare/client.ts` | Shared Cloudflare API fetch + timeout/retry + pagination helper | ✅ ready |
+| Provider | `lib/cloudflare/provider.ts` | CloudflareProvider interface for live vs mock adapters | ✅ ready |
+| Live / Mock providers | `lib/cloudflare/providers/live.ts`, `mock.ts` | Production adapter + in-memory test double | ✅ ready |
+| Category map | `lib/cloudflare/cloudflareCategoryMap.ts` | App category → Cloudflare Gateway category labels | ✅ ready |
 
 ### API Routes (`app/api/`)
 
@@ -365,17 +385,23 @@ page.tsx (RSC fetch via lib/services)
 | `/api/gateway-locations` | GET | `listGatewayAudiencePickerGroups` | Auth; `{ groups }` | ✅ ready |
 | `/api/gateway-locations` | POST | `createGatewayLocation` | `createGatewayLocationSchema` | ✅ ready |
 | `/api/gateway-presets` | GET | `listGatewayPresets` | Auth; `{ presets }` resolved vs CF catalog | ✅ ready |
-| `/api/cloudflare/accounts` | GET | `listCloudflareAccounts` | — | ✅ ready |
-| `/api/cloudflare/accounts` | POST | `createCloudflareAccount` | `createCloudflareAccountSchema` | ✅ ready |
-| `/api/tenants/provision` | GET | `getTenantCloudflareAccountForUser` | — | ✅ ready |
-| `/api/tenants/provision` | POST | `provisionTenantCloudflareAccount` | `provisionTenantSchema` | ✅ ready |
 | `/api/dns-profile/mobileconfig` | GET | `buildDohMobileconfig` + Gateway location | Auth required; downloads .mobileconfig | ✅ ready |
+| `/api/me` | GET | session + device quota summary | — | ✅ ready |
 | `/api/devices` | GET | `listConnectedDevices` | — | ✅ ready |
-| `/api/devices/[deviceId]` | PATCH | `renameConnectedDevice` | `renameDeviceSchema` | ✅ ready |
-| `/api/devices/[deviceId]` | DELETE | `removeConnectedDevice` | — | ✅ ready |
+| `/api/devices/[deviceId]` | GET, PATCH, DELETE | ownership-filtered detail / `renameConnectedDevice` / `removeConnectedDevice` | local `tenant_device_metadata.id`; `renameDeviceSchema` for PATCH | ✅ ready |
+| `/api/devices/[deviceId]/revoke` | POST | `revokeConnectedDevice` | rate-limited | ✅ ready |
+| `/api/devices/enrollment` | POST | `createDeviceEnrollment` | `createDeviceEnrollmentSchema`; resumes existing pending enrollment | ✅ ready |
+| `/api/devices/enrollment/[enrollmentId]/status` | GET | `getDeviceEnrollmentStatus` | rate-limited (`enrollment-status:user:enrollment`) | ✅ ready |
+| `/api/devices/enrollment/[enrollmentId]/cancel` | POST | `cancelDeviceEnrollment` | cancels pending enrollment | ✅ ready |
 | `/api/devices/enrollment-info` | GET | `getDeviceEnrollmentInfo` | — | ✅ ready |
 | `/api/devices/setup-session` | GET, PATCH | `getDeviceSetupSession` / `updateDeviceSetupSession` | `updateDeviceSetupSessionSchema` | ✅ ready |
 | `/api/devices/app-preferences` | GET, PATCH | `getDeviceAppPreferences` / `updateDeviceAppPreferences` | `updateDeviceAppPreferencesSchema` | ✅ ready |
+| `/api/admin/cloudflare/status` | GET | `getAdminCloudflareStatus` | admin emails | ✅ ready |
+| `/api/admin/cloudflare/devices` | GET | live CF physical devices (admin) | admin emails | ✅ ready |
+| `/api/admin/cloudflare/registrations` | GET | live CF registrations (admin) | admin emails | ✅ ready |
+| `/api/admin/cloudflare/gateway-rules` | GET | live Gateway rules (admin) | admin emails | ✅ ready |
+| `/api/admin/cloudflare/sync` | POST | `syncCloudflareDevices` | admin emails | ✅ ready |
+| `/api/admin/audit-log` | GET | recent `audit_log` rows | admin emails | ✅ ready |
 
 ### Schemas (`schemas/`)
 
@@ -390,21 +416,32 @@ page.tsx (RSC fetch via lib/services)
 | `createAccessPolicySchema` | `schemas/content-policies/access-policy.ts` | Access policy form + `/api/access-policies` POST | ✅ ready |
 | `createGatewayPolicySchema` | `schemas/content-policies/gateway-policy.ts` | Save payload: domains (Host), domainRoots (Domain), domainKeywords (regex) | ✅ ready |
 | `gatewayPresetSchema` | `schemas/content-policies/gateway-preset.ts` | Preset list + apply payload | ✅ ready |
-| `createCloudflareAccountSchema` | `schemas/cloudflare/account.ts` | Create Account API + `/api/cloudflare/accounts` POST | ✅ ready |
-| `provisionTenantSchema` | `schemas/tenants/provision.ts` | Tenant onboarding + `/api/tenants/provision` POST | ✅ ready |
 | `createGatewayLocationSchema` | `schemas/content-policies/gateway-location.ts` | Audience picker create + `/api/gateway-locations` POST | ✅ ready |
 | `connectedDeviceSchema` | `schemas/devices/device.ts` | Device platform, connected device, setup answers | `/devices`, `/devices/setup` | ✅ ready |
 | `deviceEnrollmentInfoSchema` | `schemas/devices/api.ts` | Enrollment info + setup session + app preferences API | `/api/devices/*` | ✅ ready |
 
 ### DB migrations (`supabase/migrations/`)
 
+Single source of truth for schema SQL. Apply / sync with the linked project:
+
+```bash
+npm run db:push    # npx supabase db push
+npm run db:types   # regenerate types/supabase.ts from linked project
+```
+
+Requires `supabase login` + `supabase link` once per machine. Do not squash already-applied migration filenames — CLI tracks versions by name.
+
 | Migration | Purpose | Status |
 |-----------|---------|--------|
 | `20260716120000_user_subscriptions.sql` | `user_subscriptions` + `stripe_webhook_events` tables + RLS | ✅ applied to Reallife-OS [Production] |
-| `20260803120000_tenant_cloudflare_accounts.sql` | Per-user Cloudflare child account + Gateway location mapping + RLS | ⚪ apply to Supabase |
-| `20260811120000_tenant_devices.sql` | `tenant_device_metadata`, `device_setup_sessions`, `device_app_preferences` + RLS | ⚪ apply to Supabase — **required for device setup persistence** |
-| `20260812130000_user_subscriptions_device_limit.sql` | `user_subscriptions.device_limit` override for Enterprise/custom caps | ⚪ apply to Supabase — **required for plan-aligned device quotas** |
-| `20260812140000_tenant_device_ownership_unique.sql` | Unique `cloudflare_device_id` so one shared-ZT device maps to one RealLife user | ✅ applied remotely |
+| `20260811120000_tenant_devices.sql` | `tenant_device_metadata`, `device_setup_sessions`, `device_app_preferences` + RLS | ✅ applied to Reallife-OS [Production] |
+| `20260812130000_user_subscriptions_device_limit.sql` | `user_subscriptions.device_limit` override for Enterprise/custom caps | ✅ applied to Reallife-OS [Production] |
+| `20260812140000_tenant_device_ownership_unique.sql` | Unique `cloudflare_device_id` so one shared-ZT device maps to one RealLife user | ✅ applied to Reallife-OS [Production] |
+| `20260816190000_device_enrollments_and_audit_log.sql` | Pending `device_enrollments` + server-written `audit_log` | ✅ applied to Reallife-OS [Production] |
+| `20260816193000_tenant_gateway_policies.sql` | Per-user Gateway policy ownership in the shared Cloudflare account | ✅ applied to Reallife-OS [Production] |
+| `20260816194000_remove_tenant_cloudflare_accounts.sql` | Drop obsolete per-user Cloudflare account mapping and unused policy-device links | ✅ applied to Reallife-OS [Production] |
+| `20260816195000_enrollment_and_policy_integrity.sql` | Enforce one pending enrollment per user and policy ownership integrity | ✅ applied to Reallife-OS [Production] |
+| `20260816196000_fix_gateway_policy_types.sql` | Align `tenant_gateway_policies.type` with editor values (`allow`/`block`/`safesearch`/`ytrestricted`) | ✅ applied to Reallife-OS [Production] |
 
 ### Generic Validators (`schemas/generic/`)
 
@@ -422,6 +459,17 @@ page.tsx (RSC fetch via lib/services)
 
 | Date | Change | Updated By |
 |------|--------|------------|
+| 2026-08-16 | Removed custom `apply-migrations` / PostgREST reload scripts; DB workflow is `npm run db:push` + `npm run db:types` via Supabase CLI | Agent |
+| 2026-08-16 | Pending enrollment resumes connect/wait UI instead of error; added cancel enrollment API | Agent |
+| 2026-08-16 | Device setup: no auto-selected platform; card click only highlights (border + light bg); Continue starts enrollment; team name `reallife-os` | Agent |
+| 2026-08-16 | Device setup registers SaaS email on Cloudflare WARP Access enrollment policy via API (no docs navigation); PostgREST schema reload after migrations | Agent |
+| 2026-08-16 | Applied pending migrations to Reallife-OS [Production]; added `npm run db:migrate`; regenerated `types/supabase.ts` | Agent |
+| 2026-08-16 | Added Cloudflare One-Time PIN / WARP enrollment administrator runbook; customer device APIs now use local `tenant_device_metadata.id` rather than Cloudflare physical-device IDs | Agent |
+| 2026-08-16 | Enrollment UX cleanup + public policy UUID boundary: guided setup wizard, status poll rate limit, ambiguous claim state, hide CF rule IDs from customer APIs/UI, honest DNS/policy copy, Vitest coverage | Agent |
+| 2026-08-16 | Audit follow-up: fix Gateway policy type CHECK, fail-closed device ownership/quota claim, remove Access cross-tenant fallbacks, refuse `client_default` on location create, honest device-preference copy | Agent |
+| 2026-08-16 | Cloudflare API audit: associate enrollments through documented registration `device.id`/email/timestamp fields, prevent concurrent enrollment ambiguity and orphan-rule retries | Agent |
+| 2026-08-16 | Removed obsolete per-user Cloudflare child-account provisioning, mapping table, APIs, schemas, and unused `policy_devices`; all users now use one platform Zero Trust account | Agent |
+| 2026-08-16 | Multi-tenant ZT bridge: pending enrollment ownership, revoke API, CF provider/mock, sync + admin health, audit log migration, docs, Vitest | Agent |
 | 2026-08-12 | Zero Trust: team name `delicate-sun-0d4f` + team domain `delicate-sun-0d4f.cloudflareaccess.com` in enrollment | Agent |
 | 2026-08-12 | Zero Trust team name: prefer `CLOUDFARE_ZERO_TRUST_TEAM_NAME` (`delicate-sun-0d4f`) for device enrollment | Agent |
 | 2026-08-12 | Devices UI: use `public/android.png` + `public/iphone.png` for platform previews and device rows | Agent |

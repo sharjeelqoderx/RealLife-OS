@@ -27,13 +27,7 @@ export type CloudflareApiTokenAuth = {
   token: string
 }
 
-export type CloudflareTenantAdminAuth = {
-  mode: "tenantAdmin"
-  email: string
-  apiKey: string
-}
-
-export type CloudflareAuth = CloudflareApiTokenAuth | CloudflareTenantAdminAuth
+export type CloudflareAuth = CloudflareApiTokenAuth
 
 /** Bearer token used for Access / Gateway operations. */
 export function getCloudflareApiToken(): string {
@@ -54,6 +48,32 @@ export function tryGetCloudflareApiToken(): string | undefined {
   return firstEnv("CLOUDFARE_API_TOKEN", "CLOUDFLARE_API_TOKEN")
 }
 
+/** Public organization identifiers, safe to display in WARP setup instructions. */
+export function tryGetCloudflareTeamName(): string | undefined {
+  return firstEnv(
+    "CLOUDFLARE_TEAM_NAME",
+    "CLOUDFARE_ZERO_TRUST_TEAM_NAME",
+    "CLOUDFLARE_ZERO_TRUST_TEAM_NAME"
+  )
+}
+
+export function getCloudflareTeamName(): string {
+  return requireFirstEnv(
+    "CLOUDFLARE_TEAM_NAME",
+    "CLOUDFARE_ZERO_TRUST_TEAM_NAME",
+    "CLOUDFLARE_ZERO_TRUST_TEAM_NAME"
+  )
+}
+
+export function tryGetCloudflareTeamDomain(): string | undefined {
+  return firstEnv(
+    "CLOUDFLARE_TEAM_DOMAIN",
+    "CLOUDFARE_TEAM_DOMAIN",
+    "CLOUDFLARE_ZERO_TRUST_TEAM_DOMAIN",
+    "CLOUDFARE_ZERO_TRUST_TEAM_DOMAIN"
+  )
+}
+
 /**
  * Shared Zero Trust (Model B): one platform account for every RealLife user.
  * Ready when account id + API token are present — no per-user child tenant.
@@ -63,36 +83,21 @@ export function hasCloudflarePlatformConfig(): boolean {
 }
 
 export function getCloudflareAccessAppId(): string {
-  return requireFirstEnv("CLOUDFARE_APP_ID", "CLOUDFLARE_APP_ID")
+  return requireFirstEnv(
+    "CLOUDFLARE_WARP_APP_ID",
+    "CLOUDFARE_WARP_APP_ID",
+    "CLOUDFARE_APP_ID",
+    "CLOUDFLARE_APP_ID"
+  )
 }
 
-/**
- * Tenant-admin credentials for POST /accounts
- * (Cloudflare Tenant / MSP partners only).
- * @see https://developers.cloudflare.com/api/resources/accounts/methods/create
- */
-export function getCloudflareTenantAdminAuth(): CloudflareTenantAdminAuth {
-  const email = firstEnv(
-    "CLOUDFARE_TENANT_EMAIL",
-    "CLOUDFLARE_TENANT_EMAIL"
+export function tryGetCloudflareAccessAppId(): string | undefined {
+  return firstEnv(
+    "CLOUDFLARE_WARP_APP_ID",
+    "CLOUDFARE_WARP_APP_ID",
+    "CLOUDFARE_APP_ID",
+    "CLOUDFLARE_APP_ID"
   )
-  const apiKey = firstEnv(
-    "CLOUDFARE_TENANT_API_KEY",
-    "CLOUDFLARE_TENANT_API_KEY"
-  )
-
-  if (!email || !apiKey) {
-    throw new Error(
-      "Cloudflare Tenant admin credentials are not configured (CLOUDFARE_TENANT_EMAIL + CLOUDFARE_TENANT_API_KEY)"
-    )
-  }
-
-  return { mode: "tenantAdmin", email, apiKey }
-}
-
-/** Optional Tenant unit ID when creating child accounts under a unit. */
-export function getCloudflareTenantUnitId(): string | undefined {
-  return firstEnv("CLOUDFARE_TENANT_UNIT_ID", "CLOUDFLARE_TENANT_UNIT_ID")
 }
 
 export function getCloudflareApiTokenAuth(): CloudflareApiTokenAuth {
@@ -108,10 +113,3 @@ export function getCloudflareGatewayAuth(): CloudflareApiTokenAuth {
   return getCloudflareApiTokenAuth()
 }
 
-/** True when Tenant admin env is configured for child-account create. */
-export function hasCloudflareTenantAdminAuth(): boolean {
-  return Boolean(
-    firstEnv("CLOUDFARE_TENANT_EMAIL", "CLOUDFLARE_TENANT_EMAIL") &&
-      firstEnv("CLOUDFARE_TENANT_API_KEY", "CLOUDFLARE_TENANT_API_KEY")
-  )
-}

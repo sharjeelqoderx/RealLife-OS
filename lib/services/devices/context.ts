@@ -31,8 +31,7 @@ export async function requireAuthenticatedUserId(): Promise<string> {
 
 /**
  * Shared Zero Trust account context (Model B).
- * `tenantReady` means the platform Cloudflare account is configured —
- * not that a per-user child account was provisioned.
+ * `tenantReady` means the one platform Cloudflare account is configured.
  */
 export async function getDeviceAccountContext(_userId: string): Promise<{
   accountId: string

@@ -12,6 +12,19 @@ export const renameDeviceSchema = z.object({
 
 export type RenameDeviceInput = z.infer<typeof renameDeviceSchema>
 
+export const createDeviceEnrollmentSchema = z.object({
+  deviceName: z
+    .string()
+    .trim()
+    .min(1, "Device name is required")
+    .max(80, "Device name must be at most 80 characters"),
+  platform: devicePlatformSchema.optional(),
+})
+
+export type CreateDeviceEnrollmentInput = z.infer<
+  typeof createDeviceEnrollmentSchema
+>
+
 export const updateDeviceSetupSessionSchema = z.object({
   platform: devicePlatformSchema.optional(),
   answers: deviceSetupAnswersSchema.partial().optional(),
@@ -36,7 +49,7 @@ export const deviceEnrollmentInfoSchema = z.object({
   tenantReady: z.boolean(),
   hasAccess: z.boolean(),
   teamName: z.string().nullable(),
-  /** Full Access domain, e.g. `delicate-sun-0d4f.cloudflareaccess.com`. */
+  /** Full Access domain, e.g. `reallife-os.cloudflareaccess.com`. */
   teamDomain: z.string().nullable(),
   installEmails: z.array(z.string()),
   dnsProfileAvailable: z.boolean(),

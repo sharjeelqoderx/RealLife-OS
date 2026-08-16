@@ -20,12 +20,22 @@ import {
   parseGatewaySchedule,
   parseTrafficExpression,
 } from "@/lib/services/content-policies/parse-gateway-rule"
+import {
+  buildIdentityExpression,
+  getOwnedGatewayPolicy,
+  listOwnedGatewayPolicies,
+  markOwnedGatewayPolicyDeleted,
+  recordOwnedGatewayPolicy,
+  requirePolicyOwnershipStore,
+  updateOwnedGatewayPolicyRecord,
+} from "@/lib/services/content-policies/policy-ownership"
 import { createClient } from "@/lib/supabase/server"
 import type {
   CreateGatewayPolicyInput,
   GatewayPolicyType,
 } from "@/schemas/content-policies/gateway-policy"
 import type { PolicyListItem, PolicyType } from "@/schemas/content-policies/policy"
+import type { Json } from "@/types/supabase"
 
 /** Known consumer apps → domains for DNS policies (Phase 1 without app-ID catalog). */
 const APP_DOMAIN_MAP: Record<string, string[]> = {
@@ -56,6 +66,23 @@ const APP_DOMAIN_MAP: Record<string, string[]> = {
 }
 
 const DAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const
+
+async function createAdminAudit(
+  userId: string,
+  action: string,
+  resourceId: string
+): Promise<void> {
+  const { createAdminClient } = await import("@/lib/supabase/admin")
+  const { error } = await createAdminClient().from("audit_log").insert({
+    user_id: userId,
+    action,
+    resource_type: "policy",
+    resource_id: resourceId,
+  })
+  if (error) {
+    console.error("policy audit log write failed", { action, resourceId })
+  }
+}
 
 const SAFESEARCH_DOMAINS = [
   "google.com",
@@ -311,15 +338,20 @@ async function getGatewayRuleForUser(
   userId: string | undefined,
   policyId: string
 ): Promise<GatewayRule> {
+  if (!userId) {
+    throw new Error("Unauthorized")
+  }
+  const policy = await getOwnedGatewayPolicy(userId, policyId)
+
   const primaryAccountId = await getPolicyCloudflareAccountId(userId)
   try {
-    return await getGatewayRule(primaryAccountId, policyId)
+    return await getGatewayRule(primaryAccountId, policy.cloudflareRuleId)
   } catch (error) {
     const platformAccountId = getCloudflareAccountId()
     if (platformAccountId === primaryAccountId) throw error
     const message = error instanceof Error ? error.message : String(error)
     if (!/not found|could not find|404/i.test(message)) throw error
-    return await getGatewayRule(platformAccountId, policyId)
+    return await getGatewayRule(platformAccountId, policy.cloudflareRuleId)
   }
 }
 
@@ -362,67 +394,14 @@ export async function getGatewayPolicyById(
     data: { user },
   } = await supabase.auth.getUser()
 
-  const accountId = await getPolicyCloudflareAccountId(user?.id)
-
   try {
     const rule = await getGatewayRuleForUser(user?.id, policyId)
     if (!rule?.id) return null
-    return mapGatewayRuleToDetail(rule)
+    return { ...mapGatewayRuleToDetail(rule), id: policyId }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    if (/authentication error/i.test(message)) {
-      const { listAccessPolicies } = await import(
-        "@/lib/services/content-policies/access-policies"
-      )
-      const policies = await listAccessPolicies()
-      const match = policies.find((p) => p.id === policyId)
-      if (!match) return null
-      return {
-        id: match.id,
-        name: match.name,
-        type: match.type,
-        typeLabel: match.typeLabel,
-        status: match.status,
-        description: null,
-        enabled: match.status === "active",
-        traffic: null,
-        action: match.type,
-        filters: ["dns"],
-        schedule: null,
-        precedence: null,
-        createdAt: null,
-        updatedAt: match.updatedAt,
-        source: "access",
-      }
-    }
     if (/not found|could not find|404/i.test(message)) {
-      try {
-        const { listAccessPolicies } = await import(
-          "@/lib/services/content-policies/access-policies"
-        )
-        const policies = await listAccessPolicies()
-        const match = policies.find((p) => p.id === policyId)
-        if (!match) return null
-        return {
-          id: match.id,
-          name: match.name,
-          type: match.type,
-          typeLabel: match.typeLabel,
-          status: match.status,
-          description: null,
-          enabled: match.status === "active",
-          traffic: null,
-          action: match.type,
-          filters: ["dns"],
-          schedule: null,
-          precedence: null,
-          createdAt: null,
-          updatedAt: match.updatedAt,
-          source: "access",
-        }
-      } catch {
-        return null
-      }
+      return null
     }
     throw error
   }
@@ -444,6 +423,15 @@ export type GatewayPolicyDetail = {
   createdAt: string | null
   updatedAt: string | null
   source: "gateway" | "access"
+}
+
+export type GatewayPolicyMutationResult = {
+  id: string
+  name: string
+  action: string
+  enabled: boolean
+  created_at?: string
+  updated_at?: string
 }
 
 function mapGatewayRuleToDetail(rule: GatewayRule): GatewayPolicyDetail {
@@ -473,60 +461,100 @@ export async function listGatewayPolicies(): Promise<PolicyListItem[]> {
     data: { user },
   } = await supabase.auth.getUser()
 
-  const accountId = await getPolicyCloudflareAccountId(user?.id)
-
-  try {
-    const rules = await listGatewayRules(accountId)
-    return rules
-      .filter((r) => r.filters?.includes("dns") || !r.filters?.length)
-      .map(mapGatewayRuleToListItem)
-      .filter((item) => item.id)
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    // Token may have Access permissions but not Gateway/Zero Trust yet.
-    if (/authentication error/i.test(message)) {
-      console.warn(
-        "listGatewayPolicies: Gateway auth failed — falling back to Access policies. Grant the API token Zero Trust / Gateway Read permissions.",
-        message
-      )
-      const { listAccessPolicies } = await import(
-        "@/lib/services/content-policies/access-policies"
-      )
-      return listAccessPolicies()
-    }
-    throw error
+  if (!user) {
+    throw new Error("Unauthorized")
   }
+
+  const accountId = await getPolicyCloudflareAccountId(user.id)
+  const ownedPolicies = await listOwnedGatewayPolicies(user.id)
+  const localPolicyIdByCloudflareRuleId = new Map(
+    ownedPolicies.map((policy) => [policy.cloudflareRuleId, policy.id])
+  )
+
+  const rules = await listGatewayRules(accountId)
+  return rules
+    .filter((r) => r.filters?.includes("dns") || !r.filters?.length)
+    .map((rule) => {
+      const localPolicyId = rule.id
+        ? localPolicyIdByCloudflareRuleId.get(rule.id)
+        : undefined
+      if (!localPolicyId) return null
+      return { ...mapGatewayRuleToListItem(rule), id: localPolicyId }
+    })
+    .filter((item): item is PolicyListItem => item !== null)
+    .filter((item) => item.id)
 }
 
 export async function createGatewayPolicy(
   input: CreateGatewayPolicyInput
-): Promise<GatewayRule> {
+): Promise<GatewayPolicyMutationResult> {
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
-  if (!user) {
+  if (!user?.email) {
     throw new Error("Unauthorized")
   }
 
+  await requirePolicyOwnershipStore()
   const accountId = await getPolicyCloudflareAccountId(user.id)
 
   try {
     const { traffic, filters } = await buildTrafficExpression(accountId, input)
     const schedule = buildGatewaySchedule(input.schedules, input.timeZone)
     const action = mapPolicyTypeToAction(input.type)
+    const identity = buildIdentityExpression(user.email)
 
-    return await createGatewayRule(accountId, {
+    const rule = await createGatewayRule(accountId, {
       name: input.name,
       action,
       description: input.description,
       enabled: input.enabled ?? true,
       filters,
       traffic,
+      identity,
       schedule,
       precedence: input.precedence,
     })
+
+    if (!rule.id) {
+      throw new Error("Cloudflare did not return a Gateway rule id")
+    }
+
+    let localPolicyId: string
+    try {
+      localPolicyId = await recordOwnedGatewayPolicy({
+        userId: user.id,
+        name: input.name,
+        description: input.description,
+        type: input.type,
+        cloudflareRuleId: rule.id,
+        action,
+        enabled: input.enabled ?? true,
+        precedence: input.precedence ?? rule.precedence ?? 1000,
+        configurationJson: JSON.parse(JSON.stringify(input)) as Json,
+      })
+    } catch (ownershipError) {
+      try {
+        await deleteGatewayRule(accountId, rule.id)
+      } catch {
+        console.error("Failed to compensate for unowned Cloudflare rule", {
+          ruleId: rule.id,
+        })
+      }
+      throw ownershipError
+    }
+
+    await createAdminAudit(user.id, "POLICY_CREATED", localPolicyId)
+    return {
+      id: localPolicyId,
+      name: rule.name ?? input.name,
+      action: rule.action ?? action,
+      enabled: rule.enabled !== false,
+      created_at: rule.created_at,
+      updated_at: rule.updated_at,
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     if (/authentication error/i.test(message)) {
@@ -544,13 +572,13 @@ export async function createGatewayPolicy(
 export async function updateGatewayPolicy(
   policyId: string,
   input: CreateGatewayPolicyInput
-): Promise<GatewayRule> {
+): Promise<GatewayPolicyMutationResult> {
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
-  if (!user) {
+  if (!user?.email) {
     throw new Error("Unauthorized")
   }
 
@@ -558,10 +586,11 @@ export async function updateGatewayPolicy(
     throw new Error("Policy ID is required")
   }
 
+  const policy = await getOwnedGatewayPolicy(user.id, policyId)
   const accountId = await getPolicyCloudflareAccountId(user.id)
 
   try {
-    const existing = await getGatewayRule(accountId, policyId)
+    const existing = await getGatewayRule(accountId, policy.cloudflareRuleId)
     if (!existing?.id) {
       throw new Error("Policy not found")
     }
@@ -569,17 +598,40 @@ export async function updateGatewayPolicy(
     const { traffic, filters } = await buildTrafficExpression(accountId, input)
     const schedule = buildGatewaySchedule(input.schedules, input.timeZone)
     const action = mapPolicyTypeToAction(input.type)
+    const identity = buildIdentityExpression(user.email)
 
-    return await updateGatewayRule(accountId, policyId, {
+    const rule = await updateGatewayRule(accountId, policy.cloudflareRuleId, {
       name: input.name,
       action,
       description: input.description,
       enabled: input.enabled ?? true,
       filters,
       traffic,
+      identity,
       schedule,
       precedence: input.precedence ?? existing.precedence,
     })
+
+    await updateOwnedGatewayPolicyRecord({
+      userId: user.id,
+      policyId,
+      name: input.name,
+      description: input.description,
+      type: input.type,
+      action,
+      enabled: input.enabled ?? true,
+      precedence: input.precedence ?? existing.precedence ?? 1000,
+      configurationJson: JSON.parse(JSON.stringify(input)) as Json,
+    })
+    await createAdminAudit(user.id, "POLICY_UPDATED", policyId)
+    return {
+      id: policyId,
+      name: rule.name ?? input.name,
+      action: rule.action ?? action,
+      enabled: rule.enabled !== false,
+      created_at: rule.created_at,
+      updated_at: rule.updated_at,
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     if (/authentication error/i.test(message)) {
@@ -664,31 +716,8 @@ export async function getGatewayPolicyForEditor(
     rule = await getGatewayRuleForUser(user?.id, policyId)
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    if (/authentication error|not found|could not find|404/i.test(message)) {
-      // Soft Access fallback (name/type only — no DNS traffic to parse).
-      try {
-        const { listAccessPolicies } = await import(
-          "@/lib/services/content-policies/access-policies"
-        )
-        const policies = await listAccessPolicies()
-        const match = policies.find((p) => p.id === policyId)
-        if (!match) return null
-        return {
-          id: match.id,
-          name: match.name,
-          type: match.type,
-          enabled: match.status === "active",
-          categories: [],
-          apps: [],
-          locations: [],
-          addresses: [],
-          schedules: [],
-          precedence: null,
-          source: "access",
-        }
-      } catch {
-        return null
-      }
+    if (/not found|could not find|404/i.test(message)) {
+      return null
     }
     throw error
   }
@@ -702,8 +731,8 @@ export async function getGatewayPolicyForEditor(
   const { blocks, timeZone } = parseGatewaySchedule(detail.schedule)
 
   let categoryMap = new Map<number, { label: string; groupLabel: string }>()
-  let appMap = new Map<number, { label: string; groupLabel: string }>()
-  let locationMap = new Map<string, string>()
+  const appMap = new Map<number, { label: string; groupLabel: string }>()
+  const locationMap = new Map<string, string>()
 
   try {
     const [categories, appTypes, locations] = await Promise.all([
@@ -788,7 +817,7 @@ export async function getGatewayPolicyForEditor(
   ]
 
   return {
-    id: detail.id,
+    id: policyId,
     name: detail.name,
     type: detail.type,
     enabled: detail.enabled,
@@ -804,8 +833,7 @@ export async function getGatewayPolicyForEditor(
 }
 
 /**
- * Delete a Gateway DNS rule; falls back to Access app policy delete when
- * the list is served from Access (Gateway auth unavailable / not found).
+ * Delete an owned Gateway DNS rule on the shared Zero Trust account.
  */
 export async function deleteGatewayPolicy(policyId: string): Promise<void> {
   const supabase = await createClient()
@@ -821,35 +849,10 @@ export async function deleteGatewayPolicy(policyId: string): Promise<void> {
     throw new Error("Policy ID is required")
   }
 
+  const policy = await getOwnedGatewayPolicy(user.id, policyId)
   const accountId = await getPolicyCloudflareAccountId(user.id)
 
-  try {
-    await deleteGatewayRule(accountId, policyId)
-    return
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    const shouldTryAccess =
-      /authentication error|not found|could not find|404/i.test(message)
-
-    if (!shouldTryAccess) {
-      throw error
-    }
-
-    try {
-      const { deleteAccessPolicy } = await import(
-        "@/lib/services/content-policies/access-policies"
-      )
-      await deleteAccessPolicy(policyId)
-      return
-    } catch (accessError) {
-      if (/authentication error/i.test(message)) {
-        throw new Error(
-          "Cloudflare Gateway authentication failed. Update CLOUDFARE_API_TOKEN with Zero Trust (Gateway) Edit permissions, then retry."
-        )
-      }
-      throw accessError instanceof Error
-        ? accessError
-        : new Error("Failed to delete policy")
-    }
-  }
+  await deleteGatewayRule(accountId, policy.cloudflareRuleId)
+  await markOwnedGatewayPolicyDeleted(user.id, policyId)
+  await createAdminAudit(user.id, "POLICY_DELETED", policyId)
 }

@@ -1,6 +1,5 @@
 import { listGatewayLocations } from "@/lib/services/cloudflare/locations"
 import { getPolicyCloudflareAccountId } from "@/lib/services/content-policies/gateway-policies"
-import { getTenantCloudflareAccountForUser } from "@/lib/services/tenants/provision"
 
 export type DnsProfileSource = {
   available: boolean
@@ -16,27 +15,9 @@ export type DnsProfileSource = {
 export async function getDnsProfileSource(
   userId: string
 ): Promise<DnsProfileSource> {
-  const tenant = await getTenantCloudflareAccountForUser(userId)
-
-  let dohSubdomain = tenant?.dohSubdomain ?? null
+  let dohSubdomain: string | null = null
   let ipv4Addresses: string[] = []
   let displayName = "RealLife OS DNS"
-
-  if (tenant?.ipv4Destination) {
-    ipv4Addresses.push(tenant.ipv4Destination)
-  }
-  if (tenant?.ipv4DestinationBackup) {
-    ipv4Addresses.push(tenant.ipv4DestinationBackup)
-  }
-
-  if (dohSubdomain) {
-    return {
-      available: true,
-      dohSubdomain,
-      displayName,
-      ipv4Addresses,
-    }
-  }
 
   let accountId: string
   try {

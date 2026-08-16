@@ -1,7 +1,11 @@
 type ApiErrorBody = {
-  error?: string | Record<string, string[] | undefined>
+  error?:
+    | string
+    | Record<string, string[] | undefined>
+    | { code?: string; message?: string }
   code?: string
   details?: string
+  success?: boolean
 }
 
 export class ApiError extends Error {
@@ -11,11 +15,28 @@ export class ApiError extends Error {
   details?: string
 
   constructor(status: number, body: ApiErrorBody) {
-    super(typeof body.error === "string" ? body.error : "Request failed")
+    const nestedMessage =
+      body.error &&
+      typeof body.error === "object" &&
+      "message" in body.error &&
+      typeof body.error.message === "string"
+        ? body.error.message
+        : undefined
+    super(
+      typeof body.error === "string"
+        ? body.error
+        : nestedMessage ?? "Request failed"
+    )
     this.name = "ApiError"
     this.status = status
     this.body = body
-    this.code = body.code
+    this.code =
+      typeof body.error === "object" &&
+      body.error &&
+      "code" in body.error &&
+      typeof body.error.code === "string"
+        ? body.error.code
+        : body.code
     this.details = body.details
   }
 }
