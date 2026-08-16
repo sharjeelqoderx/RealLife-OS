@@ -459,6 +459,8 @@ Requires `supabase login` + `supabase link` once per machine. Do not squash alre
 
 | Date | Change | Updated By |
 |------|--------|------------|
+| 2026-08-16 | Device setup: vertical connected `SetupStep` timeline (1 choose → 2 register → 3 connect → 4 wait) instead of screen swap | Agent |
+| 2026-08-16 | Device setup uses in-page step + progress footer again (choose device → connect/wait) instead of full screen swap | Agent |
 | 2026-08-16 | Removed custom `apply-migrations` / PostgREST reload scripts; DB workflow is `npm run db:push` + `npm run db:types` via Supabase CLI | Agent |
 | 2026-08-16 | Pending enrollment resumes connect/wait UI instead of error; added cancel enrollment API | Agent |
 | 2026-08-16 | Device setup: no auto-selected platform; card click only highlights (border + light bg); Continue starts enrollment; team name `reallife-os` | Agent |

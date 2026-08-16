@@ -11,7 +11,10 @@ export interface WizardProgressFooterProps {
   onNext?: () => void
   onFinish?: () => void
   nextLabel?: string
+  previousLabel?: string
   finishLabel?: string
+  nextDisabled?: boolean
+  previousDisabled?: boolean
   className?: string
 }
 
@@ -22,7 +25,10 @@ export function WizardProgressFooter({
   onNext,
   onFinish,
   nextLabel = "Next",
+  previousLabel = "Previous",
   finishLabel = "Finish",
+  nextDisabled = false,
+  previousDisabled = false,
   className,
 }: WizardProgressFooterProps) {
   const progressValue = (currentStep / totalSteps) * 100
@@ -38,8 +44,14 @@ export function WizardProgressFooter({
         </p>
         <div className="flex items-center gap-2">
           {!isFirst && onPrevious ? (
-            <Button type="button" variant="outline" size="lg" onClick={onPrevious}>
-              Previous
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              disabled={previousDisabled}
+              onClick={onPrevious}
+            >
+              {previousLabel}
             </Button>
           ) : null}
           {isLast && onFinish ? (
@@ -47,7 +59,12 @@ export function WizardProgressFooter({
               {finishLabel}
             </Button>
           ) : onNext ? (
-            <Button type="button" size="lg" onClick={onNext}>
+            <Button
+              type="button"
+              size="lg"
+              disabled={nextDisabled}
+              onClick={onNext}
+            >
               {nextLabel}
             </Button>
           ) : null}
