@@ -27,7 +27,17 @@ export async function getDeviceQuotaForUser(
   userId?: string
 ): Promise<DeviceQuota> {
   const accountUserId = userId ?? (await requireAuthenticatedUserId())
-  const row = await getSubscriptionByUserId(accountUserId)
+  let row: Awaited<ReturnType<typeof getSubscriptionByUserId>>
+  try {
+    row = await getSubscriptionByUserId(accountUserId)
+  } catch (error) {
+    console.error("getDeviceQuotaForUser: subscription lookup failed:", error)
+    throw new DeviceServiceError(
+      "Unable to load subscription status. Try again shortly.",
+      503,
+      "SUBSCRIPTION_UNAVAILABLE"
+    )
+  }
   const limitInfo = getSubscriptionDeviceLimit(row)
   const status = asSubscriptionStatus(row?.status)
   const hasAccess = hasActiveAccess(status, row?.current_period_end)

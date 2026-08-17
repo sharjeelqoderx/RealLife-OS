@@ -213,7 +213,8 @@ export async function getZeroTrustTeamName(
       auth: getCloudflareGatewayAuth(),
     })
 
-    const authDomain = orgs?.[0]?.auth_domain
+    const org = Array.isArray(orgs) ? orgs[0] : orgs
+    const authDomain = org?.auth_domain
     if (authDomain) {
       return authDomain.replace(/\.cloudflareaccess\.com$/i, "")
     }

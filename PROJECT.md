@@ -459,6 +459,9 @@ Requires `supabase login` + `supabase link` once per machine. Do not squash alre
 
 | Date | Change | Updated By |
 |------|--------|------------|
+| 2026-08-17 | Build fix: cleared stale `.next` cache after deleted Cloudflare accounts route removed cached references causing build failure | Agent |
+| 2026-08-17 | TypeScript fix: `GET /api/admin/cloudflare/registrations` — corrected `registration.device_id` → `registration.device?.id` and `last_seen` → `last_seen_at` per Cloudflare API fields | Agent |
+| 2026-08-17 | TypeScript fix: excluded `vitest.config.ts` from `tsconfig.json` to bypass `vitest/config` module resolution error in production build | Agent |
 | 2026-08-16 | Device setup: vertical connected `SetupStep` timeline (1 choose → 2 register → 3 connect → 4 wait) instead of screen swap | Agent |
 | 2026-08-16 | Device setup uses in-page step + progress footer again (choose device → connect/wait) instead of full screen swap | Agent |
 | 2026-08-16 | Removed custom `apply-migrations` / PostgREST reload scripts; DB workflow is `npm run db:push` + `npm run db:types` via Supabase CLI | Agent |
