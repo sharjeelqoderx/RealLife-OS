@@ -17,9 +17,9 @@ export async function GET() {
         count: registrations.length,
         registrations: registrations.map((registration) => ({
           id: registration.id,
-          deviceId: registration.device_id ?? null,
+          deviceId: registration.device?.id ?? null,
           email: registration.user?.email ?? null,
-          lastSeen: registration.last_seen ?? null,
+          lastSeen: registration.last_seen_at ?? null,
           revokedAt: registration.revoked_at ?? null,
         })),
       },
