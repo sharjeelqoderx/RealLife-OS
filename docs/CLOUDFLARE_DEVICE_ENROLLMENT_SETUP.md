@@ -70,11 +70,26 @@ Choose one restrictive, administrator-maintained authorization strategy:
 - groups from an already-configured third-party IdP.
 
 One-Time PIN verifies that a mailbox is controlled; it does **not**
-synchronize every Supabase user by itself. When a customer starts device
-setup, RealLife OS calls the Cloudflare Access Apps/Policies API and adds
-that customer's authenticated email to the managed WARP enrollment policy
-named `RealLife OS SaaS device enrollment`. Customers are not sent to the
-Cloudflare dashboard or documentation to register their email.
+synchronize every Supabase user by itself. Cloudflare only emails a PIN when
+the address is allowed on the **WARP enrollment** Access application
+(`type: warp`). The login screen still says a code was sent even when it was
+not.
+
+`CLOUDFARE_APP_ID` is the content-policy Access app and must not be used for
+device enrollment. When a customer starts setup, RealLife OS:
+
+1. Finds the WARP enrollment app (`CLOUDFLARE_WARP_APP_ID` /
+   `CLOUDFARE_WARP_APP_ID` if set, otherwise `type: warp`).
+2. Creates the One-Time PIN identity provider if it is missing.
+3. Enables that provider on the WARP app (instant auth when OTP is the only
+   method).
+4. Adds the authenticated SaaS email to the managed policy
+   `RealLife OS SaaS device enrollment`.
+
+Customers are not sent to the Cloudflare dashboard to register their email.
+
+The API token needs `Access: Apps and Policies Write` and
+`Access: Organizations, Identity Providers, and Groups Write`.
 
 ## 5. Configure client mode and leaving behavior
 

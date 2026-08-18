@@ -84,20 +84,18 @@ export function hasCloudflarePlatformConfig(): boolean {
 
 export function getCloudflareAccessAppId(): string {
   return requireFirstEnv(
-    "CLOUDFLARE_WARP_APP_ID",
-    "CLOUDFARE_WARP_APP_ID",
     "CLOUDFARE_APP_ID",
     "CLOUDFLARE_APP_ID"
   )
 }
 
 export function tryGetCloudflareAccessAppId(): string | undefined {
-  return firstEnv(
-    "CLOUDFLARE_WARP_APP_ID",
-    "CLOUDFARE_WARP_APP_ID",
-    "CLOUDFARE_APP_ID",
-    "CLOUDFLARE_APP_ID"
-  )
+  return firstEnv("CLOUDFARE_APP_ID", "CLOUDFLARE_APP_ID")
+}
+
+/** WARP device-enrollment Access app — not the content-policy Access app. */
+export function tryGetCloudflareWarpAppId(): string | undefined {
+  return firstEnv("CLOUDFLARE_WARP_APP_ID", "CLOUDFARE_WARP_APP_ID")
 }
 
 export function getCloudflareApiTokenAuth(): CloudflareApiTokenAuth {

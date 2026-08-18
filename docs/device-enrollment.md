@@ -1,10 +1,10 @@
 # Device enrollment
 
 `POST /api/devices/enrollment` checks the authenticated account’s subscription
-quota, registers the SaaS user’s email on the Cloudflare WARP enrollment Access
-policy via API, then creates a 15-minute pending enrollment. It returns the
-Cloudflare team name, the registered enrollment email, and platform-specific
-Cloudflare One Client instructions.
+quota, enables One-Time PIN on the WARP enrollment Access app, registers the
+SaaS user’s email on that app’s allow policy, then creates a 15-minute pending
+enrollment. It returns the Cloudflare team name, the registered enrollment
+email, and platform-specific Cloudflare One Client instructions.
 
 The customer installs Cloudflare One Client (or Cloudflare One Agent), selects
 Zero Trust, enters the team name, and completes Cloudflare-managed identity

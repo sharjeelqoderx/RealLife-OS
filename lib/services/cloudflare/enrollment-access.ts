@@ -1,17 +1,22 @@
-import { cloudflareRequest } from "@/lib/cloudflare/client"
+import { CloudflareApiError, cloudflareRequest } from "@/lib/cloudflare/client"
 import {
-  getCloudflareAccessAppId,
   getCloudflareAccountId,
   getCloudflareGatewayAuth,
-  tryGetCloudflareAccessAppId,
+  tryGetCloudflareWarpAppId,
 } from "@/lib/cloudflare/config"
 
 const SAAS_ENROLLMENT_POLICY_NAME = "RealLife OS SaaS device enrollment"
+const OTP_PROVIDER_NAME = "One-time PIN login"
 
 type AccessApplication = {
   id?: string
   name?: string
   type?: string
+  allowed_idps?: string[] | null
+  auto_redirect_to_identity?: boolean
+  app_launcher_visible?: boolean
+  session_duration?: string
+  policies?: unknown
 }
 
 type AccessPolicyRule = Record<string, unknown>
@@ -26,11 +31,21 @@ type AccessAppPolicy = {
   precedence?: number
 }
 
-function normalizeEmail(email: string): string {
+type IdentityProvider = {
+  id?: string
+  name?: string
+  type?: string
+}
+
+function gatewayAuth() {
+  return getCloudflareGatewayAuth()
+}
+
+export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase()
 }
 
-function emailFromRule(rule: AccessPolicyRule): string | null {
+export function emailFromRule(rule: AccessPolicyRule): string | null {
   const email = rule.email
   if (
     email &&
@@ -44,7 +59,7 @@ function emailFromRule(rule: AccessPolicyRule): string | null {
   return null
 }
 
-function ruleAllowsEmail(rule: AccessPolicyRule, email: string): boolean {
+export function ruleAllowsEmail(rule: AccessPolicyRule, email: string): boolean {
   if (emailFromRule(rule) === email) return true
 
   const domainRule = rule.email_domain
@@ -65,38 +80,231 @@ function ruleAllowsEmail(rule: AccessPolicyRule, email: string): boolean {
   return false
 }
 
+export function mergeEmailIncludeRules(
+  include: AccessPolicyRule[],
+  email: string
+): AccessPolicyRule[] {
+  return [
+    ...include.filter((rule) => emailFromRule(rule) !== email),
+    { email: { email } },
+  ]
+}
+
+export function selectWarpEnrollmentApp(
+  apps: AccessApplication[],
+  configuredWarpAppId?: string
+): AccessApplication {
+  const warpApps = apps.filter((app) => app.type === "warp" && app.id)
+
+  if (configuredWarpAppId) {
+    const configured = warpApps.find((app) => app.id === configuredWarpAppId)
+    if (configured) return configured
+  }
+
+  if (warpApps.length === 1) return warpApps[0]
+  if (warpApps.length > 1) {
+    const named = warpApps.find((app) =>
+      /enrollment|warp|device/i.test(app.name ?? "")
+    )
+    return named ?? warpApps[0]
+  }
+
+  throw new Error(
+    "No Cloudflare WARP enrollment application was found. In Zero Trust open Devices → Device profiles → Management → Device enrollment permissions and create enrollment."
+  )
+}
+
+export function buildWarpLoginMethods(
+  otpProviderId: string,
+  currentAllowedIdps: string[] | null | undefined
+): { allowedIdps: string[]; autoRedirectToIdentity: boolean } {
+  const current = (currentAllowedIdps ?? []).filter((id) => id.length > 0)
+  const allowedIdps = current.includes(otpProviderId)
+    ? current
+    : current.length === 0
+      ? [otpProviderId]
+      : [...current, otpProviderId]
+
+  return {
+    allowedIdps,
+    autoRedirectToIdentity:
+      allowedIdps.length === 1 && allowedIdps[0] === otpProviderId,
+  }
+}
+
+function attachedPolicyRefs(
+  app: AccessApplication
+): Array<{ id: string; precedence: number }> {
+  const policies = app.policies
+  if (!Array.isArray(policies)) return []
+
+  const refs: Array<{ id: string; precedence: number }> = []
+  for (const [index, policy] of policies.entries()) {
+    if (typeof policy === "string" && policy.length > 0) {
+      refs.push({ id: policy, precedence: index + 1 })
+      continue
+    }
+    if (
+      policy &&
+      typeof policy === "object" &&
+      "id" in policy &&
+      typeof (policy as { id?: unknown }).id === "string"
+    ) {
+      const precedence =
+        "precedence" in policy &&
+        typeof (policy as { precedence?: unknown }).precedence === "number"
+          ? (policy as { precedence: number }).precedence
+          : index + 1
+      refs.push({ id: (policy as { id: string }).id, precedence })
+    }
+  }
+  return refs
+}
+
 async function listAccessApplications(
   accountId: string
 ): Promise<AccessApplication[]> {
-  return cloudflareRequest<AccessApplication[]>({
+  const apps: AccessApplication[] = []
+  for (let page = 1; page <= 20; page += 1) {
+    const batch = await cloudflareRequest<AccessApplication[]>({
+      method: "GET",
+      path: `/accounts/${accountId}/access/apps`,
+      auth: gatewayAuth(),
+      searchParams: { page, per_page: 100 },
+    })
+    const rows = Array.isArray(batch) ? batch : []
+    apps.push(...rows)
+    if (rows.length < 100) break
+  }
+  return apps
+}
+
+async function getAccessApplication(
+  accountId: string,
+  appId: string
+): Promise<AccessApplication> {
+  return cloudflareRequest<AccessApplication>({
     method: "GET",
-    path: `/accounts/${accountId}/access/apps`,
-    auth: getCloudflareGatewayAuth(),
+    path: `/accounts/${accountId}/access/apps/${appId}`,
+    auth: gatewayAuth(),
   })
 }
 
-async function resolveWarpEnrollmentAppId(
+async function resolveWarpEnrollmentApp(
   accountId: string
-): Promise<string> {
-  const configured = tryGetCloudflareAccessAppId()
-  if (configured) return configured
-
+): Promise<AccessApplication> {
   const apps = await listAccessApplications(accountId)
-  const warp = apps.find((app) => app.type === "warp" && app.id)
-  if (warp?.id) return warp.id
+  const selected = selectWarpEnrollmentApp(apps, tryGetCloudflareWarpAppId())
+  if (!selected.id) {
+    throw new Error("Cloudflare WARP enrollment application is missing an id.")
+  }
+  return getAccessApplication(accountId, selected.id)
+}
 
-  return getCloudflareAccessAppId()
+async function listIdentityProviders(
+  accountId: string
+): Promise<IdentityProvider[]> {
+  const result = await cloudflareRequest<IdentityProvider[]>({
+    method: "GET",
+    path: `/accounts/${accountId}/access/identity_providers`,
+    auth: gatewayAuth(),
+  })
+  return Array.isArray(result) ? result : []
+}
+
+async function createOtpIdentityProvider(
+  accountId: string
+): Promise<IdentityProvider> {
+  try {
+    return await cloudflareRequest<IdentityProvider>({
+      method: "POST",
+      path: `/accounts/${accountId}/access/identity_providers`,
+      auth: gatewayAuth(),
+      body: {
+        name: OTP_PROVIDER_NAME,
+        type: "onetimepin",
+        config: {},
+      },
+    })
+  } catch (error) {
+    if (error instanceof CloudflareApiError && error.status === 403) {
+      throw new Error(
+        "Cloudflare API token needs Access: Organizations, Identity Providers, and Groups Write so One-Time PIN can be enabled for device enrollment."
+      )
+    }
+    throw error
+  }
+}
+
+async function getOrCreateOtpProviderId(accountId: string): Promise<string> {
+  const providers = await listIdentityProviders(accountId)
+  const existing = providers.find(
+    (provider) => provider.type === "onetimepin" && provider.id
+  )
+  if (existing?.id) return existing.id
+
+  const created = await createOtpIdentityProvider(accountId)
+  if (!created.id) {
+    throw new Error("Cloudflare created a One-Time PIN provider without an id.")
+  }
+  return created.id
+}
+
+async function ensureWarpAppUsesOtp(
+  accountId: string,
+  app: AccessApplication,
+  otpProviderId: string
+): Promise<void> {
+  if (!app.id) {
+    throw new Error("Cloudflare WARP enrollment application is missing an id.")
+  }
+
+  const next = buildWarpLoginMethods(otpProviderId, app.allowed_idps)
+  const currentIds = app.allowed_idps ?? []
+  const sameIdps =
+    currentIds.length === next.allowedIdps.length &&
+    next.allowedIdps.every((id) => currentIds.includes(id))
+  const sameRedirect =
+    Boolean(app.auto_redirect_to_identity) === next.autoRedirectToIdentity
+
+  if (sameIdps && sameRedirect && currentIds.length > 0) return
+
+  const policyRefs = attachedPolicyRefs(app)
+
+  try {
+    await cloudflareRequest<AccessApplication>({
+      method: "PUT",
+      path: `/accounts/${accountId}/access/apps/${app.id}`,
+      auth: gatewayAuth(),
+      body: {
+        name: app.name ?? "Warp",
+        type: "warp",
+        allowed_idps: next.allowedIdps,
+        auto_redirect_to_identity: next.autoRedirectToIdentity,
+        app_launcher_visible: app.app_launcher_visible ?? false,
+        ...(policyRefs.length > 0 ? { policies: policyRefs } : {}),
+      },
+    })
+  } catch (error) {
+    if (error instanceof CloudflareApiError && error.status === 403) {
+      throw new Error(
+        "Cloudflare API token needs Access: Apps and Policies Write to enable One-Time PIN on WARP enrollment."
+      )
+    }
+    throw error
+  }
 }
 
 async function listAppPolicies(
   accountId: string,
   appId: string
 ): Promise<AccessAppPolicy[]> {
-  return cloudflareRequest<AccessAppPolicy[]>({
+  const result = await cloudflareRequest<AccessAppPolicy[]>({
     method: "GET",
     path: `/accounts/${accountId}/access/apps/${appId}/policies`,
-    auth: getCloudflareGatewayAuth(),
+    auth: gatewayAuth(),
   })
+  return Array.isArray(result) ? result : []
 }
 
 async function createAppPolicy(
@@ -113,7 +321,7 @@ async function createAppPolicy(
   return cloudflareRequest<AccessAppPolicy>({
     method: "POST",
     path: `/accounts/${accountId}/access/apps/${appId}/policies`,
-    auth: getCloudflareGatewayAuth(),
+    auth: gatewayAuth(),
     body: policy,
   })
 }
@@ -133,8 +341,39 @@ async function updateAppPolicy(
   return cloudflareRequest<AccessAppPolicy>({
     method: "PUT",
     path: `/accounts/${accountId}/access/apps/${appId}/policies/${policyId}`,
-    auth: getCloudflareGatewayAuth(),
+    auth: gatewayAuth(),
     body: policy,
+  })
+}
+
+async function attachPolicyToWarpApp(
+  accountId: string,
+  appId: string,
+  policyId: string
+): Promise<void> {
+  const app = await getAccessApplication(accountId, appId)
+  const refs = attachedPolicyRefs(app)
+  if (refs.some((ref) => ref.id === policyId)) return
+
+  const nextRefs = [...refs, { id: policyId, precedence: refs.length + 1 }]
+  const login = app.allowed_idps?.length
+    ? {
+        allowed_idps: app.allowed_idps,
+        auto_redirect_to_identity: Boolean(app.auto_redirect_to_identity),
+      }
+    : {}
+
+  await cloudflareRequest<AccessApplication>({
+    method: "PUT",
+    path: `/accounts/${accountId}/access/apps/${appId}`,
+    auth: gatewayAuth(),
+    body: {
+      name: app.name ?? "Warp",
+      type: "warp",
+      app_launcher_visible: app.app_launcher_visible ?? false,
+      ...login,
+      policies: nextRefs,
+    },
   })
 }
 
@@ -151,14 +390,21 @@ export async function registerEnrollmentEmail(
   }
 
   const accountId = getCloudflareAccountId()
-  const appId = await resolveWarpEnrollmentAppId(accountId)
-  const policies = await listAppPolicies(accountId, appId)
+  const app = await resolveWarpEnrollmentApp(accountId)
+  if (!app.id) {
+    throw new Error("Cloudflare WARP enrollment application is missing an id.")
+  }
 
+  const otpProviderId = await getOrCreateOtpProviderId(accountId)
+  await ensureWarpAppUsesOtp(accountId, app, otpProviderId)
+
+  const policies = await listAppPolicies(accountId, app.id)
   const alreadyAllowed = policies.some(
     (policy) =>
       policy.decision === "allow" &&
       (policy.include ?? []).some((rule) => ruleAllowsEmail(rule, email))
   )
+
   if (alreadyAllowed) {
     return { email, createdPolicy: false, alreadyAllowed: true }
   }
@@ -172,27 +418,25 @@ export async function registerEnrollmentEmail(
     ) ?? null
 
   if (!managed?.id) {
-    await createAppPolicy(accountId, appId, {
+    const created = await createAppPolicy(accountId, app.id, {
       name: SAAS_ENROLLMENT_POLICY_NAME,
       decision: "allow",
       include: [{ email: { email } }],
     })
+    if (created.id) {
+      await attachPolicyToWarpApp(accountId, app.id, created.id)
+    }
     return { email, createdPolicy: true, alreadyAllowed: false }
   }
 
-  const existingInclude = managed.include ?? []
-  const nextInclude = [
-    ...existingInclude.filter((rule) => emailFromRule(rule) !== email),
-    { email: { email } },
-  ]
-
-  await updateAppPolicy(accountId, appId, managed.id, {
+  await updateAppPolicy(accountId, app.id, managed.id, {
     name: managed.name ?? SAAS_ENROLLMENT_POLICY_NAME,
     decision: "allow",
-    include: nextInclude,
+    include: mergeEmailIncludeRules(managed.include ?? [], email),
     require: managed.require,
     exclude: managed.exclude,
   })
+  await attachPolicyToWarpApp(accountId, app.id, managed.id)
 
   return { email, createdPolicy: false, alreadyAllowed: false }
 }

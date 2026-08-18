@@ -333,7 +333,7 @@ page.tsx (RSC fetch via lib/services)
 | createGatewayRule / listGatewayRules | `lib/services/cloudflare/rules.ts` | Low-level shared-account Gateway rules API | gateway-policies | ✅ ready |
 | createGatewayLocation | `lib/services/cloudflare/locations.ts` | Create a location in the shared Cloudflare account | Audience picker create | ✅ ready |
 | listPhysicalDevices / getPhysicalDevice / deletePhysicalDevice / revokePhysicalDevice / listRegistrations / getRegistration / revokeDeviceRegistrations / unrevokeRegistrations / getZeroTrustTeamName | `lib/services/cloudflare/devices.ts` | Cloudflare One physical devices + registrations (cursor pagination) | `/api/devices`, admin CF APIs | ✅ ready |
-| registerEnrollmentEmail | `lib/services/cloudflare/enrollment-access.ts` | Adds SaaS email to WARP Access enrollment allow policy | `createDeviceEnrollment` | ✅ ready |
+| registerEnrollmentEmail | `lib/services/cloudflare/enrollment-access.ts` | Finds WARP app, enables OTP IdP, adds SaaS email to enrollment allow policy | `createDeviceEnrollment` | ✅ ready |
 | syncCloudflareDevices | `lib/services/cloudflare/sync-devices.ts` | Reconcile owned devices vs Cloudflare inventory (no auto-claim) | `/api/admin/cloudflare/sync` | ✅ ready |
 | createDeviceEnrollment / getDeviceEnrollmentStatus | `lib/services/devices/enrollments.ts` | Pending enrollment + email/time-bound ownership claim | `/api/devices/enrollment*` | ✅ ready |
 | revokeConnectedDevice | `lib/services/devices/revoke-device.ts` | Ownership-checked physical-device revoke | `/api/devices/[id]/revoke` | ✅ ready |
@@ -459,6 +459,7 @@ Requires `supabase login` + `supabase link` once per machine. Do not squash alre
 
 | Date | Change | Updated By |
 |------|--------|------------|
+| 2026-08-18 | Device enrollment OTP: use WARP Access app (not `CLOUDFARE_APP_ID`), enable One-Time PIN IdP, add SaaS email so Cloudflare can send the PIN | Agent |
 | 2026-08-17 | Build fix: cleared stale `.next` cache after deleted Cloudflare accounts route removed cached references causing build failure | Agent |
 | 2026-08-17 | TypeScript fix: `GET /api/admin/cloudflare/registrations` — corrected `registration.device_id` → `registration.device?.id` and `last_seen` → `last_seen_at` per Cloudflare API fields | Agent |
 | 2026-08-17 | TypeScript fix: excluded `vitest.config.ts` from `tsconfig.json` to bypass `vitest/config` module resolution error in production build | Agent |

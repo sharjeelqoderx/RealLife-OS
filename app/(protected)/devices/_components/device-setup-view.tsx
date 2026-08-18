@@ -324,9 +324,21 @@ export function DeviceSetupView({
                       .
                     </li>
                     <li>
-                      Complete One-Time PIN sign-in with{" "}
+                      If the app shows login methods, choose{" "}
+                      <strong className="text-brand-text-heading">
+                        One-time PIN
+                      </strong>
+                      — not Cloudflare account login.
+                    </li>
+                    <li>
+                      Enter this exact email:{" "}
                       <strong className="text-brand-text-heading">
                         {enrollment.enrollmentEmail}
+                      </strong>
+                      . Cloudflare only sends a PIN to allowed enrollment
+                      emails. Check spam for{" "}
+                      <strong className="text-brand-text-heading">
+                        noreply@notify.cloudflare.com
                       </strong>
                       .
                     </li>
