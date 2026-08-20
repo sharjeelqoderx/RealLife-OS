@@ -478,7 +478,7 @@ export function PolicyView({
         </section>
       </div>
 
-      <section className="rounded-lg border border-border/70 bg-brand-surface p-5">
+      {/* <section className="rounded-lg border border-border/70 bg-brand-surface p-5">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-brand-text-muted">
           Description
         </h2>
@@ -486,7 +486,7 @@ export function PolicyView({
         <p className="text-sm leading-relaxed text-brand-text-heading">
           {policy.description?.trim() || "No description provided."}
         </p>
-      </section>
+      </section> */}
 
       <div className="grid gap-4 md:grid-cols-2">
         <DetailChipList
