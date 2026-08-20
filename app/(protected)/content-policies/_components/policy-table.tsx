@@ -139,8 +139,8 @@ export function PolicyTable({ policies }: PolicyTableProps) {
     onSuccess: (_data, policyId) => {
       setPendingDelete(null)
       setDeleteError("")
-      queryClient.setQueryData<PolicyListItem[]>(
-        queryKeys.gatewayPolicies.list(),
+      queryClient.setQueriesData<PolicyListItem[]>(
+        { queryKey: queryKeys.gatewayPolicies.list() },
         (current) => (current ?? []).filter((policy) => policy.id !== policyId)
       )
     },

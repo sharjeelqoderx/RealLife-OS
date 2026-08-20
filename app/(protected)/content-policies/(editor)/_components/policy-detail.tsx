@@ -37,7 +37,10 @@ import { apiClient } from "@/lib/api/client"
 import { queryKeys } from "@/lib/query/keys"
 import type { GatewayPolicyEditorData } from "@/lib/services/content-policies/gateway-policies"
 import { cn } from "@/lib/utils"
-import type { CreateGatewayPolicyInput } from "@/schemas/content-policies/gateway-policy"
+import {
+  createGatewayPolicySchema,
+  type CreateGatewayPolicyInput,
+} from "@/schemas/content-policies/gateway-policy"
 import type {
   GatewayPreset,
   GatewayPresetsResponse,
@@ -478,8 +481,8 @@ export function PolicyDetail({ mode, policyId, initialData }: Props) {
     onSuccess: ({ rule, payload, mode: saveMode }) => {
       const listItem = toPolicyListItem(rule, payload)
       if (listItem) {
-        queryClient.setQueryData<PolicyListItem[]>(
-          queryKeys.gatewayPolicies.list(),
+        queryClient.setQueriesData<PolicyListItem[]>(
+          { queryKey: queryKeys.gatewayPolicies.list() },
           (current) => {
             if (saveMode === "edit") {
               const list = current ?? []
@@ -954,10 +957,72 @@ export function PolicyDetail({ mode, policyId, initialData }: Props) {
       currentSnapshot != null &&
       currentSnapshot !== baselineSnapshotRef.current)
 
+  const draftSavePayload = useMemo((): CreateGatewayPolicyInput | null => {
+    if (!selectedRule) return null
+
+    const categoryIds = currentCategories
+      .map((c) => Number(c.id))
+      .filter((id) => Number.isFinite(id) && id > 0)
+
+    const appIds = currentApps
+      .map((a) => Number(a.id))
+      .filter((id) => Number.isFinite(id) && id > 0)
+
+    return {
+      name: selectedRule.name,
+      type: selectedRule.type,
+      enabled: isActive,
+      categories: currentCategories.map((c) => c.label),
+      categoryIds,
+      domains: currentAddresses
+        .filter((a) => a.mode === "address")
+        .map((a) => a.url),
+      domainRoots: currentAddresses
+        .filter((a) => a.mode === "auto")
+        .map((a) => a.url),
+      domainKeywords: currentAddresses
+        .filter((a) => a.mode === "keyword")
+        .map((a) => a.url),
+      apps: currentApps.map((a) => a.label),
+      appIds,
+      locationIds: currentAudience.map((a) => a.id),
+      schedules: currentSchedules.map((s) => ({
+        dayIndex: s.dayIndex,
+        startHour: s.startHour,
+        startMinute: s.startMinute,
+        durationMinutes: s.durationMinutes,
+      })),
+      timeZone:
+        initialData?.timeZone ??
+        (typeof Intl !== "undefined"
+          ? Intl.DateTimeFormat().resolvedOptions().timeZone
+          : undefined),
+      precedence: initialData?.precedence ?? undefined,
+    }
+  }, [
+    selectedRule,
+    isActive,
+    currentCategories,
+    currentApps,
+    currentAudience,
+    currentAddresses,
+    currentSchedules,
+    initialData?.timeZone,
+    initialData?.precedence,
+  ])
+
+  const isPayloadValid = useMemo(
+    () =>
+      draftSavePayload != null &&
+      createGatewayPolicySchema.safeParse(draftSavePayload).success,
+    [draftSavePayload]
+  )
+
   const canSave =
     Boolean(selectedRule) &&
     !saveMutation.isPending &&
-    (isCreateMode || isDirty)
+    (isCreateMode || isDirty) &&
+    isPayloadValid
 
   const openAddSchedule = () => {
     setScheduleMode("add")
@@ -1064,49 +1129,8 @@ export function PolicyDetail({ mode, policyId, initialData }: Props) {
   })
 
   const handleSaveSelectedRule = () => {
-    if (!selectedRule) return
-
-    const categoryIds = currentCategories
-      .map((c) => Number(c.id))
-      .filter((id) => Number.isFinite(id) && id > 0)
-
-    const appIds = currentApps
-      .map((a) => Number(a.id))
-      .filter((id) => Number.isFinite(id) && id > 0)
-
-    const payload: CreateGatewayPolicyInput = {
-      name: selectedRule.name,
-      type: selectedRule.type,
-      enabled: isActive,
-      categories: currentCategories.map((c) => c.label),
-      categoryIds,
-      domains: currentAddresses
-        .filter((a) => a.mode === "address")
-        .map((a) => a.url),
-      domainRoots: currentAddresses
-        .filter((a) => a.mode === "auto")
-        .map((a) => a.url),
-      domainKeywords: currentAddresses
-        .filter((a) => a.mode === "keyword")
-        .map((a) => a.url),
-      apps: currentApps.map((a) => a.label),
-      appIds,
-      locationIds: currentAudience.map((a) => a.id),
-      schedules: currentSchedules.map((s) => ({
-        dayIndex: s.dayIndex,
-        startHour: s.startHour,
-        startMinute: s.startMinute,
-        durationMinutes: s.durationMinutes,
-      })),
-      timeZone:
-        initialData?.timeZone ??
-        (typeof Intl !== "undefined"
-          ? Intl.DateTimeFormat().resolvedOptions().timeZone
-          : undefined),
-      precedence: initialData?.precedence ?? undefined,
-    }
-
-    saveMutation.mutate(payload)
+    if (!draftSavePayload || !isPayloadValid) return
+    saveMutation.mutate(draftSavePayload)
   }
 
   return (
@@ -2189,6 +2213,14 @@ export function PolicyDetail({ mode, policyId, initialData }: Props) {
                     : isEditMode
                       ? "Failed to update policy"
                       : "Failed to save policy"}
+                </p>
+              ) : selectedRule &&
+                !isPayloadValid &&
+                selectedRule.type !== "safesearch" &&
+                selectedRule.type !== "ytrestricted" ? (
+                <p className="w-full text-sm text-brand-text-muted">
+                  Add at least one category, app, web address, or audience
+                  location to save.
                 </p>
               ) : null}
               <Button

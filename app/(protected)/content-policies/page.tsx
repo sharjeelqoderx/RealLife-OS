@@ -1,7 +1,9 @@
 import { PoliciesPage } from "@/app/(protected)/content-policies/_components/page-content"
-import { parsePolicyListParam } from "@/lib/content-policies/list-params"
+import {
+  parsePolicyStatusFilters,
+  parsePolicyTypeFilters,
+} from "@/lib/content-policies/list-params"
 import { listGatewayPolicies } from "@/lib/services/content-policies/gateway-policies"
-import type { PolicyStatus, PolicyType } from "@/schemas/content-policies/policy"
 
 interface ContentPoliciesPageProps {
   searchParams: Promise<{ q?: string; status?: string; type?: string }>
@@ -11,20 +13,26 @@ export default async function ContentPoliciesPage({
   searchParams,
 }: ContentPoliciesPageProps) {
   const { q = "", status, type } = await searchParams
+  const statusFilters = parsePolicyStatusFilters(status)
+  const typeFilters = parsePolicyTypeFilters(type)
 
-  let allPolicies: Awaited<ReturnType<typeof listGatewayPolicies>> = []
+  let policies: Awaited<ReturnType<typeof listGatewayPolicies>> = []
   try {
-    allPolicies = await listGatewayPolicies()
+    policies = await listGatewayPolicies({
+      query: q,
+      statuses: statusFilters,
+      types: typeFilters,
+    })
   } catch (error) {
     console.error("Failed to load gateway policies on server:", error)
   }
 
   return (
     <PoliciesPage
-      allPolicies={allPolicies}
+      initialPolicies={policies}
       searchQuery={q}
-      statusFilters={parsePolicyListParam(status) as PolicyStatus[]}
-      typeFilters={parsePolicyListParam(type) as PolicyType[]}
+      statusFilters={statusFilters}
+      typeFilters={typeFilters}
     />
   )
 }

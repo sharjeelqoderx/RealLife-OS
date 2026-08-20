@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server"
 
 import {
+  parsePolicyStatusFilters,
+  parsePolicyTypeFilters,
+} from "@/lib/content-policies/list-params"
+import {
   createGatewayPolicy,
   listGatewayPolicies,
 } from "@/lib/services/content-policies/gateway-policies"
@@ -8,10 +12,18 @@ import { createGatewayPolicySchema } from "@/schemas/content-policies/gateway-po
 
 /**
  * List Gateway DNS policies for the current tenant / platform account.
+ * Optional filters: `?q=`, `?status=active,inactive`, `?type=allow,block`.
  */
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const policies = await listGatewayPolicies()
+    const { searchParams } = new URL(req.url)
+    const policies = await listGatewayPolicies({
+      query: searchParams.get("q") ?? undefined,
+      statuses: parsePolicyStatusFilters(
+        searchParams.get("status") ?? undefined
+      ),
+      types: parsePolicyTypeFilters(searchParams.get("type") ?? undefined),
+    })
     return NextResponse.json(policies)
   } catch (error) {
     console.error("GET /api/gateway-policies:", error)

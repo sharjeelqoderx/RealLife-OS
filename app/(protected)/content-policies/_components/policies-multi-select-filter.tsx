@@ -2,6 +2,7 @@
 
 import { ChevronDown } from "lucide-react"
 
+import { CustomSpinner } from "@/components/feedback/custom-spinner"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -17,6 +18,7 @@ export interface PoliciesMultiSelectFilterProps<T extends string> {
   selected: T[]
   count: number
   onChange: (selected: T[]) => void
+  isLoading?: boolean
   className?: string
 }
 
@@ -26,6 +28,7 @@ export function PoliciesMultiSelectFilter<T extends string>({
   selected,
   count,
   onChange,
+  isLoading = false,
   className,
 }: PoliciesMultiSelectFilterProps<T>) {
   return (
@@ -38,11 +41,16 @@ export function PoliciesMultiSelectFilter<T extends string>({
             "h-11 min-w-[8.5rem] justify-between gap-3 border-border bg-brand-surface px-3 text-xs font-medium text-brand-text-heading",
             className
           )}
+          aria-busy={isLoading}
         >
           <span className="truncate text-left">{label}</span>
           <span className="flex shrink-0 items-center gap-1.5">
             <span className="tabular-nums text-brand-text-muted">{count}</span>
-            <ChevronDown className="size-3.5 text-brand-text-muted" />
+            {isLoading ? (
+              <CustomSpinner className="size-3.5 text-brand-text-muted" />
+            ) : (
+              <ChevronDown className="size-3.5 text-brand-text-muted" />
+            )}
           </span>
         </Button>
       </DropdownMenuTrigger>

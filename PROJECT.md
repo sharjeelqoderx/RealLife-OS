@@ -257,12 +257,13 @@ page.tsx (RSC fetch via lib/services)
 | PaymentMethodCard | `app/(protected)/billing/_components/payment-method-card.tsx` | Visual credit card + full billing metadata | `/billing` | ✅ ready |
 | AttachCardPanel | `app/(protected)/billing/_components/attach-card-panel.tsx` | Empty-state card attach UI (Stripe setup checkout) | `/billing` | ✅ ready |
 | BillingActionButton | `app/(protected)/billing/_components/billing-action-button.tsx` | Branded billing CTA button | `/billing` | ✅ ready |
-| PoliciesPage | `app/(protected)/content-policies/_components/page-content.tsx` | Client shell with URL search/filters + Access policies table via React Query | `/content-policies` | ✅ ready |
-| PoliciesSearchInput | `app/(protected)/content-policies/_components/policies-search-input.tsx` | Debounced search input; updates `?q=` via `history.replaceState` | `/content-policies` | ✅ ready |
+| PoliciesPage | `app/(protected)/content-policies/_components/page-content.tsx` | Client shell; debounced `?q=` / status / type → `GET /api/gateway-policies`; icon spinners while refetching | `/content-policies` | ✅ ready |
+| PoliciesSearchInput | `app/(protected)/content-policies/_components/policies-search-input.tsx` | Debounced search (300ms); updates `?q=`; Search icon → spinner while list fetch | `/content-policies` | ✅ ready |
+| PoliciesMultiSelectFilter | `app/(protected)/content-policies/_components/policies-multi-select-filter.tsx` | Status/Type multi-select; Chevron → spinner while that filter’s list fetch | `/content-policies` | ✅ ready |
 | PolicyTable | `app/(protected)/content-policies/_components/policy-table.tsx` | Desktop table + mobile cards; Flame menu + delete confirm | `/content-policies` | ✅ ready |
 | PolicyTableLoading | `app/(protected)/content-policies/_components/policy-table-loading.tsx` | Table/card skeleton — 2 rows matching list layout | `/content-policies` loading | ✅ ready |
 | AccessPolicyForm | `app/(protected)/content-policies/(editor)/_components/access-policy-form.tsx` | Legacy Cloudflare Access Include/Require/Exclude form (superseded by Gateway editor for new-policy) | — | ⚪ unused |
-| PolicyDetail | `app/(protected)/content-policies/(editor)/_components/policy-detail.tsx` | Shared create/edit editor; edit uses `initialData`, dirty-gated Save → PUT | `/content-policies/new-policy`, `/content-policies/[policyId]/edit` | ✅ ready |
+| PolicyDetail | `app/(protected)/content-policies/(editor)/_components/policy-detail.tsx` | Shared create/edit editor; Save disabled until `createGatewayPolicySchema` passes (needs category/app/address/audience for allow/block) | `/content-policies/new-policy`, `/content-policies/[policyId]/edit` | ✅ ready |
 | PolicyView | `app/(protected)/content-policies/(editor)/_components/policy-view.tsx` | Read-only policy detail with categories, audience, apps, web addresses; View/Download config JSON + DNS .mobileconfig | `/content-policies/[policyId]` | ✅ ready |
 | PolicyViewLoading | `app/(protected)/content-policies/(editor)/_components/policy-view-loading.tsx` | View-page skeleton (separate from editor loading) | `/content-policies/[policyId]` loading | ✅ ready |
 | PolicyEditorLoading | `app/(protected)/content-policies/(editor)/_components/policy-editor-loading.tsx` | Shared editor skeleton (sticky sidebar + detail panel) | editor routes loading.tsx | ✅ ready |
@@ -316,9 +317,9 @@ page.tsx (RSC fetch via lib/services)
 | getSubscriptionDeviceLimit / getDeviceLimitFromStripePriceId | `lib/services/billing/plan-limits.ts` | Plan-config caps + account override (`0` = no slots) | Devices quota, billing status | ✅ ready |
 | setAccountDeviceLimit | `lib/services/billing/subscriptions.ts` | Set/clear per-account `device_limit` override | Enterprise deals (ops) | ✅ ready |
 | processStripeWebhookEvent | `lib/services/billing/webhook/` | Event → dedicated handler module → DB | `/api/stripe/webhook` | ✅ ready |
-| getPolicies | `lib/services/content-policies/get-policies.ts` | Content policies list helpers / mock filter | `/content-policies` client filter | ✅ ready |
+| getPolicies / filterPolicies | `lib/services/content-policies/get-policies.ts` | Shared list filter helper (`query` / `statuses` / `types`) used by `listGatewayPolicies` | `/api/gateway-policies` GET | ✅ ready |
 | listAccessPolicies / createAccessPolicy | `lib/services/content-policies/access-policies.ts` | Cloudflare Access app policies list + create | `/api/access-policies` | ✅ ready |
-| listGatewayPolicies / createGatewayPolicy / updateGatewayPolicy / getGatewayPolicyById / getGatewayPolicyForEditor / deleteGatewayPolicy | `lib/services/content-policies/gateway-policies.ts` | Gateway DNS policies CRUD + editor prepopulation | `/api/gateway-policies`, list/view/create/edit | ✅ ready |
+| listGatewayPolicies / createGatewayPolicy / updateGatewayPolicy / getGatewayPolicyById / getGatewayPolicyForEditor / deleteGatewayPolicy | `lib/services/content-policies/gateway-policies.ts` | Gateway DNS policies CRUD + editor prepopulation; list accepts `query` / `statuses` / `types` filters | `/api/gateway-policies`, list/view/create/edit | ✅ ready |
 | parseTrafficExpression / parseGatewaySchedule | `lib/services/content-policies/parse-gateway-rule.ts` | Wirefilter + schedule → editor fields | `getGatewayPolicyForEditor` | ✅ ready |
 | updateGatewayRule | `lib/services/cloudflare/rules.ts` | PUT `/accounts/{id}/gateway/rules/{ruleId}` | `updateGatewayPolicy` | ✅ ready |
 | deleteAccessPolicy | `lib/services/content-policies/access-policies.ts` | Delete Cloudflare Access app policy | Gateway delete fallback | ✅ ready |
@@ -375,7 +376,7 @@ page.tsx (RSC fetch via lib/services)
 | `/api/stripe/billing-portal` | POST | `createBillingPortalSession` | — | ✅ ready |
 | `/api/access-policies` | GET | `listAccessPolicies` | — | ✅ ready |
 | `/api/access-policies` | POST | `createAccessPolicy` | `createAccessPolicySchema` | ✅ ready |
-| `/api/gateway-policies` | GET | `listGatewayPolicies` | — | ✅ ready |
+| `/api/gateway-policies` | GET | `listGatewayPolicies` | Optional `?q=` / `?status=` / `?type=` (comma lists) | ✅ ready |
 | `/api/gateway-policies` | POST | `createGatewayPolicy` | `createGatewayPolicySchema` | ✅ ready |
 | `/api/gateway-policies/[policyId]` | GET | `getGatewayPolicyForEditor` | Auth; `{ data }` editor state | ✅ ready |
 | `/api/gateway-policies/[policyId]` | PUT | `updateGatewayPolicy` | `createGatewayPolicySchema` | ✅ ready |
@@ -414,7 +415,7 @@ page.tsx (RSC fetch via lib/services)
 | `createCheckoutSessionSchema` | `schemas/billing/checkout.ts` | Checkout API + paywall | ✅ ready |
 | `BillingDetailsResponse` | `schemas/billing/details.ts` | Billing page + APIs | ✅ ready |
 | `createAccessPolicySchema` | `schemas/content-policies/access-policy.ts` | Access policy form + `/api/access-policies` POST | ✅ ready |
-| `createGatewayPolicySchema` | `schemas/content-policies/gateway-policy.ts` | Save payload: domains (Host), domainRoots (Domain), domainKeywords (regex) | ✅ ready |
+| `createGatewayPolicySchema` | `schemas/content-policies/gateway-policy.ts` | Save payload + shared selector guard (`hasGatewayPolicyTrafficSelectors`) for UI + API | ✅ ready |
 | `gatewayPresetSchema` | `schemas/content-policies/gateway-preset.ts` | Preset list + apply payload | ✅ ready |
 | `createGatewayLocationSchema` | `schemas/content-policies/gateway-location.ts` | Audience picker create + `/api/gateway-locations` POST | ✅ ready |
 | `connectedDeviceSchema` | `schemas/devices/device.ts` | Device platform, connected device, setup answers | `/devices`, `/devices/setup` | ✅ ready |
@@ -459,6 +460,8 @@ Requires `supabase login` + `supabase link` once per machine. Do not squash alre
 
 | Date | Change | Updated By |
 |------|--------|------------|
+| 2026-08-20 | Policy editor Save: frontend validates via `createGatewayPolicySchema`; button disabled until category/app/address/audience present (allow/block) | Agent |
+| 2026-08-20 | Content policies list: search/status/type are server-side via `GET /api/gateway-policies?q&status&type`; debounced search; spinner in search/filter icons while refetching | Agent |
 | 2026-08-20 | Modals: phone-only inset/margins (`max-sm`); tablet+ restored to previous desktop layout | Agent |
 | 2026-08-20 | Schedule sheet: fixed height + scrollable body so content scrolls on mobile/desktop | Agent |
 | 2026-08-20 | Policy modals/sheets: mobile side margins, max-height, scrollable content (Add Rule, pickers, schedule, config) | Agent |

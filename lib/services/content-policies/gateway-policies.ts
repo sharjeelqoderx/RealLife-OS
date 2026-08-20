@@ -21,6 +21,10 @@ import {
   parseTrafficExpression,
 } from "@/lib/services/content-policies/parse-gateway-rule"
 import {
+  filterPolicies,
+  type PolicyListFilters,
+} from "@/lib/services/content-policies/get-policies"
+import {
   buildIdentityExpression,
   getOwnedGatewayPolicy,
   listOwnedGatewayPolicies,
@@ -495,7 +499,9 @@ function mapGatewayRuleToDetail(rule: GatewayRule): GatewayPolicyDetail {
   }
 }
 
-export async function listGatewayPolicies(): Promise<PolicyListItem[]> {
+export async function listGatewayPolicies(
+  filters: PolicyListFilters = {}
+): Promise<PolicyListItem[]> {
   const supabase = await createClient()
   const {
     data: { user },
@@ -512,7 +518,7 @@ export async function listGatewayPolicies(): Promise<PolicyListItem[]> {
   )
 
   const rules = await listGatewayRules(accountId)
-  return rules
+  const policies = rules
     .filter((r) => r.filters?.includes("dns") || !r.filters?.length)
     .map((rule) => {
       const localPolicyId = rule.id
@@ -523,6 +529,8 @@ export async function listGatewayPolicies(): Promise<PolicyListItem[]> {
     })
     .filter((item): item is PolicyListItem => item !== null)
     .filter((item) => item.id)
+
+  return filterPolicies(policies, filters)
 }
 
 export async function createGatewayPolicy(

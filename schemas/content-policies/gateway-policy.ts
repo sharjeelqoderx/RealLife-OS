@@ -57,29 +57,51 @@ export const createGatewayPolicySchema = z
     precedence: z.number().int().positive().optional(),
   })
   .superRefine((value, ctx) => {
-    if (value.type === "safesearch" || value.type === "ytrestricted") {
+    if (hasGatewayPolicyTrafficSelectors(value)) {
       return
     }
 
-    const hasSelector =
-      value.categories.length > 0 ||
-      value.categoryIds.length > 0 ||
-      value.domains.length > 0 ||
-      value.domainRoots.length > 0 ||
-      value.domainKeywords.length > 0 ||
-      value.apps.length > 0 ||
-      value.appIds.length > 0 ||
-      value.locationIds.length > 0
-
-    if (!hasSelector) {
-      ctx.addIssue({
-        code: "custom",
-        message:
-          "Add at least one category, app, web address, or audience location",
-        path: ["domains"],
-      })
-    }
+    ctx.addIssue({
+      code: "custom",
+      message:
+        "Add at least one category, app, web address, or audience location",
+      path: ["domains"],
+    })
   })
 
 export type CreateGatewayPolicyInput = z.infer<typeof createGatewayPolicySchema>
 export type GatewayPolicyType = z.infer<typeof gatewayPolicyTypeSchema>
+
+/** Shared create/edit guard — SafeSearch / YT Restricted skip selector requirement. */
+export function hasGatewayPolicyTrafficSelectors(value: {
+  type: GatewayPolicyType
+  categories: readonly string[]
+  categoryIds: readonly number[]
+  domains: readonly string[]
+  domainRoots: readonly string[]
+  domainKeywords: readonly string[]
+  apps: readonly string[]
+  appIds: readonly number[]
+  locationIds: readonly string[]
+}): boolean {
+  if (value.type === "safesearch" || value.type === "ytrestricted") {
+    return true
+  }
+
+  return (
+    value.categories.length > 0 ||
+    value.categoryIds.length > 0 ||
+    value.domains.length > 0 ||
+    value.domainRoots.length > 0 ||
+    value.domainKeywords.length > 0 ||
+    value.apps.length > 0 ||
+    value.appIds.length > 0 ||
+    value.locationIds.length > 0
+  )
+}
+
+export function isCreateGatewayPolicyPayloadValid(
+  value: unknown
+): value is CreateGatewayPolicyInput {
+  return createGatewayPolicySchema.safeParse(value).success
+}
