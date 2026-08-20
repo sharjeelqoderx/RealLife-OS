@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query"
 import { Plus } from "lucide-react"
 
 import { ConnectedDeviceRow } from "@/app/(protected)/devices/_components/connected-device-row"
+import { DeviceProfilesPanel } from "@/app/(protected)/devices/_components/device-profiles-panel"
 import { DeviceTypePicker } from "@/app/(protected)/devices/_components/device-type-picker"
 import { ErrorAlert, WarningAlert } from "@/components/feedback"
 import { Button } from "@/components/ui/button"
@@ -111,10 +112,10 @@ export function ConnectedDevicesView({
             Connected Devices
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-brand-text-muted">
-            Manage devices enrolled with Cloudflare One. Gateway DNS policies
-            are scoped by your signed-in identity after enrollment
-            ({quota.planName}). Identity-scoped enforcement requires Cloudflare
-            One Traffic and DNS mode.
+            Manage enrolled devices, application profiles, and effective Gateway
+            policies. Per-device enforcement uses Cloudflare DNS locations
+            (`dns.location`) with your identity email. Identity-scoped rules
+            require Cloudflare One Traffic and DNS mode ({quota.planName}).
           </p>
           <p className="mt-2 text-sm font-medium text-brand-text-heading">
             {formatDeviceQuota(quota)}
@@ -174,6 +175,8 @@ export function ConnectedDevicesView({
           onSelect={setSelectedPlatform}
         />
       </section>
+
+      <DeviceProfilesPanel devices={devices} />
 
       <section className="space-y-4">
         <h2 className="text-lg font-semibold text-brand-text-heading">

@@ -643,23 +643,7 @@ export async function updateGatewayPolicy(
       throw new Error("Policy not found")
     }
 
-    const { traffic, filters } = await buildTrafficExpression(accountId, input)
-    const schedule = buildGatewaySchedule(input.schedules, input.timeZone)
     const action = mapPolicyTypeToAction(input.type)
-    const identity = buildIdentityExpression(user.email)
-
-    const rule = await updateGatewayRule(accountId, policy.cloudflareRuleId, {
-      // Keep the unique Cloudflare name; only local display name changes.
-      name: existing.name?.trim() || uniqueCloudflareGatewayRuleName(input.name),
-      action,
-      description: input.description,
-      enabled: input.enabled ?? true,
-      filters,
-      traffic,
-      identity,
-      schedule,
-      precedence: input.precedence ?? existing.precedence,
-    })
 
     await updateOwnedGatewayPolicyRecord({
       userId: user.id,
@@ -672,14 +656,24 @@ export async function updateGatewayPolicy(
       precedence: input.precedence ?? existing.precedence ?? 1000,
       configurationJson: JSON.parse(JSON.stringify(input)) as Json,
     })
+
+    const { syncPolicyCloudflareEnforcement } = await import(
+      "@/lib/services/policy-assignments/sync-policy-enforcement"
+    )
+    const syncResult = await syncPolicyCloudflareEnforcement(user.id, policyId)
+    if (syncResult.syncStatus === "sync_failed") {
+      throw new Error(syncResult.error ?? "Cloudflare policy sync failed")
+    }
+
+    const rule = await getGatewayRule(accountId, policy.cloudflareRuleId)
     await createAdminAudit(user.id, "POLICY_UPDATED", policyId)
     return {
       id: policyId,
-      name: rule.name ?? input.name,
-      action: rule.action ?? action,
-      enabled: rule.enabled !== false,
-      created_at: rule.created_at,
-      updated_at: rule.updated_at,
+      name: rule?.name ?? input.name,
+      action: rule?.action ?? action,
+      enabled: rule?.enabled !== false,
+      created_at: rule?.created_at ?? existing.created_at,
+      updated_at: rule?.updated_at,
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)

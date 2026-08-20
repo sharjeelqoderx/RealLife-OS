@@ -45,5 +45,12 @@ export const queryKeys = {
       [...queryKeys.devices.all, "setup-session", platform] as const,
     appPreferences: () =>
       [...queryKeys.devices.all, "app-preferences"] as const,
+    profiles: () => [...queryKeys.devices.all, "profiles"] as const,
+    effectivePolicy: (deviceId: string) =>
+      [...queryKeys.devices.all, "effective-policy", deviceId] as const,
+  },
+  policyAssignments: {
+    all: ["policy-assignments"] as const,
+    list: () => [...queryKeys.policyAssignments.all, "list"] as const,
   },
 } as const

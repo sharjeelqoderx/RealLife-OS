@@ -14,6 +14,12 @@ export const connectedDeviceSchema = z.object({
   model: z.string().nullable().optional(),
   osVersion: z.string().nullable().optional(),
   userEmail: z.string().nullable().optional(),
+  profileId: z.string().nullable().optional(),
+  profileName: z.string().nullable().optional(),
+  effectivePolicyId: z.string().nullable().optional(),
+  effectivePolicyName: z.string().nullable().optional(),
+  effectivePolicySource: z.enum(["device", "profile", "none"]).optional(),
+  dohSubdomain: z.string().nullable().optional(),
 })
 
 export type ConnectedDevice = z.infer<typeof connectedDeviceSchema>

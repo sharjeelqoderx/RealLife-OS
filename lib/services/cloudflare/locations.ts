@@ -99,3 +99,18 @@ export async function listGatewayLocations(
   })
   return result ?? []
 }
+
+/**
+ * Delete a Gateway DNS location.
+ * @see https://developers.cloudflare.com/api/resources/zero_trust/subresources/gateway/subresources/locations/methods/delete
+ */
+export async function deleteGatewayLocation(
+  accountId: string,
+  locationId: string
+): Promise<void> {
+  await cloudflareRequest<unknown>({
+    method: "DELETE",
+    path: `/accounts/${accountId}/gateway/locations/${locationId}`,
+    auth: getGatewayAuth(),
+  })
+}

@@ -92,6 +92,27 @@ export function ConnectedDeviceRow({ device, className }: ConnectedDeviceRowProp
               {device.status === "active" ? "Active" : "Inactive"} • Last seen{" "}
               {formatLastSeen(device.lastSeenMinutes)} • {platformLabel}
             </p>
+            <p className="mt-1 text-xs text-brand-text-muted">
+              Profile: {device.profileName ?? "None"}
+              {" · "}
+              Effective: {device.effectivePolicyName ?? "None"}
+              {device.effectivePolicySource &&
+              device.effectivePolicySource !== "none"
+                ? ` (${device.effectivePolicySource === "device" ? "Device" : "Profile"})`
+                : ""}
+            </p>
+            {device.dohSubdomain ? (
+              <p className="mt-1 text-xs text-brand-text-muted">
+                DNS location DoH:{" "}
+                <a
+                  className="underline underline-offset-2"
+                  href={`/api/dns-profile/mobileconfig?deviceId=${encodeURIComponent(device.id)}`}
+                >
+                  Download profile
+                </a>{" "}
+                ({device.dohSubdomain})
+              </p>
+            ) : null}
           </div>
         </div>
 
@@ -99,7 +120,8 @@ export function ConnectedDeviceRow({ device, className }: ConnectedDeviceRowProp
           <Button
             type="button"
             variant="brandOutline"
-            size="sm"
+            size="lg"
+            className="h-11 min-h-11 max-h-11 w-fit shrink-0 px-3"
             onClick={() => {
               setDisplayName(device.name)
               setRenameOpen(true)
@@ -110,7 +132,8 @@ export function ConnectedDeviceRow({ device, className }: ConnectedDeviceRowProp
           <Button
             type="button"
             variant="destructive"
-            size="sm"
+            size="lg"
+            className="h-11 min-h-11 max-h-11 w-fit shrink-0 px-3"
             onClick={() => setRemoveOpen(true)}
           >
             Remove Device

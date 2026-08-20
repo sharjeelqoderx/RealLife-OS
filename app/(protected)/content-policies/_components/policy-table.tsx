@@ -4,7 +4,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { Eye, Flame, Pencil, Trash2 } from "lucide-react"
+import { Eye, Flame, Pencil, Trash2, UserPlus } from "lucide-react"
 
 import { ErrorAlert } from "@/components/feedback"
 import { Badge } from "@/components/ui/badge"
@@ -38,6 +38,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { AssignPolicyDialog } from "@/app/(protected)/content-policies/_components/assign-policy-dialog"
 import {
   policyTableCardClassName,
   policyTableCellClassName,
@@ -78,50 +79,73 @@ function PolicyRowActions({
   policy: PolicyListItem
   onRequestDelete: (policy: PendingDelete) => void
 }) {
+  const [assignOpen, setAssignOpen] = useState(false)
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-xs"
-          className="size-7 rounded-md text-brand-text-muted hover:bg-muted/60 hover:text-brand-text-heading"
+    <div
+      className="flex items-center justify-end"
+      onClick={(event) => event.stopPropagation()}
+    >
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            className="size-7 rounded-md text-brand-text-muted hover:bg-muted/60 hover:text-brand-text-heading"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <Flame className="size-3.5" strokeWidth={2} />
+            <span className="sr-only">Open policy actions</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="end"
+          className="w-36 min-w-0 p-1"
           onClick={(event) => event.stopPropagation()}
         >
-          <Flame className="size-3.5" strokeWidth={2} />
-          <span className="sr-only">Open policy actions</span>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="end"
-        className="w-36 min-w-0 p-1"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <DropdownMenuItem asChild className="gap-2 px-2 py-1.5 text-xs">
-          <Link href={`/content-policies/${policy.id}`}>
-            <Eye className="size-3.5" />
-            View
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild className="gap-2 px-2 py-1.5 text-xs">
-          <Link href={`/content-policies/${policy.id}/edit`}>
-            <Pencil className="size-3.5" />
-            Edit
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuSeparator className="my-1" />
-        <DropdownMenuItem
-          variant="destructive"
-          className="gap-2 px-2 py-1.5 text-xs"
-          onSelect={() => {
-            onRequestDelete({ id: policy.id, name: policy.name })
-          }}
-        >
-          <Trash2 className="size-3.5" />
-          Delete
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+          <DropdownMenuItem asChild className="gap-2 px-2 py-1.5 text-xs">
+            <Link href={`/content-policies/${policy.id}`}>
+              <Eye className="size-3.5" />
+              View
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild className="gap-2 px-2 py-1.5 text-xs">
+            <Link href={`/content-policies/${policy.id}/edit`}>
+              <Pencil className="size-3.5" />
+              Edit
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="gap-2 px-2 py-1.5 text-xs"
+            onSelect={(event) => {
+              event.preventDefault()
+              setAssignOpen(true)
+            }}
+          >
+            <UserPlus className="size-3.5" />
+            Assign
+          </DropdownMenuItem>
+          <DropdownMenuSeparator className="my-1" />
+          <DropdownMenuItem
+            variant="destructive"
+            className="gap-2 px-2 py-1.5 text-xs"
+            onSelect={() => {
+              onRequestDelete({ id: policy.id, name: policy.name })
+            }}
+          >
+            <Trash2 className="size-3.5" />
+            Delete
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <AssignPolicyDialog
+        policy={policy}
+        open={assignOpen}
+        onOpenChange={setAssignOpen}
+      />
+    </div>
   )
 }
 

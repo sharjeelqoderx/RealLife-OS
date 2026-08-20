@@ -86,6 +86,8 @@ reallife-os/
 │   │   ├── me/
 │   │   ├── stripe/
 │   │   ├── access-policies/
+│   │   ├── device-profiles/
+│   │   ├── policy-assignments/
 │   │   ├── gateway-policies/
 │   │   ├── gateway-categories/
 │   │   ├── gateway-apps/
@@ -377,6 +379,14 @@ page.tsx (RSC fetch via lib/services)
 | `/api/access-policies` | GET | `listAccessPolicies` | — | ✅ ready |
 | `/api/access-policies` | POST | `createAccessPolicy` | `createAccessPolicySchema` | ✅ ready |
 | `/api/gateway-policies` | GET | `listGatewayPolicies` | Optional `?q=` / `?status=` / `?type=` (comma lists) | ✅ ready |
+| `/api/device-profiles` | GET/POST | `listDeviceProfiles` / `createDeviceProfile` | App profiles (Kids/Parents/Work) | ✅ ready |
+| `/api/device-profiles/[id]` | PATCH/DELETE | update / delete profile | Auth + ownership | ✅ ready |
+| `/api/device-profiles/[id]/devices` | POST | `addDeviceToProfile` | `{ deviceId }` | ✅ ready |
+| `/api/device-profiles/[id]/devices/[deviceId]` | DELETE | `removeDeviceFromProfile` | — | ✅ ready |
+| `/api/policy-assignments` | GET/POST | list / create assignment + Cloudflare sync | `{ policyId, targetType, targetId }` | ✅ ready |
+| `/api/policy-assignments/[id]` | DELETE | unassign + resync | — | ✅ ready |
+| `/api/policy-assignments/reconcile` | POST | `reconcilePolicyGatewayRules` | Compare Supabase vs CF rules | ✅ ready |
+| `/api/devices/[deviceId]/effective-policy` | GET | `resolveEffectivePolicy` | device → profile → none | ✅ ready |
 | `/api/gateway-policies` | POST | `createGatewayPolicy` | `createGatewayPolicySchema` | ✅ ready |
 | `/api/gateway-policies/[policyId]` | GET | `getGatewayPolicyForEditor` | Auth; `{ data }` editor state | ✅ ready |
 | `/api/gateway-policies/[policyId]` | PUT | `updateGatewayPolicy` | `createGatewayPolicySchema` | ✅ ready |
@@ -460,6 +470,8 @@ Requires `supabase login` + `supabase link` once per machine. Do not squash alre
 
 | Date | Change | Updated By |
 |------|--------|------------|
+| 2026-08-20 | Assign dialog: disable Save assignments while an error alert is visible (failed save or prior Cloudflare sync_failed) | Agent |
+| 2026-08-20 | Phase 1 per-device/per-profile policy assignment: app profiles, assignments, `resolveEffectivePolicy`, Cloudflare sync via per-device DNS locations (`dns.location`) + identity email; Assign UI on policies; profiles panel on devices | Agent |
 | 2026-08-20 | Policy editor Save: frontend validates via `createGatewayPolicySchema`; button disabled until category/app/address/audience present (allow/block) | Agent |
 | 2026-08-20 | Content policies list: search/status/type are server-side via `GET /api/gateway-policies?q&status&type`; debounced search; spinner in search/filter icons while refetching | Agent |
 | 2026-08-20 | Modals: phone-only inset/margins (`max-sm`); tablet+ restored to previous desktop layout | Agent |

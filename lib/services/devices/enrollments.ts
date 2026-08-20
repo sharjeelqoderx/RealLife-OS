@@ -314,16 +314,36 @@ export async function getDeviceEnrollmentStatus(enrollmentId: string): Promise<{
   if (!owner) {
     // Recheck quota at claim time so concurrent enrollments cannot exceed the plan.
     await requireDeviceSlotAvailable(userId)
-    const { error: ownershipError } = await admin
+    const { data: inserted, error: ownershipError } = await admin
       .from("tenant_device_metadata")
       .insert({
         user_id: userId,
         cloudflare_device_id: device.id,
         display_name: enrollment.requested_device_name,
       })
+      .select("id")
+      .single()
     if (ownershipError) {
       // Unique conflict means another account claimed the device first.
       return { status: "failed" }
+    }
+
+    try {
+      const { accountId } = await getDeviceAccountContext(userId)
+      const { ensureDeviceDnsLocation } = await import(
+        "@/lib/services/devices/device-dns-location"
+      )
+      await ensureDeviceDnsLocation({
+        accountId,
+        userId,
+        deviceId: inserted.id,
+        displayName: enrollment.requested_device_name,
+      })
+    } catch (locationError) {
+      console.error(
+        "getDeviceEnrollmentStatus: DNS location provision failed",
+        locationError
+      )
     }
   } else {
     await admin

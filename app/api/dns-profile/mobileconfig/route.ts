@@ -5,10 +5,13 @@ import { buildDohMobileconfig } from "@/lib/services/content-policies/policy-con
 import { createClient } from "@/lib/supabase/server"
 
 /**
- * Download iOS/macOS DNS over HTTPS .mobileconfig for the account's Gateway location.
- * Cloudflare has no policy "download config" URL — this is generated from location DoH subdomain.
+ * Download iOS/macOS DNS over HTTPS .mobileconfig.
+ * Optional `?deviceId=` uses that device's Gateway DNS location DoH subdomain
+ * so `dns.location` Gateway policies match (gateway_unique_id equivalent).
+ *
+ * @see https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/cloudflare-one-client/deployment/mdm-deployment/parameters/
  */
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const supabase = await createClient()
     const {
@@ -19,13 +22,15 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const source = await getDnsProfileSource(user.id)
+    const deviceId = new URL(req.url).searchParams.get("deviceId")
+    const source = await getDnsProfileSource(user.id, deviceId)
 
     if (!source.available || !source.dohSubdomain) {
       return NextResponse.json(
         {
-          error:
-            "No shared Gateway DNS location found. Configure a DNS location in the platform Cloudflare Zero Trust account.",
+          error: deviceId
+            ? "No DNS location for this device. Re-enroll or wait for location provisioning."
+            : "No shared Gateway DNS location found. Configure a DNS location in the platform Cloudflare Zero Trust account.",
         },
         { status: 404 }
       )

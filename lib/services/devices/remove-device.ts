@@ -15,7 +15,7 @@ export async function removeConnectedDevice(
 
   const { data: owned, error: ownershipError } = await admin
     .from("tenant_device_metadata")
-    .select("cloudflare_device_id")
+    .select("cloudflare_device_id, cloudflare_location_id")
     .eq("id", deviceId)
     .eq("user_id", userId)
     .maybeSingle()
@@ -34,6 +34,41 @@ export async function removeConnectedDevice(
     )
   }
 
+  const { deleteDeviceDnsLocation } = await import(
+    "@/lib/services/devices/device-dns-location"
+  )
+  await deleteDeviceDnsLocation({
+    accountId,
+    locationId: owned.cloudflare_location_id,
+  })
+
+  // Resync policies that referenced this device (assignments cascade via FK;
+  // profile membership cascades; still refresh CF location sets).
+  const { data: deviceAssignments } = await admin
+    .from("tenant_policy_assignments")
+    .select("policy_id")
+    .eq("user_id", userId)
+    .eq("target_type", "device")
+    .eq("target_id", deviceId)
+
+  const { data: membership } = await admin
+    .from("tenant_device_profile_members")
+    .select("profile_id")
+    .eq("device_id", deviceId)
+    .maybeSingle()
+
+  let profilePolicyId: string | null = null
+  if (membership?.profile_id) {
+    const { data: profileAssignment } = await admin
+      .from("tenant_policy_assignments")
+      .select("policy_id")
+      .eq("user_id", userId)
+      .eq("target_type", "profile")
+      .eq("target_id", membership.profile_id)
+      .maybeSingle()
+    profilePolicyId = profileAssignment?.policy_id ?? null
+  }
+
   const { error } = await admin
     .from("tenant_device_metadata")
     .delete()
@@ -42,6 +77,18 @@ export async function removeConnectedDevice(
 
   if (error) {
     console.warn("removeConnectedDevice: metadata delete failed:", error.message)
+  }
+
+  const { syncPolicyCloudflareEnforcement } = await import(
+    "@/lib/services/policy-assignments/sync-policy-enforcement"
+  )
+  const policyIds = new Set<string>()
+  for (const row of deviceAssignments ?? []) {
+    policyIds.add(row.policy_id)
+  }
+  if (profilePolicyId) policyIds.add(profilePolicyId)
+  for (const policyId of policyIds) {
+    await syncPolicyCloudflareEnforcement(userId, policyId)
   }
 
   const { error: auditError } = await admin.from("audit_log").insert({

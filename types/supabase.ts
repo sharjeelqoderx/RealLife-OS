@@ -167,6 +167,8 @@ export type Database = {
           user_id: string
           cloudflare_device_id: string
           display_name: string | null
+          cloudflare_location_id: string | null
+          doh_subdomain: string | null
           created_at: string
           updated_at: string
         }
@@ -175,6 +177,8 @@ export type Database = {
           user_id: string
           cloudflare_device_id: string
           display_name?: string | null
+          cloudflare_location_id?: string | null
+          doh_subdomain?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -183,6 +187,137 @@ export type Database = {
           user_id?: string
           cloudflare_device_id?: string
           display_name?: string | null
+          cloudflare_location_id?: string | null
+          doh_subdomain?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      tenant_device_profiles: {
+        Row: {
+          id: string
+          user_id: string
+          name: string
+          description: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          name: string
+          description?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          name?: string
+          description?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      tenant_device_profile_members: {
+        Row: {
+          id: string
+          profile_id: string
+          device_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          profile_id: string
+          device_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          profile_id?: string
+          device_id?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
+      tenant_policy_assignments: {
+        Row: {
+          id: string
+          user_id: string
+          policy_id: string
+          target_type: string
+          target_id: string
+          precedence: number
+          sync_status: string
+          sync_error: string | null
+          cloudflare_rule_id: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          policy_id: string
+          target_type: string
+          target_id: string
+          precedence?: number
+          sync_status?: string
+          sync_error?: string | null
+          cloudflare_rule_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          policy_id?: string
+          target_type?: string
+          target_id?: string
+          precedence?: number
+          sync_status?: string
+          sync_error?: string | null
+          cloudflare_rule_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      tenant_policy_gateway_rules: {
+        Row: {
+          id: string
+          user_id: string
+          policy_id: string
+          cloudflare_rule_id: string
+          rule_role: string
+          target_type: string | null
+          target_id: string | null
+          sync_status: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          policy_id: string
+          cloudflare_rule_id: string
+          rule_role?: string
+          target_type?: string | null
+          target_id?: string | null
+          sync_status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          policy_id?: string
+          cloudflare_rule_id?: string
+          rule_role?: string
+          target_type?: string | null
+          target_id?: string | null
+          sync_status?: string
           created_at?: string
           updated_at?: string
         }
