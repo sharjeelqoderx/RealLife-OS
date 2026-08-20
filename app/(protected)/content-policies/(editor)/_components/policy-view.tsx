@@ -105,6 +105,53 @@ function scheduleSummary(
     .filter((v): v is string => Boolean(v))
 }
 
+function addressModeLabel(mode: GatewayPolicyDetail["addresses"][number]["mode"]) {
+  switch (mode) {
+    case "auto":
+      return "Domain"
+    case "address":
+      return "Host"
+    case "keyword":
+      return "Keyword"
+  }
+}
+
+function DetailChipList({
+  title,
+  emptyLabel,
+  items,
+}: {
+  title: string
+  emptyLabel: string
+  items: Array<{ id: string; label: string; groupLabel?: string }>
+}) {
+  return (
+    <section className="rounded-lg border border-border/70 bg-brand-surface p-5">
+      <h2 className="text-sm font-semibold uppercase tracking-wide text-brand-text-muted">
+        {title}
+      </h2>
+      <Separator className="my-3" />
+      {items.length > 0 ? (
+        <ul className="flex flex-wrap gap-2">
+          {items.map((item) => (
+            <li key={item.id}>
+              <Badge
+                variant="secondary"
+                className="rounded-md px-2.5 py-1 text-xs font-medium text-brand-text-heading"
+                title={item.groupLabel}
+              >
+                {item.label}
+              </Badge>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-brand-text-muted">{emptyLabel}</p>
+      )}
+    </section>
+  )
+}
+
 function downloadTextFile(filename: string, content: string, mime: string) {
   const blob = new Blob([content], { type: mime })
   const url = URL.createObjectURL(blob)
@@ -331,7 +378,7 @@ export function PolicyView({
       <Dialog open={isConfigOpen} onOpenChange={setIsConfigOpen}>
         <DialogContent
           showCloseButton={false}
-          className="max-w-[720px] gap-0 p-0 sm:max-w-[720px]"
+          className="max-w-[720px] gap-0 p-0 max-sm:w-[calc(100%-1.5rem)] max-sm:max-h-[min(90svh,720px)] max-sm:overflow-hidden sm:max-w-[720px]"
         >
           <div className="flex items-center justify-between border-b border-border/60 px-5 py-4">
             <DialogTitle className="text-lg font-semibold text-brand-text-heading">
@@ -441,21 +488,53 @@ export function PolicyView({
         </p>
       </section>
 
-      <section className="rounded-lg border border-border/70 bg-brand-surface p-5">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-brand-text-muted">
-          Traffic expression
-        </h2>
-        <Separator className="my-3" />
-        {policy.traffic ? (
-          <pre className="overflow-x-auto rounded-md bg-muted/40 px-3 py-3 font-mono text-xs leading-relaxed text-brand-text-heading whitespace-pre-wrap">
-            {policy.traffic}
-          </pre>
-        ) : (
-          <p className="text-sm text-brand-text-muted">
-            No traffic expression available for this policy.
-          </p>
-        )}
-      </section>
+      <div className="grid gap-4 md:grid-cols-2">
+        <DetailChipList
+          title="Categories"
+          emptyLabel="No content categories on this policy."
+          items={policy.categories}
+        />
+        <DetailChipList
+          title="Audience"
+          emptyLabel="No DNS locations / audiences on this policy."
+          items={policy.locations}
+        />
+        <DetailChipList
+          title="Apps"
+          emptyLabel="No apps on this policy."
+          items={policy.apps}
+        />
+        <section className="rounded-lg border border-border/70 bg-brand-surface p-5">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-brand-text-muted">
+            Web addresses
+          </h2>
+          <Separator className="my-3" />
+          {policy.addresses.length > 0 ? (
+            <ul className="space-y-2">
+              {policy.addresses.map((address) => (
+                <li
+                  key={`${address.mode}:${address.url}`}
+                  className="flex items-center justify-between gap-3 rounded-md border border-border/50 bg-white px-3 py-2 text-sm"
+                >
+                  <span className="min-w-0 truncate font-medium text-brand-text-heading">
+                    {address.url}
+                  </span>
+                  <Badge
+                    variant="outline"
+                    className="shrink-0 rounded text-[10px] font-semibold uppercase tracking-wide"
+                  >
+                    {addressModeLabel(address.mode)}
+                  </Badge>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-brand-text-muted">
+              No web addresses, domains, or keywords on this policy.
+            </p>
+          )}
+        </section>
+      </div>
 
       <section className="rounded-lg border border-border/70 bg-brand-surface p-5">
         <div className="flex items-center gap-2">
@@ -484,6 +563,22 @@ export function PolicyView({
         ) : (
           <p className="text-sm text-brand-text-muted">
             This rule is always active (no schedule).
+          </p>
+        )}
+      </section>
+
+      <section className="rounded-lg border border-border/70 bg-brand-surface p-5">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-brand-text-muted">
+          Traffic expression
+        </h2>
+        <Separator className="my-3" />
+        {policy.traffic ? (
+          <pre className="overflow-x-auto rounded-md bg-muted/40 px-3 py-3 font-mono text-xs leading-relaxed text-brand-text-heading whitespace-pre-wrap">
+            {policy.traffic}
+          </pre>
+        ) : (
+          <p className="text-sm text-brand-text-muted">
+            No traffic expression available for this policy.
           </p>
         )}
       </section>

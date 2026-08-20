@@ -263,7 +263,7 @@ page.tsx (RSC fetch via lib/services)
 | PolicyTableLoading | `app/(protected)/content-policies/_components/policy-table-loading.tsx` | Table/card skeleton — 2 rows matching list layout | `/content-policies` loading | ✅ ready |
 | AccessPolicyForm | `app/(protected)/content-policies/(editor)/_components/access-policy-form.tsx` | Legacy Cloudflare Access Include/Require/Exclude form (superseded by Gateway editor for new-policy) | — | ⚪ unused |
 | PolicyDetail | `app/(protected)/content-policies/(editor)/_components/policy-detail.tsx` | Shared create/edit editor; edit uses `initialData`, dirty-gated Save → PUT | `/content-policies/new-policy`, `/content-policies/[policyId]/edit` | ✅ ready |
-| PolicyView | `app/(protected)/content-policies/(editor)/_components/policy-view.tsx` | Read-only policy detail; View/Download config JSON + DNS .mobileconfig | `/content-policies/[policyId]` | ✅ ready |
+| PolicyView | `app/(protected)/content-policies/(editor)/_components/policy-view.tsx` | Read-only policy detail with categories, audience, apps, web addresses; View/Download config JSON + DNS .mobileconfig | `/content-policies/[policyId]` | ✅ ready |
 | PolicyViewLoading | `app/(protected)/content-policies/(editor)/_components/policy-view-loading.tsx` | View-page skeleton (separate from editor loading) | `/content-policies/[policyId]` loading | ✅ ready |
 | PolicyEditorLoading | `app/(protected)/content-policies/(editor)/_components/policy-editor-loading.tsx` | Shared editor skeleton (sticky sidebar + detail panel) | editor routes loading.tsx | ✅ ready |
 | ScheduleSheet | `app/(protected)/content-policies/(editor)/_components/schedule-sheet.tsx` | Right-side Sheet with weekly 24h calendar grid — click-to-add, click-to-remove, drag-to-resize (15-min snap) | PolicyDetail schedules | ✅ ready |
@@ -459,6 +459,16 @@ Requires `supabase login` + `supabase link` once per machine. Do not squash alre
 
 | Date | Change | Updated By |
 |------|--------|------------|
+| 2026-08-20 | Modals: phone-only inset/margins (`max-sm`); tablet+ restored to previous desktop layout | Agent |
+| 2026-08-20 | Schedule sheet: fixed height + scrollable body so content scrolls on mobile/desktop | Agent |
+| 2026-08-20 | Policy modals/sheets: mobile side margins, max-height, scrollable content (Add Rule, pickers, schedule, config) | Agent |
+| 2026-08-20 | Policy editor: Rules list vertical on mobile without sticky; sticky only on desktop | Agent |
+| 2026-08-20 | Policy editor: Rules list is a vertical sticky column on mobile (not horizontal scroll) | Agent |
+| 2026-08-20 | Policy/schedule Save: remove “No changes” copy; disable Save until dirty | Agent |
+| 2026-08-20 | Policy create/edit: sticky Save bar at bottom of the form | Agent |
+| 2026-08-20 | Unique Cloudflare policy names use unix ms timestamp instead of ISO datetime | Agent |
+| 2026-08-20 | Fix Gateway create/edit: include selected `app.ids` in DNS traffic (apps were dropped); restore apps on edit from stored config | Agent |
+| 2026-08-20 | Policy view shows categories, audience, apps, and web addresses (parsed from Gateway traffic) | Agent |
 | 2026-08-20 | Policy create: append ISO timestamp to Cloudflare Gateway/Access/enrollment policy names so shared-account names stay unique | Agent |
 | 2026-08-18 | Device enrollment OTP: use WARP Access app (not `CLOUDFARE_APP_ID`), enable One-Time PIN IdP, add SaaS email so Cloudflare can send the PIN | Agent |
 | 2026-08-17 | Build fix: cleared stale `.next` cache after deleted Cloudflare accounts route removed cached references causing build failure | Agent |

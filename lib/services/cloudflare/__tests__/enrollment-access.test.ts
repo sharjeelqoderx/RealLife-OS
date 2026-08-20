@@ -85,12 +85,12 @@ describe("WARP enrollment Access helpers", () => {
     ])
   })
 
-  it("builds a unique enrollment policy name with an ISO timestamp", () => {
+  it("builds a unique enrollment policy name with a unix timestamp", () => {
     const name = buildUniqueEnrollmentPolicyName(
       new Date("2026-08-20T20:19:00.123Z")
     )
     expect(name).toBe(
-      "RealLife OS SaaS device enrollment · 2026-08-20T20:19:00Z"
+      `RealLife OS SaaS device enrollment · ${Date.parse("2026-08-20T20:19:00.123Z")}`
     )
     expect(isManagedEnrollmentPolicyName(name)).toBe(true)
     expect(isManagedEnrollmentPolicyName("Other policy")).toBe(false)

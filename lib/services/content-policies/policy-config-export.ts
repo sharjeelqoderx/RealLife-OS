@@ -18,13 +18,37 @@ export function buildPolicyConfigJson(policy: {
   createdAt: string | null
   updatedAt: string | null
   source: string
+  categories?: Array<{ id: string; label: string; groupLabel: string }>
+  apps?: Array<{ id: string; label: string; groupLabel: string }>
+  locations?: Array<{ id: string; label: string; groupLabel: string }>
+  addresses?: Array<{ url: string; mode: string }>
 }): string {
   return JSON.stringify(
     {
       version: 1,
       kind: "reallife-os.gateway-policy",
       exportedAt: new Date().toISOString(),
-      policy,
+      policy: {
+        id: policy.id,
+        name: policy.name,
+        type: policy.type,
+        typeLabel: policy.typeLabel,
+        status: policy.status,
+        description: policy.description,
+        enabled: policy.enabled,
+        action: policy.action,
+        filters: policy.filters,
+        precedence: policy.precedence,
+        createdAt: policy.createdAt,
+        updatedAt: policy.updatedAt,
+        source: policy.source,
+        categories: policy.categories ?? [],
+        apps: policy.apps ?? [],
+        locations: policy.locations ?? [],
+        addresses: policy.addresses ?? [],
+        schedule: policy.schedule,
+        traffic: policy.traffic,
+      },
     },
     null,
     2

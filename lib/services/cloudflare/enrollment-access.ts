@@ -10,8 +10,7 @@ const OTP_PROVIDER_NAME = "One-time PIN login"
 
 /** Unique Access policy name for shared Zero Trust (create-only). */
 export function buildUniqueEnrollmentPolicyName(now = new Date()): string {
-  const stamp = now.toISOString().replace(/\.\d{3}Z$/, "Z")
-  return `${SAAS_ENROLLMENT_POLICY_PREFIX} · ${stamp}`
+  return `${SAAS_ENROLLMENT_POLICY_PREFIX} · ${now.getTime()}`
 }
 
 export function isManagedEnrollmentPolicyName(name: string | undefined): boolean {

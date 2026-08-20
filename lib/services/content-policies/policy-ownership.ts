@@ -7,7 +7,7 @@ export function uniqueCloudflareGatewayRuleName(
   now = new Date(),
   maxLength = 175
 ): string {
-  const stamp = now.toISOString().replace(/\.\d{3}Z$/, "Z")
+  const stamp = String(now.getTime())
   const suffix = ` · ${stamp}`
   const budget = Math.max(1, maxLength - suffix.length)
   const base = displayName.trim().slice(0, budget)
@@ -17,6 +17,8 @@ export function uniqueCloudflareGatewayRuleName(
 export type OwnedGatewayPolicy = {
   id: string
   cloudflareRuleId: string
+  name?: string | null
+  configurationJson?: Json | null
 }
 
 export async function requirePolicyOwnershipStore(): Promise<void> {
@@ -41,7 +43,7 @@ export async function getOwnedGatewayPolicy(
 ): Promise<OwnedGatewayPolicy> {
   const { data, error } = await createAdminClient()
     .from("tenant_gateway_policies")
-    .select("id, cloudflare_rule_id")
+    .select("id, cloudflare_rule_id, name, configuration_json")
     .eq("user_id", userId)
     .eq("id", policyId)
     .neq("status", "deleted")
@@ -50,7 +52,12 @@ export async function getOwnedGatewayPolicy(
   if (error) throw error
   if (!data) throw new Error("Policy not found")
 
-  return { id: data.id, cloudflareRuleId: data.cloudflare_rule_id }
+  return {
+    id: data.id,
+    cloudflareRuleId: data.cloudflare_rule_id,
+    name: data.name,
+    configurationJson: data.configuration_json,
+  }
 }
 
 export async function listOwnedGatewayPolicies(

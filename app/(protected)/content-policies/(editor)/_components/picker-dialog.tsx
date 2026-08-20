@@ -122,9 +122,10 @@ export function PickerDialog<TGroupId extends string>({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton={false}
-        className="w-[92vw] max-w-[620px] p-0 gap-0 sm:max-w-[620px] bg-white rounded-[20px] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.15)] ring-0 border-0"
+        className="max-w-[620px] gap-0 rounded-[20px] border-0 bg-white p-0 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.15)] ring-0 max-sm:w-[calc(100%-1.5rem)] max-sm:max-h-[min(90svh,720px)] max-sm:overflow-hidden max-sm:rounded-2xl sm:max-w-[620px]"
       >
-        <div className="flex items-center gap-3 px-6 pt-6 pb-5">
+        <div className="flex flex-col max-sm:max-h-[min(90svh,720px)]">
+        <div className="flex shrink-0 items-center gap-3 px-6 pt-6 pb-5 max-sm:px-4 max-sm:pt-5 max-sm:pb-4">
           <div className="flex flex-1 items-center gap-3">
             <Search className="size-5 shrink-0 text-brand-text-muted" />
             <Input
@@ -138,7 +139,7 @@ export function PickerDialog<TGroupId extends string>({
                   handleCreate()
                 }
               }}
-              className="h-9 border-0 bg-transparent px-0 text-base placeholder:text-brand-text-placeholder text-brand-text-heading focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none"
+              className="h-9 border-0 bg-transparent px-0 text-base text-brand-text-heading shadow-none placeholder:text-brand-text-placeholder focus-visible:ring-0 focus-visible:ring-offset-0"
             />
           </div>
           <button
@@ -151,9 +152,9 @@ export function PickerDialog<TGroupId extends string>({
           </button>
         </div>
 
-        <div className="h-px bg-border/60 mx-6" />
+        <div className="mx-6 h-px shrink-0 bg-border/60 max-sm:mx-4" />
 
-        <div className="max-h-[520px] overflow-y-auto px-3 py-3">
+        <div className="max-h-[520px] overflow-y-auto px-3 py-3 max-sm:min-h-0 max-sm:flex-1 max-sm:max-h-none max-sm:overscroll-contain">
           {isLoading ? (
             <div className="flex flex-col items-center justify-center gap-3 px-4 py-16 text-sm text-brand-text-muted">
               <CustomSpinner className="size-5 text-brand-primary" />
@@ -238,7 +239,8 @@ export function PickerDialog<TGroupId extends string>({
             </div>
           )}
         </div>
-        <div className="h-4" />
+        <div className="h-4 shrink-0" />
+        </div>
       </DialogContent>
     </Dialog>
   )

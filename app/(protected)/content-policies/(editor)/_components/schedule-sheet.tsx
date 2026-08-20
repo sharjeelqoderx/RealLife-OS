@@ -66,6 +66,25 @@ function formatBlockRange(block: ScheduleBlock) {
   return `${formatClock(block.startHour, block.startMinute)} – ${formatClock(endH, endM)}`
 }
 
+function serializeScheduleBlocks(blocks: ScheduleBlock[]): string {
+  return JSON.stringify(
+    [...blocks]
+      .map((b) => ({
+        dayIndex: b.dayIndex,
+        startHour: b.startHour,
+        startMinute: b.startMinute,
+        durationMinutes: b.durationMinutes,
+      }))
+      .sort(
+        (a, b) =>
+          a.dayIndex - b.dayIndex ||
+          a.startHour - b.startHour ||
+          a.startMinute - b.startMinute ||
+          a.durationMinutes - b.durationMinutes
+      )
+  )
+}
+
 function parseTimeValue(value: string) {
   const [h, m] = value.split(":").map(Number)
   return { hour: h ?? 0, minute: m ?? 0, minutes: (h ?? 0) * 60 + (m ?? 0) }
@@ -100,6 +119,17 @@ export function ScheduleSheet({
   const [startTime, setStartTime] = useState("8:0")
   const [endTime, setEndTime] = useState("17:0")
   const [formError, setFormError] = useState("")
+
+  const baselineSnapshot = useMemo(
+    () => serializeScheduleBlocks(initialBlocks),
+    [initialBlocks]
+  )
+  const currentSnapshot = useMemo(
+    () => serializeScheduleBlocks(blocks),
+    [blocks]
+  )
+  const isDirty = currentSnapshot !== baselineSnapshot
+  const canSaveSchedule = isDirty
 
   const blocksByDay = useMemo(() => {
     const map: Record<number, ScheduleBlock[]> = {}
@@ -204,15 +234,16 @@ export function ScheduleSheet({
         side="right"
         showCloseButton={false}
         className={cn(
-          "flex h-full w-full flex-col gap-0 bg-brand-surface p-0",
+          "flex h-full min-h-0 w-full flex-col gap-0 overflow-hidden bg-brand-surface p-0",
           "data-[side=right]:w-[min(100vw,560px)] data-[side=right]:max-w-[min(100vw,560px)]",
-          "data-[side=right]:sm:max-w-[min(100vw,560px)]"
+          // Phone only: inset + fixed height for scroll
+          "max-sm:data-[side=right]:inset-y-3 max-sm:data-[side=right]:right-3 max-sm:data-[side=right]:left-3 max-sm:data-[side=right]:h-[calc(100svh-1.5rem)] max-sm:data-[side=right]:max-h-[calc(100svh-1.5rem)] max-sm:data-[side=right]:w-auto max-sm:data-[side=right]:max-w-none max-sm:data-[side=right]:rounded-2xl max-sm:data-[side=right]:border max-sm:data-[side=right]:border-border/60"
         )}
       >
-        <SheetHeader className="shrink-0 space-y-0 border-b border-border/60 px-6 py-5 text-left">
+        <SheetHeader className="shrink-0 space-y-0 border-b border-border/60 px-6 py-5 text-left max-sm:px-4 max-sm:py-4">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0 flex-1 space-y-1.5">
-              <SheetTitle className="text-xl font-bold tracking-tight text-brand-text-heading">
+              <SheetTitle className="text-xl font-bold tracking-tight text-brand-text-heading max-sm:text-lg">
                 {mode === "edit" ? "Edit Rule Schedule" : "Add Rule Schedule"}
               </SheetTitle>
               <SheetDescription className="text-sm leading-relaxed text-brand-text-muted">
@@ -230,7 +261,7 @@ export function ScheduleSheet({
           </div>
         </SheetHeader>
 
-        <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-5">
+        <div className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain px-6 py-5 max-sm:px-4">
           {/* Quick presets */}
           <div className="flex flex-wrap gap-2">
             <Button
@@ -411,7 +442,7 @@ export function ScheduleSheet({
           </div>
         </div>
 
-        <SheetFooter className="m-0 shrink-0 flex-row items-center justify-end gap-3 border-t border-border/60 bg-muted/30 px-6 py-4 sm:flex-row sm:space-x-0">
+        <SheetFooter className="m-0 shrink-0 flex-row items-center justify-end gap-3 border-t border-border/60 bg-muted/30 px-6 py-4 sm:flex-row sm:space-x-0 max-sm:px-4 max-sm:py-3">
           <Button
             type="button"
             variant="outline"
@@ -420,7 +451,12 @@ export function ScheduleSheet({
           >
             Close
           </Button>
-          <Button type="button" size="lg" onClick={handleSave}>
+          <Button
+            type="button"
+            size="lg"
+            disabled={!canSaveSchedule}
+            onClick={handleSave}
+          >
             Save schedule
           </Button>
         </SheetFooter>

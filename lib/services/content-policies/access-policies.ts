@@ -39,7 +39,7 @@ function policiesUrl(accountId: string, appId: string) {
 }
 
 function uniqueAccessPolicyName(displayName: string, now = new Date()): string {
-  const stamp = now.toISOString().replace(/\.\d{3}Z$/, "Z")
+  const stamp = String(now.getTime())
   const suffix = ` · ${stamp}`
   const budget = Math.max(1, 100 - suffix.length)
   return `${displayName.trim().slice(0, budget)}${suffix}`

@@ -1135,8 +1135,8 @@ export function PolicyDetail({ mode, policyId, initialData }: Props) {
       </div>
 
       <div className="grid min-h-0 flex-1 gap-0 lg:grid-cols-[320px_minmax(0,1fr)]">
-        {/* Left sidebar: Rules list */}
-        <aside className="border-border/60 lg:sticky lg:top-20 lg:z-10 lg:max-h-[calc(100svh-7rem)] lg:self-start lg:overflow-y-auto lg:border-b-0 lg:border-r lg:border-border/60">
+        {/* Left sidebar: Rules list — column on mobile + desktop */}
+        <aside className="border-b border-border/60 bg-brand-background lg:sticky lg:top-20 lg:z-10 lg:max-h-[calc(100svh-7rem)] lg:self-start lg:overflow-y-auto lg:border-b-0 lg:border-r">
           <div className="flex items-center justify-between gap-3 border-border/60 px-5 py-4">
             <span className="text-sm font-semibold uppercase tracking-wider text-brand-text-muted">
               Rules
@@ -1153,16 +1153,17 @@ export function PolicyDetail({ mode, policyId, initialData }: Props) {
               </DialogTrigger>
               <DialogContent
                 showCloseButton
-                className="max-w-[560px] p-0 sm:max-w-[560px] shadow-2xl ring-0"
+                className="max-w-[560px] p-0 shadow-2xl ring-0 max-sm:w-[calc(100%-1.5rem)] max-sm:max-h-[min(90svh,720px)] max-sm:overflow-hidden sm:max-w-[560px]"
               >
-                <div className="flex items-center justify-between px-6 pt-6 pb-4">
-                  <DialogTitle className="text-xl font-bold text-brand-text-heading tracking-tight">
+                <div className="flex flex-col max-sm:max-h-[min(90svh,720px)]">
+                <div className="flex shrink-0 items-center justify-between px-6 pt-6 pb-4 max-sm:px-4 max-sm:pt-5 max-sm:pb-3">
+                  <DialogTitle className="text-xl font-bold tracking-tight text-brand-text-heading max-sm:text-lg">
                     Create a New Rule
                   </DialogTitle>
                 </div>
 
                 {/* 2 Tabs: General / Presets */}
-                <div className="px-6 pb-4">
+                <div className="shrink-0 px-6 pb-4 max-sm:px-4 max-sm:pb-3">
                   <div className="grid grid-cols-2 gap-1 rounded-lg bg-gray-100 p-1">
                     {(
                       [
@@ -1191,7 +1192,7 @@ export function PolicyDetail({ mode, policyId, initialData }: Props) {
                 </div>
 
                 {/* Tab content */}
-                <div className="px-6 pb-5">
+                <div className="px-6 pb-5 max-sm:min-h-0 max-sm:flex-1 max-sm:overflow-y-auto max-sm:overscroll-contain max-sm:px-4">
                   {createRuleTab === "general" ? (
                     <div className="space-y-3">
                       {generalRuleOptions.map((opt) => (
@@ -1236,7 +1237,7 @@ export function PolicyDetail({ mode, policyId, initialData }: Props) {
                           className="h-11 border-0 bg-gray-50 pl-10 text-sm focus-visible:ring-0 focus-visible:border-brand-primary/50"
                         />
                       </div>
-                      <div className="max-h-[420px] space-y-2.5 overflow-y-auto pr-1">
+                      <div className="max-h-[420px] space-y-2.5 overflow-y-auto pr-1 max-sm:max-h-[min(50svh,420px)] max-sm:overscroll-contain">
                         {presetsQuery.isLoading || presetsQuery.isFetching ? (
                           <div className="flex flex-col items-center justify-center gap-3 py-10 text-sm text-brand-text-muted">
                             <CustomSpinner className="size-5 text-brand-primary" />
@@ -1308,18 +1309,20 @@ export function PolicyDetail({ mode, policyId, initialData }: Props) {
                     </div>
                   )}
                 </div>
+                </div>
               </DialogContent>
             </Dialog>
           </div>
-          <div className="flex lg:flex-col overflow-x-auto lg:overflow-x-visible">
+          <div className="flex max-h-[min(40vh,280px)] flex-col overflow-y-auto lg:max-h-none lg:overflow-visible">
             {rulesList.map((rule, idx) => {
               const isSelected = rule.id === selectedRuleId
               return (
                 <button
                   key={rule.id}
+                  type="button"
                   onClick={() => setSelectedRuleId(rule.id)}
                   className={cn(
-                    "group relative flex items-start gap-3 px-4 py-3.5 text-left transition-colors w-full",
+                    "group relative flex w-full items-start gap-3 px-4 py-3.5 text-left transition-colors",
                     isSelected
                       ? "bg-brand-primary/5"
                       : "hover:bg-muted/40"
@@ -1329,16 +1332,16 @@ export function PolicyDetail({ mode, policyId, initialData }: Props) {
                     <span className="absolute left-0 top-0 h-full w-[3px] rounded-r bg-brand-primary" />
                   )}
                   {idx === 0 && isSelected && (
-                    <span className="hidden lg:block absolute inset-x-0 top-0 h-px bg-brand-primary/20" />
+                    <span className="absolute inset-x-0 top-0 hidden h-px bg-brand-primary/20 lg:block" />
                   )}
-                  <div className="flex flex-1 items-start gap-3 min-w-0">
+                  <div className="flex min-w-0 flex-1 items-start gap-3">
                     <RuleTypeIcon type={rule.type} />
                     <div className="min-w-0 flex-1">
                       <p
                         className={cn(
                           "whitespace-normal break-words text-sm font-medium leading-snug",
                           isSelected
-                            ? "text-brand-primary font-semibold"
+                            ? "font-semibold text-brand-primary"
                             : "text-brand-text-heading"
                         )}
                       >
@@ -1666,15 +1669,15 @@ export function PolicyDetail({ mode, policyId, initialData }: Props) {
                   </DialogTrigger>
                   <DialogContent
                     showCloseButton
-                    className="max-w-[620px] p-0 sm:max-w-[620px] shadow-2xl ring-0"
+                    className="max-w-[620px] p-0 shadow-2xl ring-0 max-sm:w-[calc(100%-1.5rem)] max-sm:max-h-[min(90svh,720px)] max-sm:overflow-y-auto max-sm:overscroll-contain sm:max-w-[620px]"
                   >
-                    <div className="flex items-center justify-between px-6 pt-6 pb-4">
-                      <DialogTitle className="text-xl font-bold text-brand-text-heading tracking-tight">
+                    <div className="flex items-center justify-between px-6 pt-6 pb-4 max-sm:px-4 max-sm:pt-5 max-sm:pb-3">
+                      <DialogTitle className="text-xl font-bold tracking-tight text-brand-text-heading max-sm:text-lg">
                         Add a web address
                       </DialogTitle>
                     </div>
 
-                    <div className="px-6 pb-4 space-y-4">
+                    <div className="space-y-4 px-6 pb-4 max-sm:px-4 max-sm:pb-5">
                       {/* Mode tabs — drive validation + Gateway selector */}
                       <div className="flex items-center gap-1 border-b border-border/70">
                         {(
@@ -2174,8 +2177,11 @@ export function PolicyDetail({ mode, policyId, initialData }: Props) {
               onSave={handleSaveSchedules}
             />
 
-            {/* Save */}
-            <div className="flex flex-col items-end gap-2 pt-2">
+          </div>
+
+          {/* Sticky save bar */}
+          <div className="sticky bottom-0 z-20 border-t border-border/60 bg-brand-background/95 px-5 py-4 backdrop-blur supports-[backdrop-filter]:bg-brand-background/85">
+            <div className="flex flex-col items-end gap-2">
               {saveMutation.isError ? (
                 <p className="w-full text-sm text-destructive">
                   {saveMutation.error instanceof Error
@@ -2183,11 +2189,6 @@ export function PolicyDetail({ mode, policyId, initialData }: Props) {
                     : isEditMode
                       ? "Failed to update policy"
                       : "Failed to save policy"}
-                </p>
-              ) : null}
-              {isEditMode && selectedRule && !isDirty ? (
-                <p className="w-full text-right text-sm text-brand-text-muted">
-                  No changes to save
                 </p>
               ) : null}
               <Button
@@ -2201,9 +2202,6 @@ export function PolicyDetail({ mode, policyId, initialData }: Props) {
               </Button>
             </div>
           </div>
-
-          {/* Footer spacer */}
-          <div className="h-4" />
             </>
           ) : (
             <div className="flex min-h-[320px] flex-col items-center justify-center px-5 py-10 text-center">

@@ -274,7 +274,13 @@ export async function buildTrafficExpression(
   const categoryExpr = buildCategoryExpression(categoryIds)
   if (categoryExpr) parts.push(categoryExpr)
 
-  let domains = [...input.domains, ...domainsFromApps(input.apps)]
+  let domains = [...input.domains]
+  // Prefer Cloudflare app IDs (valid on DNS policies). Domain fallback is only
+  // for legacy label-only payloads without numeric app IDs.
+  const appIds = [...new Set(input.appIds ?? [])]
+  if (appIds.length === 0) {
+    domains = [...domains, ...domainsFromApps(input.apps)]
+  }
 
   if (input.type === "safesearch" && domains.length === 0) {
     domains = SAFESEARCH_DOMAINS
@@ -295,14 +301,8 @@ export async function buildTrafficExpression(
   const locationExpr = buildLocationExpression(input.locationIds)
   if (locationExpr) parts.push(locationExpr)
 
-  const appIds = [...new Set(input.appIds ?? [])]
   const appExpr = buildAppExpression(appIds)
-
-  const hasDnsParts = parts.length > 0
-  // Application IDs require HTTP filter; DNS rules use domain fallback for apps.
-  if (appExpr && !hasDnsParts) {
-    return { traffic: appExpr, filters: ["http"] }
-  }
+  if (appExpr) parts.push(appExpr)
 
   if (parts.length === 0) {
     // Gateway requires a traffic expression; match-all for typed actions only
@@ -396,9 +396,22 @@ export async function getGatewayPolicyById(
   } = await supabase.auth.getUser()
 
   try {
-    const rule = await getGatewayRuleForUser(user?.id, policyId)
+    if (!user?.id) return null
+    const owned = await getOwnedGatewayPolicy(user.id, policyId)
+    const rule = await getGatewayRuleForUser(user.id, policyId)
     if (!rule?.id) return null
-    return { ...mapGatewayRuleToDetail(rule), id: policyId }
+    const detail = {
+      ...mapGatewayRuleToDetail(rule),
+      id: policyId,
+      name: owned.name?.trim() || rule.name || "Untitled",
+    }
+    const accountId = await getPolicyCloudflareAccountId(user.id)
+    const selectors = await resolveTrafficSelectors(
+      accountId,
+      detail.traffic,
+      owned.configurationJson
+    )
+    return { ...detail, ...selectors }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     if (/not found|could not find|404/i.test(message)) {
@@ -406,6 +419,24 @@ export async function getGatewayPolicyById(
     }
     throw error
   }
+}
+
+export type GatewayPolicyEditorPicked = {
+  id: string
+  label: string
+  groupLabel: string
+}
+
+export type GatewayPolicyEditorAddress = {
+  url: string
+  mode: "auto" | "address" | "keyword"
+}
+
+export type GatewayPolicyEditorSchedule = {
+  dayIndex: number
+  startHour: number
+  startMinute: number
+  durationMinutes: number
 }
 
 export type GatewayPolicyDetail = {
@@ -424,6 +455,10 @@ export type GatewayPolicyDetail = {
   createdAt: string | null
   updatedAt: string | null
   source: "gateway" | "access"
+  categories: GatewayPolicyEditorPicked[]
+  apps: GatewayPolicyEditorPicked[]
+  locations: GatewayPolicyEditorPicked[]
+  addresses: GatewayPolicyEditorAddress[]
 }
 
 export type GatewayPolicyMutationResult = {
@@ -453,6 +488,10 @@ function mapGatewayRuleToDetail(rule: GatewayRule): GatewayPolicyDetail {
     createdAt: rule.created_at ?? null,
     updatedAt: rule.updated_at ?? rule.created_at ?? null,
     source: "gateway",
+    categories: [],
+    apps: [],
+    locations: [],
+    addresses: [],
   }
 }
 
@@ -645,24 +684,6 @@ export async function updateGatewayPolicy(
   }
 }
 
-export type GatewayPolicyEditorPicked = {
-  id: string
-  label: string
-  groupLabel: string
-}
-
-export type GatewayPolicyEditorAddress = {
-  url: string
-  mode: "auto" | "address" | "keyword"
-}
-
-export type GatewayPolicyEditorSchedule = {
-  dayIndex: number
-  startHour: number
-  startMinute: number
-  durationMinutes: number
-}
-
 /** Serializable editor state for create-form prepopulation on edit. */
 export type GatewayPolicyEditorData = {
   id: string
@@ -702,35 +723,39 @@ function flattenCategoryLabelMap(
   return map
 }
 
-/**
- * Load a Gateway rule and map traffic/schedule into editor form fields.
- */
-export async function getGatewayPolicyForEditor(
-  policyId: string
-): Promise<GatewayPolicyEditorData | null> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+async function resolveTrafficSelectors(
+  accountId: string,
+  traffic: string | null,
+  storedConfig?: Json | null
+): Promise<{
+  categories: GatewayPolicyEditorPicked[]
+  apps: GatewayPolicyEditorPicked[]
+  locations: GatewayPolicyEditorPicked[]
+  addresses: GatewayPolicyEditorAddress[]
+}> {
+  const parsed = parseTrafficExpression(traffic)
+  const stored = readStoredPolicySelectors(storedConfig)
 
-  let rule: GatewayRule | null = null
-  try {
-    rule = await getGatewayRuleForUser(user?.id, policyId)
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    if (/not found|could not find|404/i.test(message)) {
-      return null
-    }
-    throw error
+  // Recover apps/categories that were saved locally but dropped from older
+  // Cloudflare traffic expressions (pre-fix create/edit bug).
+  for (const id of stored.appIds) {
+    if (!parsed.appIds.includes(id)) parsed.appIds.push(id)
   }
-
-  if (!rule?.id) return null
-
-  const detail = mapGatewayRuleToDetail(rule)
-  const accountId = await getPolicyCloudflareAccountId(user?.id)
-
-  const parsed = parseTrafficExpression(detail.traffic)
-  const { blocks, timeZone } = parseGatewaySchedule(detail.schedule)
+  for (const id of stored.categoryIds) {
+    if (!parsed.categoryIds.includes(id)) parsed.categoryIds.push(id)
+  }
+  for (const id of stored.locationIds) {
+    if (!parsed.locationIds.includes(id)) parsed.locationIds.push(id)
+  }
+  for (const url of stored.hosts) {
+    if (!parsed.hosts.includes(url)) parsed.hosts.push(url)
+  }
+  for (const url of stored.domainRoots) {
+    if (!parsed.domainRoots.includes(url)) parsed.domainRoots.push(url)
+  }
+  for (const url of stored.keywords) {
+    if (!parsed.keywords.includes(url)) parsed.keywords.push(url)
+  }
 
   let categoryMap = new Map<number, { label: string; groupLabel: string }>()
   const appMap = new Map<number, { label: string; groupLabel: string }>()
@@ -776,23 +801,25 @@ export async function getGatewayPolicyForEditor(
       }
     }
   } catch (error) {
-    console.warn("getGatewayPolicyForEditor: catalog enrich failed", error)
+    console.warn("resolveTrafficSelectors: catalog enrich failed", error)
   }
 
   const categories = parsed.categoryIds.map((id) => {
     const meta = categoryMap.get(id)
+    const storedLabel = stored.categoryLabels.get(id)
     return {
       id: String(id),
-      label: meta?.label ?? `Category ${id}`,
+      label: meta?.label ?? storedLabel ?? `Category ${id}`,
       groupLabel: meta?.groupLabel ?? "CATEGORIES",
     }
   })
 
   const apps = parsed.appIds.map((id) => {
     const meta = appMap.get(id)
+    const storedLabel = stored.appLabels.get(id)
     return {
       id: String(id),
-      label: meta?.label ?? `App ${id}`,
+      label: meta?.label ?? storedLabel ?? `App ${id}`,
       groupLabel: meta?.groupLabel ?? "APPLICATIONS",
     }
   })
@@ -818,15 +845,132 @@ export async function getGatewayPolicyForEditor(
     })),
   ]
 
+  return { categories, apps, locations, addresses }
+}
+
+function readStoredPolicySelectors(config: Json | null | undefined): {
+  appIds: number[]
+  categoryIds: number[]
+  locationIds: string[]
+  hosts: string[]
+  domainRoots: string[]
+  keywords: string[]
+  appLabels: Map<number, string>
+  categoryLabels: Map<number, string>
+} {
+  const empty = {
+    appIds: [] as number[],
+    categoryIds: [] as number[],
+    locationIds: [] as string[],
+    hosts: [] as string[],
+    domainRoots: [] as string[],
+    keywords: [] as string[],
+    appLabels: new Map<number, string>(),
+    categoryLabels: new Map<number, string>(),
+  }
+  if (!config || typeof config !== "object" || Array.isArray(config)) {
+    return empty
+  }
+
+  const record = config as Record<string, unknown>
+  const appIds = Array.isArray(record.appIds)
+    ? record.appIds
+        .map((id) => Number(id))
+        .filter((id) => Number.isFinite(id) && id > 0)
+    : []
+  const categoryIds = Array.isArray(record.categoryIds)
+    ? record.categoryIds
+        .map((id) => Number(id))
+        .filter((id) => Number.isFinite(id) && id > 0)
+    : []
+  const locationIds = Array.isArray(record.locationIds)
+    ? record.locationIds.filter((id): id is string => typeof id === "string")
+    : []
+  const hosts = Array.isArray(record.domains)
+    ? record.domains.filter((v): v is string => typeof v === "string")
+    : []
+  const domainRoots = Array.isArray(record.domainRoots)
+    ? record.domainRoots.filter((v): v is string => typeof v === "string")
+    : []
+  const keywords = Array.isArray(record.domainKeywords)
+    ? record.domainKeywords.filter((v): v is string => typeof v === "string")
+    : []
+
+  const appLabels = new Map<number, string>()
+  if (Array.isArray(record.apps)) {
+    for (let i = 0; i < appIds.length; i += 1) {
+      const label = record.apps[i]
+      if (typeof label === "string" && label.trim()) {
+        appLabels.set(appIds[i]!, label.trim())
+      }
+    }
+  }
+
+  const categoryLabels = new Map<number, string>()
+  if (Array.isArray(record.categories)) {
+    for (let i = 0; i < categoryIds.length; i += 1) {
+      const label = record.categories[i]
+      if (typeof label === "string" && label.trim()) {
+        categoryLabels.set(categoryIds[i]!, label.trim())
+      }
+    }
+  }
+
+  return {
+    appIds,
+    categoryIds,
+    locationIds,
+    hosts,
+    domainRoots,
+    keywords,
+    appLabels,
+    categoryLabels,
+  }
+}
+
+/**
+ * Load a Gateway rule and map traffic/schedule into editor form fields.
+ */
+export async function getGatewayPolicyForEditor(
+  policyId: string
+): Promise<GatewayPolicyEditorData | null> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  let rule: GatewayRule | null = null
+  try {
+    rule = await getGatewayRuleForUser(user?.id, policyId)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    if (/not found|could not find|404/i.test(message)) {
+      return null
+    }
+    throw error
+  }
+
+  if (!rule?.id || !user?.id) return null
+
+  const owned = await getOwnedGatewayPolicy(user.id, policyId)
+  const detail = mapGatewayRuleToDetail(rule)
+  const accountId = await getPolicyCloudflareAccountId(user.id)
+  const selectors = await resolveTrafficSelectors(
+    accountId,
+    detail.traffic,
+    owned.configurationJson
+  )
+  const { blocks, timeZone } = parseGatewaySchedule(detail.schedule)
+
   return {
     id: policyId,
-    name: detail.name,
+    name: owned.name?.trim() || detail.name,
     type: detail.type,
     enabled: detail.enabled,
-    categories,
-    apps,
-    locations,
-    addresses,
+    categories: selectors.categories,
+    apps: selectors.apps,
+    locations: selectors.locations,
+    addresses: selectors.addresses,
     schedules: blocks,
     timeZone,
     precedence: detail.precedence,
