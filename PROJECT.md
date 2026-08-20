@@ -470,6 +470,7 @@ Requires `supabase login` + `supabase link` once per machine. Do not squash alre
 
 | Date | Change | Updated By |
 |------|--------|------------|
+| 2026-08-20 | Audience / DNS location create: block duplicate names (UI + API 409) | Agent |
 | 2026-08-20 | Audience picker: restore search → Create “name” when no match (no separate name field) | Agent |
 | 2026-08-20 | Audience picker: dedicated Name + Create for DNS locations; search no longer doubles as the create name | Agent |
 | 2026-08-20 | Gateway location create: default IPv4 off (shared destination needs source network); Audience picker asks for a friendly name, not an IP | Agent |

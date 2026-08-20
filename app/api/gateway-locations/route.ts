@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server"
 
 import { listGatewayAudiencePickerGroups } from "@/lib/services/cloudflare/audience-picker"
-import { createGatewayLocation } from "@/lib/services/cloudflare/locations"
+import {
+  createGatewayLocation,
+  listGatewayLocations,
+} from "@/lib/services/cloudflare/locations"
 import { getPolicyCloudflareAccountId } from "@/lib/services/content-policies/gateway-policies"
 import { createClient } from "@/lib/supabase/server"
 import { createGatewayLocationSchema } from "@/schemas/content-policies/gateway-location"
@@ -65,9 +68,21 @@ export async function POST(req: Request) {
     }
 
     const accountId = await getPolicyCloudflareAccountId(user.id)
+    const name = parsed.data.name.trim()
+    const existing = await listGatewayLocations(accountId)
+    const nameTaken = existing.some(
+      (loc) => loc.name?.trim().toLowerCase() === name.toLowerCase()
+    )
+    if (nameTaken) {
+      return NextResponse.json(
+        { error: "A DNS location with this name already exists" },
+        { status: 409 }
+      )
+    }
+
     // Never let customers flip the shared-account default DNS location.
     const location = await createGatewayLocation(accountId, {
-      name: parsed.data.name,
+      name,
       clientDefault: false,
       enableDoh: true,
       enableDot: true,

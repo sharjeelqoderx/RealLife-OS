@@ -100,10 +100,25 @@ export function PickerDialog<TGroupId extends string>({
   }
 
   const trimmedQuery = query.trim()
+  const nameAlreadyExists = useMemo(() => {
+    if (!trimmedQuery) return false
+    const q = trimmedQuery.toLowerCase()
+    return groups.some((g) =>
+      g.items.some((item) => {
+        const baseLabel = item.label
+          .replace(/\s*\(default\)\s*$/i, "")
+          .trim()
+          .toLowerCase()
+        return baseLabel === q
+      })
+    )
+  }, [groups, trimmedQuery])
+
   const canCreate =
     Boolean(emptyCreate) &&
     trimmedQuery.length > 0 &&
-    !emptyCreate?.isPending
+    !emptyCreate?.isPending &&
+    !nameAlreadyExists
 
   const handleCreate = () => {
     if (!emptyCreate || !canCreate) return
@@ -115,7 +130,9 @@ export function PickerDialog<TGroupId extends string>({
     emptyCreate?.nounPlural ??
     (emptyCreate ? `${emptyCreate.noun}s` : "results")
   const emptyMessage = trimmedQuery
-    ? `No ${nounPlural} match your search.`
+    ? nameAlreadyExists
+      ? `A ${emptyCreate?.noun ?? "item"} named “${trimmedQuery}” already exists.`
+      : `No ${nounPlural} match your search.`
     : totalItems === 0 && emptyCreate
       ? `No ${nounPlural} yet. Type a name above to create one.`
       : "No results."
@@ -176,7 +193,7 @@ export function PickerDialog<TGroupId extends string>({
                     {emptyCreate.createHint}
                   </p>
                 ) : null}
-                {emptyCreate && trimmedQuery ? (
+                {emptyCreate && trimmedQuery && !nameAlreadyExists ? (
                   <div className="flex flex-col items-center gap-2">
                     <Button
                       type="button"
