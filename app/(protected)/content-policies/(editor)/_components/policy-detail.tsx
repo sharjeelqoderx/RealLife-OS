@@ -2164,7 +2164,7 @@ export function PolicyDetail({ mode, policyId, initialData }: Props) {
                 setIsAudiencePickerOpen(open)
                 if (!open) createLocationMutation.reset()
               }}
-              searchPlaceholder="Search DNS locations by name, DoH, or IP..."
+              searchPlaceholder="Search or type a name to create…"
               groups={audienceGroups}
               selectedIds={currentAudience.map((c) => c.id)}
               onSelect={handleAudienceSelected}
@@ -2181,6 +2181,8 @@ export function PolicyDetail({ mode, policyId, initialData }: Props) {
               emptyCreate={{
                 noun: "DNS location",
                 nounPlural: "DNS locations",
+                createHint:
+                  "Type a friendly name (e.g. Home Wi‑Fi), then Create. Do not enter an IP.",
                 onCreate: (name) => createLocationMutation.mutate(name),
                 isPending: createLocationMutation.isPending,
                 errorMessage: createLocationMutation.isError

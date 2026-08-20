@@ -270,7 +270,7 @@ page.tsx (RSC fetch via lib/services)
 | PolicyViewLoading | `app/(protected)/content-policies/(editor)/_components/policy-view-loading.tsx` | View-page skeleton (separate from editor loading) | `/content-policies/[policyId]` loading | ✅ ready |
 | PolicyEditorLoading | `app/(protected)/content-policies/(editor)/_components/policy-editor-loading.tsx` | Shared editor skeleton (sticky sidebar + detail panel) | editor routes loading.tsx | ✅ ready |
 | ScheduleSheet | `app/(protected)/content-policies/(editor)/_components/schedule-sheet.tsx` | Right-side Sheet with weekly 24h calendar grid — click-to-add, click-to-remove, drag-to-resize (15-min snap) | PolicyDetail schedules | ✅ ready |
-| PickerDialog | `app/(protected)/content-policies/(editor)/_components/picker-dialog.tsx` | Search modal; empty / no-match can show `emptyCreate` (name + Create). Categories, Apps, Audience | PolicyDetail | ✅ ready |
+| PickerDialog | `app/(protected)/content-policies/(editor)/_components/picker-dialog.tsx` | Search modal; empty / no-match shows Create “query” from search. Categories, Apps, Audience | PolicyDetail | ✅ ready |
 | UnderDevelopment | `app/(protected)/[slug]/_components/under-development.tsx` | Placeholder for unimplemented protected nav routes | `/[slug]` catch-all | ✅ ready |
 | SetupGuideImage | `app/(protected)/devices/_components/setup-guide-image.tsx` | Shared `next/image` wrapper + `DEVICE_SETUP_IMAGES` paths under `public/devices/` | Device setup flows | ✅ ready |
 | DeviceEnrollmentChecker | `app/(protected)/devices/_components/device-enrollment-checker.tsx` | Starts pending enrollment + polls Cloudflare verification | Cloudflare One wizard | ✅ ready |
@@ -470,6 +470,9 @@ Requires `supabase login` + `supabase link` once per machine. Do not squash alre
 
 | Date | Change | Updated By |
 |------|--------|------------|
+| 2026-08-20 | Audience picker: restore search → Create “name” when no match (no separate name field) | Agent |
+| 2026-08-20 | Audience picker: dedicated Name + Create for DNS locations; search no longer doubles as the create name | Agent |
+| 2026-08-20 | Gateway location create: default IPv4 off (shared destination needs source network); Audience picker asks for a friendly name, not an IP | Agent |
 | 2026-08-20 | Assign dialog: disable Save assignments while an error alert is visible (failed save or prior Cloudflare sync_failed) | Agent |
 | 2026-08-20 | Phase 1 per-device/per-profile policy assignment: app profiles, assignments, `resolveEffectivePolicy`, Cloudflare sync via per-device DNS locations (`dns.location`) + identity email; Assign UI on policies; profiles panel on devices | Agent |
 | 2026-08-20 | Policy editor Save: frontend validates via `createGatewayPolicySchema`; button disabled until category/app/address/audience present (allow/block) | Agent |

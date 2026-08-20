@@ -71,6 +71,8 @@ export async function POST(req: Request) {
       clientDefault: false,
       enableDoh: true,
       enableDot: true,
+      // DoH/DoT only — shared IPv4 needs a source network we do not collect here.
+      enableIpv4: false,
     })
 
     if (!location.id) {

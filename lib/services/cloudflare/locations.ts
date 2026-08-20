@@ -49,8 +49,14 @@ function getGatewayAuth() {
 }
 
 /**
- * Create a Gateway DNS location with DoH + DoT endpoints for device setup.
+ * Create a Gateway DNS location with DoH + DoT for device / audience scope.
+ *
+ * Shared-account IPv4 destinations require an explicit source network CIDR.
+ * RealLife identifies traffic via DoH/DoT (`dns.location`), so IPv4 stays off
+ * unless the caller passes `enableIpv4: true` with source networks configured.
+ *
  * @see https://developers.cloudflare.com/api/resources/zero_trust/subresources/gateway/subresources/locations/methods/create
+ * @see https://developers.cloudflare.com/cloudflare-one/networks/resolvers-and-proxies/dns/locations/dns-resolver-ips/
  */
 export async function createGatewayLocation(
   accountId: string,
@@ -58,7 +64,8 @@ export async function createGatewayLocation(
 ): Promise<GatewayLocation> {
   const enableDoh = input.enableDoh ?? true
   const enableDot = input.enableDot ?? true
-  const enableIpv4 = input.enableIpv4 ?? true
+  // Default false: shared destination IPv4 needs source networks; DoH/DoT do not.
+  const enableIpv4 = input.enableIpv4 ?? false
   const enableIpv6 = input.enableIpv6 ?? true
 
   const body = {
