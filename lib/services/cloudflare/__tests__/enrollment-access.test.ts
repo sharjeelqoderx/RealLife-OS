@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  buildUniqueEnrollmentPolicyName,
   buildWarpLoginMethods,
+  isManagedEnrollmentPolicyName,
   mergeEmailIncludeRules,
   normalizeEmail,
   ruleAllowsEmail,
@@ -81,5 +83,16 @@ describe("WARP enrollment Access helpers", () => {
       { email: { email: "other@example.com" } },
       { email: { email: "user@example.com" } },
     ])
+  })
+
+  it("builds a unique enrollment policy name with an ISO timestamp", () => {
+    const name = buildUniqueEnrollmentPolicyName(
+      new Date("2026-08-20T20:19:00.123Z")
+    )
+    expect(name).toBe(
+      "RealLife OS SaaS device enrollment · 2026-08-20T20:19:00Z"
+    )
+    expect(isManagedEnrollmentPolicyName(name)).toBe(true)
+    expect(isManagedEnrollmentPolicyName("Other policy")).toBe(false)
   })
 })

@@ -1,6 +1,19 @@
 import { createAdminClient } from "@/lib/supabase/admin"
 import type { Json } from "@/types/supabase"
 
+/** Cloudflare Gateway rule names must be unique in the shared account. */
+export function uniqueCloudflareGatewayRuleName(
+  displayName: string,
+  now = new Date(),
+  maxLength = 175
+): string {
+  const stamp = now.toISOString().replace(/\.\d{3}Z$/, "Z")
+  const suffix = ` · ${stamp}`
+  const budget = Math.max(1, maxLength - suffix.length)
+  const base = displayName.trim().slice(0, budget)
+  return `${base}${suffix}`
+}
+
 export type OwnedGatewayPolicy = {
   id: string
   cloudflareRuleId: string

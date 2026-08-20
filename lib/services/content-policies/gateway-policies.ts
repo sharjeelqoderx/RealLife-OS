@@ -27,6 +27,7 @@ import {
   markOwnedGatewayPolicyDeleted,
   recordOwnedGatewayPolicy,
   requirePolicyOwnershipStore,
+  uniqueCloudflareGatewayRuleName,
   updateOwnedGatewayPolicyRecord,
 } from "@/lib/services/content-policies/policy-ownership"
 import { createClient } from "@/lib/supabase/server"
@@ -507,7 +508,7 @@ export async function createGatewayPolicy(
     const identity = buildIdentityExpression(user.email)
 
     const rule = await createGatewayRule(accountId, {
-      name: input.name,
+      name: uniqueCloudflareGatewayRuleName(input.name),
       action,
       description: input.description,
       enabled: input.enabled ?? true,
@@ -601,7 +602,8 @@ export async function updateGatewayPolicy(
     const identity = buildIdentityExpression(user.email)
 
     const rule = await updateGatewayRule(accountId, policy.cloudflareRuleId, {
-      name: input.name,
+      // Keep the unique Cloudflare name; only local display name changes.
+      name: existing.name?.trim() || uniqueCloudflareGatewayRuleName(input.name),
       action,
       description: input.description,
       enabled: input.enabled ?? true,

@@ -83,8 +83,9 @@ device enrollment. When a customer starts setup, RealLife OS:
 2. Creates the One-Time PIN identity provider if it is missing.
 3. Enables that provider on the WARP app (instant auth when OTP is the only
    method).
-4. Adds the authenticated SaaS email to the managed policy
-   `RealLife OS SaaS device enrollment`.
+4. Adds the authenticated SaaS email to a managed allow policy whose name
+   starts with `RealLife OS SaaS device enrollment` (new policies append an
+   ISO timestamp so names stay unique in the shared Zero Trust account).
 
 Customers are not sent to the Cloudflare dashboard to register their email.
 

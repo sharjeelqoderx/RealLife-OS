@@ -459,6 +459,7 @@ Requires `supabase login` + `supabase link` once per machine. Do not squash alre
 
 | Date | Change | Updated By |
 |------|--------|------------|
+| 2026-08-20 | Policy create: append ISO timestamp to Cloudflare Gateway/Access/enrollment policy names so shared-account names stay unique | Agent |
 | 2026-08-18 | Device enrollment OTP: use WARP Access app (not `CLOUDFARE_APP_ID`), enable One-Time PIN IdP, add SaaS email so Cloudflare can send the PIN | Agent |
 | 2026-08-17 | Build fix: cleared stale `.next` cache after deleted Cloudflare accounts route removed cached references causing build failure | Agent |
 | 2026-08-17 | TypeScript fix: `GET /api/admin/cloudflare/registrations` — corrected `registration.device_id` → `registration.device?.id` and `last_seen` → `last_seen_at` per Cloudflare API fields | Agent |

@@ -5,8 +5,18 @@ import {
   tryGetCloudflareWarpAppId,
 } from "@/lib/cloudflare/config"
 
-const SAAS_ENROLLMENT_POLICY_NAME = "RealLife OS SaaS device enrollment"
+const SAAS_ENROLLMENT_POLICY_PREFIX = "RealLife OS SaaS device enrollment"
 const OTP_PROVIDER_NAME = "One-time PIN login"
+
+/** Unique Access policy name for shared Zero Trust (create-only). */
+export function buildUniqueEnrollmentPolicyName(now = new Date()): string {
+  const stamp = now.toISOString().replace(/\.\d{3}Z$/, "Z")
+  return `${SAAS_ENROLLMENT_POLICY_PREFIX} · ${stamp}`
+}
+
+export function isManagedEnrollmentPolicyName(name: string | undefined): boolean {
+  return Boolean(name?.startsWith(SAAS_ENROLLMENT_POLICY_PREFIX))
+}
 
 type AccessApplication = {
   id?: string
@@ -413,13 +423,13 @@ export async function registerEnrollmentEmail(
     policies.find(
       (policy) =>
         policy.id &&
-        policy.name === SAAS_ENROLLMENT_POLICY_NAME &&
+        isManagedEnrollmentPolicyName(policy.name) &&
         policy.decision === "allow"
     ) ?? null
 
   if (!managed?.id) {
     const created = await createAppPolicy(accountId, app.id, {
-      name: SAAS_ENROLLMENT_POLICY_NAME,
+      name: buildUniqueEnrollmentPolicyName(),
       decision: "allow",
       include: [{ email: { email } }],
     })
@@ -430,7 +440,7 @@ export async function registerEnrollmentEmail(
   }
 
   await updateAppPolicy(accountId, app.id, managed.id, {
-    name: managed.name ?? SAAS_ENROLLMENT_POLICY_NAME,
+    name: managed.name ?? buildUniqueEnrollmentPolicyName(),
     decision: "allow",
     include: mergeEmailIncludeRules(managed.include ?? [], email),
     require: managed.require,

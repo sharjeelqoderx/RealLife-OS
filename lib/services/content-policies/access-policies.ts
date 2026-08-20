@@ -38,6 +38,13 @@ function policiesUrl(accountId: string, appId: string) {
   return `https://api.cloudflare.com/client/v4/accounts/${accountId}/access/apps/${appId}/policies`
 }
 
+function uniqueAccessPolicyName(displayName: string, now = new Date()): string {
+  const stamp = now.toISOString().replace(/\.\d{3}Z$/, "Z")
+  const suffix = ` · ${stamp}`
+  const budget = Math.max(1, 100 - suffix.length)
+  return `${displayName.trim().slice(0, budget)}${suffix}`
+}
+
 export function toCloudflareRule(
   rule: AccessPolicyRuleInput
 ): CloudflareAccessRule {
@@ -115,7 +122,7 @@ export async function createAccessPolicy(
   const { accountId, appId, token } = getCloudflareConfig()
 
   const payload = {
-    name: input.name,
+    name: uniqueAccessPolicyName(input.name),
     decision: input.decision,
     include: input.include.map(toCloudflareRule),
     require: input.require.map(toCloudflareRule),
