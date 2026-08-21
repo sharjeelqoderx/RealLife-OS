@@ -1,6 +1,8 @@
 import { createAdminClient } from "@/lib/supabase/admin"
 import { requireAuthenticatedUserId } from "@/lib/services/devices/context"
+import { createPolicyAssignment } from "@/lib/services/policy-assignments/policy-assignments"
 import { syncPolicyCloudflareEnforcement } from "@/lib/services/policy-assignments/sync-policy-enforcement"
+import type { DeviceProfileCreateInput } from "@/schemas/devices/profiles"
 
 export type DeviceProfileListItem = {
   id: string
@@ -34,7 +36,7 @@ export async function listDeviceProfiles(): Promise<DeviceProfileListItem[]> {
     .from("tenant_device_profiles")
     .select("id, name, description, created_at, updated_at")
     .eq("user_id", userId)
-    .order("name", { ascending: true })
+    .order("created_at", { ascending: false })
 
   if (error) {
     if (isMissingSchemaError(error)) {
@@ -101,10 +103,9 @@ export async function listDeviceProfiles(): Promise<DeviceProfileListItem[]> {
   })
 }
 
-export async function createDeviceProfile(input: {
-  name: string
-  description?: string | null
-}): Promise<DeviceProfileListItem> {
+export async function createDeviceProfile(
+  input: DeviceProfileCreateInput
+): Promise<DeviceProfileListItem> {
   const userId = await requireAuthenticatedUserId()
   const admin = createAdminClient()
   const name = input.name.trim()
@@ -132,43 +133,40 @@ export async function createDeviceProfile(input: {
     throw error
   }
 
-  return {
-    id: data.id,
-    name: data.name,
-    description: data.description,
-    deviceIds: [],
-    policyId: null,
-    policyName: null,
-    createdAt: data.created_at,
-    updatedAt: data.updated_at,
+  try {
+    await addDeviceToProfile(data.id, input.deviceId)
+    await createPolicyAssignment({
+      policyId: input.policyId,
+      targetType: "profile",
+      targetId: data.id,
+    })
+  } catch (assignError) {
+    await deleteDeviceProfile(data.id).catch(() => undefined)
+    throw assignError
   }
+
+  const profiles = await listDeviceProfiles()
+  const created = profiles.find((profile) => profile.id === data.id)
+  if (!created) throw new Error("Profile created but not readable")
+  return created
 }
 
 export async function updateDeviceProfile(
   profileId: string,
-  input: { name?: string; description?: string | null }
+  input: DeviceProfileCreateInput
 ): Promise<DeviceProfileListItem> {
   const userId = await requireAuthenticatedUserId()
   const admin = createAdminClient()
-
-  const patch: {
-    name?: string
-    description?: string | null
-    updated_at: string
-  } = { updated_at: new Date().toISOString() }
-
-  if (input.name !== undefined) {
-    const name = input.name.trim()
-    if (!name) throw new Error("Profile name is required")
-    patch.name = name
-  }
-  if (input.description !== undefined) {
-    patch.description = input.description?.trim() || null
-  }
+  const name = input.name.trim()
+  if (!name) throw new Error("Profile name is required")
 
   const { error } = await admin
     .from("tenant_device_profiles")
-    .update(patch)
+    .update({
+      name,
+      description: input.description?.trim() || null,
+      updated_at: new Date().toISOString(),
+    })
     .eq("id", profileId)
     .eq("user_id", userId)
 
@@ -179,15 +177,44 @@ export async function updateDeviceProfile(
     throw error
   }
 
+  await addDeviceToProfile(profileId, input.deviceId)
+  await createPolicyAssignment({
+    policyId: input.policyId,
+    targetType: "profile",
+    targetId: profileId,
+  })
+
   const profiles = await listDeviceProfiles()
-  const updated = profiles.find((p) => p.id === profileId)
+  const updated = profiles.find((profile) => profile.id === profileId)
   if (!updated) throw new Error("Profile not found")
   return updated
 }
 
-export async function deleteDeviceProfile(profileId: string): Promise<void> {
+export type DeviceProfileDeleteResult = {
+  id: string
+  deviceIds: string[]
+}
+
+export async function deleteDeviceProfile(
+  profileId: string
+): Promise<DeviceProfileDeleteResult> {
   const userId = await requireAuthenticatedUserId()
   const admin = createAdminClient()
+
+  const { data: profile } = await admin
+    .from("tenant_device_profiles")
+    .select("id")
+    .eq("id", profileId)
+    .eq("user_id", userId)
+    .maybeSingle()
+  if (!profile) throw new Error("Profile not found")
+
+  const { data: members } = await admin
+    .from("tenant_device_profile_members")
+    .select("device_id")
+    .eq("profile_id", profileId)
+
+  const deviceIds = (members ?? []).map((member) => member.device_id)
 
   const { data: assignment } = await admin
     .from("tenant_policy_assignments")
@@ -208,6 +235,8 @@ export async function deleteDeviceProfile(profileId: string): Promise<void> {
   if (assignment?.policy_id) {
     await syncPolicyCloudflareEnforcement(userId, assignment.policy_id)
   }
+
+  return { id: profileId, deviceIds }
 }
 
 export async function addDeviceToProfile(

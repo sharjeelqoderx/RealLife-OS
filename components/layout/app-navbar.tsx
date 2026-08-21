@@ -1,17 +1,22 @@
 "use client"
 
-import { Bell, BriefcaseBusiness, PanelLeftClose, PanelLeftOpen, Search, User } from "lucide-react"
+import type { User as AuthUser } from "@supabase/supabase-js"
+import { Bell, BriefcaseBusiness, PanelLeftClose, PanelLeftOpen, User } from "lucide-react"
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { useSidebar } from "@/components/ui/sidebar"
-import { sidebarUser } from "@/lib/navigation/app-navigation"
 import { cn } from "@/lib/utils"
 
-export function AppNavbar() {
+interface AppNavbarProps {
+  user: AuthUser | null
+}
+
+export function AppNavbar({ user }: AppNavbarProps) {
   const { open, toggleSidebar } = useSidebar()
+  const name = user?.user_metadata?.full_name || user?.email || "User"
+  const image = user?.user_metadata?.avatar_url || user?.user_metadata?.picture
 
   return (
     <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center gap-4 border-b border-border bg-white px-4 md:px-6">
@@ -70,16 +75,17 @@ export function AppNavbar() {
 
         <div className="hidden items-center gap-3 md:flex">
           <Avatar className="size-9 rounded-full bg-brand-primary">
+            {image ? <AvatarImage src={image} alt={name} /> : null}
             <AvatarFallback className="rounded-full bg-brand-primary text-brand-primary-foreground">
               <User aria-hidden className="size-4" />
             </AvatarFallback>
           </Avatar>
           <div className="min-w-0 text-left leading-tight">
             <p className="truncate text-sm font-semibold text-brand-text-heading">
-              {sidebarUser.shortName}
+              {name}
             </p>
             <p className="truncate text-xs text-brand-text-muted">
-              {sidebarUser.role}
+              {user?.email}
             </p>
           </div>
         </div>

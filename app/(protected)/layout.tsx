@@ -36,7 +36,7 @@ export default async function ProtectedLayout({
       }
 
   return (
-    <DashboardShell>
+    <DashboardShell user={user}>
       <Suspense fallback={null}>
         <PaywallGate initialBillingStatus={billingStatus} />
       </Suspense>

@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react"
 import { useEffect, useState } from "react"
+import type { User } from "@supabase/supabase-js"
 
 import { AppNavbar } from "@/components/layout/app-navbar"
 import { AppSidebar } from "@/components/layout/app-sidebar"
@@ -28,9 +29,10 @@ function readSidebarCookie(): boolean {
 
 interface DashboardShellProps {
   children: ReactNode
+  user: User | null
 }
 
-export function DashboardShell({ children }: DashboardShellProps) {
+export function DashboardShell({ children, user }: DashboardShellProps) {
   const [open, setOpen] = useState(true)
 
   useEffect(() => {
@@ -40,9 +42,9 @@ export function DashboardShell({ children }: DashboardShellProps) {
   return (
     <TooltipProvider delayDuration={0}>
       <SidebarProvider open={open} onOpenChange={setOpen}>
-        <AppSidebar />
+        <AppSidebar user={user} />
         <SidebarInset className="min-h-svh bg-brand-background">
-          <AppNavbar />
+          <AppNavbar user={user} />
           <div className="flex flex-1 flex-col p-4 md:p-6">{children}</div>
         </SidebarInset>
       </SidebarProvider>

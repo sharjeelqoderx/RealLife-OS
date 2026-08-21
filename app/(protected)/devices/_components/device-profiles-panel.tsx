@@ -1,12 +1,29 @@
 "use client"
 
+import { zodResolver } from "@hookform/resolvers/zod"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { Plus, Trash2 } from "lucide-react"
+import { Pencil, Plus, Trash2 } from "lucide-react"
 import { useState } from "react"
+import { Controller, useForm } from "react-hook-form"
 
-import { CustomSpinner } from "@/components/feedback/custom-spinner"
 import { ErrorAlert } from "@/components/feedback"
+import { CustomSpinner } from "@/components/feedback/custom-spinner"
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Field, FieldError, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -17,8 +34,13 @@ import {
 } from "@/components/ui/select"
 import { apiClient } from "@/lib/api/client"
 import { queryKeys } from "@/lib/query/keys"
-import type { ConnectedDevice } from "@/schemas/devices/device"
 import type { DeviceProfileListItem } from "@/lib/services/devices/device-profiles"
+import type { PolicyListItem } from "@/schemas/content-policies/policy"
+import type { ConnectedDevice } from "@/schemas/devices/device"
+import {
+  deviceProfileCreateSchema,
+  type DeviceProfileCreateInput,
+} from "@/schemas/devices/profiles"
 
 export function DeviceProfilesPanel({
   devices,
@@ -26,66 +48,232 @@ export function DeviceProfilesPanel({
   devices: ConnectedDevice[]
 }) {
   const queryClient = useQueryClient()
-  const [name, setName] = useState("")
-  const [assignDeviceId, setAssignDeviceId] = useState<string>("")
-  const [assignProfileId, setAssignProfileId] = useState<string>("")
+  const [pendingDelete, setPendingDelete] =
+    useState<DeviceProfileListItem | null>(null)
+  const [editingProfile, setEditingProfile] =
+    useState<DeviceProfileListItem | null>(null)
+  const form = useForm<DeviceProfileCreateInput>({
+    resolver: zodResolver(deviceProfileCreateSchema),
+    defaultValues: {
+      name: "",
+      deviceId: "",
+      policyId: "",
+    },
+  })
 
   const profilesQuery = useQuery({
     queryKey: queryKeys.devices.profiles(),
     queryFn: () => apiClient<DeviceProfileListItem[]>("/api/device-profiles"),
   })
 
+  const policiesQuery = useQuery({
+    queryKey: queryKeys.gatewayPolicies.list(),
+    queryFn: () => apiClient<PolicyListItem[]>("/api/gateway-policies"),
+  })
+
   const createMutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (values: DeviceProfileCreateInput) =>
       apiClient<{ data: DeviceProfileListItem }>("/api/device-profiles", {
         method: "POST",
-        body: JSON.stringify({ name }),
+        body: JSON.stringify(values),
       }),
-    onSuccess: () => {
-      setName("")
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.devices.profiles(),
+    onSuccess: (response, values) => {
+      form.reset()
+      const created = response.data
+      queryClient.setQueryData<DeviceProfileListItem[]>(
+        queryKeys.devices.profiles(),
+        (current) => {
+          const list = (current ?? []).map((profile) => ({
+            ...profile,
+            deviceIds: profile.deviceIds.filter(
+              (deviceId) => deviceId !== values.deviceId
+            ),
+          }))
+          if (list.some((profile) => profile.id === created.id)) {
+            return list
+          }
+          return [created, ...list]
+        }
+      )
+      queryClient.setQueryData<ConnectedDevice[]>(
+        queryKeys.devices.list(),
+        (current) =>
+          (current ?? []).map((device) =>
+            device.id === values.deviceId
+              ? {
+                  ...device,
+                  profileId: created.id,
+                  profileName: created.name,
+                  ...(device.effectivePolicySource === "device"
+                    ? {}
+                    : {
+                        effectivePolicyId: created.policyId,
+                        effectivePolicyName: created.policyName,
+                        effectivePolicySource: created.policyId
+                          ? ("profile" as const)
+                          : ("none" as const),
+                      }),
+                }
+              : device
+          )
+      )
+    },
+    onError: (error) => {
+      form.setError("root", {
+        message:
+          error instanceof Error ? error.message : "Failed to create profile",
+      })
+    },
+  })
+
+  function resetForm() {
+    form.reset({
+      name: "",
+      deviceId: "",
+      policyId: "",
+    })
+    setEditingProfile(null)
+  }
+
+  function startEdit(profile: DeviceProfileListItem) {
+    form.clearErrors()
+    form.reset({
+      name: profile.name,
+      deviceId: profile.deviceIds[0] ?? "",
+      policyId: profile.policyId ?? "",
+    })
+    setEditingProfile(profile)
+  }
+
+  const updateMutation = useMutation({
+    mutationFn: (values: DeviceProfileCreateInput) => {
+      if (!editingProfile) {
+        throw new Error("No profile selected to update")
+      }
+      return apiClient<{ data: DeviceProfileListItem }>(
+        `/api/device-profiles/${encodeURIComponent(editingProfile.id)}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify(values),
+        }
+      )
+    },
+    onSuccess: (response, values) => {
+      const updated = response.data
+      resetForm()
+      queryClient.setQueryData<DeviceProfileListItem[]>(
+        queryKeys.devices.profiles(),
+        (current) => {
+          const list = (current ?? []).map((profile) => ({
+            ...profile,
+            deviceIds:
+              profile.id === updated.id
+                ? updated.deviceIds
+                : profile.deviceIds.filter(
+                    (deviceId) => deviceId !== values.deviceId
+                  ),
+          }))
+          const index = list.findIndex((profile) => profile.id === updated.id)
+          if (index === -1) {
+            return [updated, ...list]
+          }
+          const next = [...list]
+          next[index] = updated
+          return next
+        }
+      )
+      queryClient.setQueryData<ConnectedDevice[]>(
+        queryKeys.devices.list(),
+        (current) =>
+          (current ?? []).map((device) => {
+            const attached = updated.deviceIds.includes(device.id)
+            if (attached) {
+              return {
+                ...device,
+                profileId: updated.id,
+                profileName: updated.name,
+                ...(device.effectivePolicySource === "device"
+                  ? {}
+                  : {
+                      effectivePolicyId: updated.policyId,
+                      effectivePolicyName: updated.policyName,
+                      effectivePolicySource: updated.policyId
+                        ? ("profile" as const)
+                        : ("none" as const),
+                    }),
+              }
+            }
+            if (device.profileId !== updated.id) return device
+            return {
+              ...device,
+              profileId: null,
+              profileName: null,
+              ...(device.effectivePolicySource === "profile"
+                ? {
+                    effectivePolicyId: null,
+                    effectivePolicyName: null,
+                    effectivePolicySource: "none" as const,
+                  }
+                : {}),
+            }
+          })
+      )
+    },
+    onError: (error) => {
+      form.setError("root", {
+        message:
+          error instanceof Error ? error.message : "Failed to save profile",
       })
     },
   })
 
   const deleteMutation = useMutation({
     mutationFn: (profileId: string) =>
-      apiClient<{ ok: boolean }>(
+      apiClient<{ data: { id: string; deviceIds: string[] } }>(
         `/api/device-profiles/${encodeURIComponent(profileId)}`,
         { method: "DELETE" }
       ),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.devices.profiles(),
-      })
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.devices.list(),
-      })
+    onSuccess: (response) => {
+      const deleted = response.data
+      setPendingDelete(null)
+      if (editingProfile?.id === deleted.id) {
+        resetForm()
+      }
+      queryClient.setQueryData<DeviceProfileListItem[]>(
+        queryKeys.devices.profiles(),
+        (current) =>
+          (current ?? []).filter((profile) => profile.id !== deleted.id)
+      )
+      const removedDeviceIds = new Set(deleted.deviceIds)
+      queryClient.setQueryData<ConnectedDevice[]>(
+        queryKeys.devices.list(),
+        (current) =>
+          (current ?? []).map((device) => {
+            if (!removedDeviceIds.has(device.id)) return device
+            return {
+              ...device,
+              profileId: null,
+              profileName: null,
+              ...(device.effectivePolicySource === "profile"
+                ? {
+                    effectivePolicyId: null,
+                    effectivePolicyName: null,
+                    effectivePolicySource: "none" as const,
+                  }
+                : {}),
+            }
+          })
+      )
     },
   })
 
-  const addDeviceMutation = useMutation({
-    mutationFn: () =>
-      apiClient<{ ok: boolean }>(
-        `/api/device-profiles/${encodeURIComponent(assignProfileId)}/devices`,
-        {
-          method: "POST",
-          body: JSON.stringify({ deviceId: assignDeviceId }),
-        }
-      ),
-    onSuccess: () => {
-      setAssignDeviceId("")
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.devices.profiles(),
-      })
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.devices.list(),
-      })
-    },
-  })
-
-  const profiles = profilesQuery.data ?? []
+  const profiles = [...(profilesQuery.data ?? [])].sort((a, b) =>
+    (b.createdAt ?? "").localeCompare(a.createdAt ?? "")
+  )
+  const policies = policiesQuery.data ?? []
+  const deviceNameById = new Map(
+    devices.map((device) => [device.id, device.name])
+  )
 
   return (
     <section className="space-y-4 rounded-xl border border-border bg-white p-4">
@@ -100,31 +288,155 @@ export function DeviceProfilesPanel({
         </p>
       </div>
 
-      <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
-        <Input
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-          placeholder="Profile name"
-          className="h-11 w-full max-w-md px-3 py-0"
-        />
-        <Button
-          type="button"
-          size="lg"
-          className="h-11 w-fit shrink-0 px-3"
-          disabled={!name.trim() || createMutation.isPending}
-          onClick={() => createMutation.mutate()}
-        >
-          {createMutation.isPending ? <CustomSpinner /> : <Plus />}
-          Create
-        </Button>
-      </div>
+      <form
+        className="flex flex-col gap-3"
+        noValidate
+        onSubmit={form.handleSubmit((values) => {
+          form.clearErrors("root")
+          if (editingProfile) {
+            updateMutation.mutate(values)
+            return
+          }
+          createMutation.mutate(values)
+        })}
+      >
+        <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:flex-wrap xl:items-end">
+          <Field
+            className="min-w-0 xl:flex-1"
+            data-invalid={!!form.formState.errors.name}
+          >
+            <FieldLabel
+              htmlFor="profile-name"
+              className="truncate text-xs font-medium"
+            >
+              Name
+            </FieldLabel>
+            <Input
+              id="profile-name"
+              placeholder="Profile name"
+              className="h-11 min-w-0 w-full truncate px-3 py-0"
+              aria-invalid={!!form.formState.errors.name}
+              {...form.register("name")}
+            />
+            <FieldError errors={[form.formState.errors.name]} />
+          </Field>
 
-      {createMutation.isError ? (
+          <Controller
+            control={form.control}
+            name="deviceId"
+            render={({ field, fieldState }) => (
+              <Field className="min-w-0 xl:flex-1" data-invalid={!!fieldState.error}>
+                <FieldLabel
+                  htmlFor="profile-device"
+                  className="truncate text-xs font-medium"
+                >
+                  Device
+                </FieldLabel>
+                <Select
+                  value={field.value || undefined}
+                  onValueChange={field.onChange}
+                >
+                  <SelectTrigger
+                    id="profile-device"
+                    className="h-11 min-h-11 max-h-11 w-full min-w-0 data-[size=default]:h-11 data-[size=default]:py-0 data-[size=default]:ps-3 data-[size=default]:pe-10"
+                    aria-invalid={!!fieldState.error}
+                  >
+                    <SelectValue placeholder="Select device" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {devices.map((device) => (
+                      <SelectItem key={device.id} value={device.id}>
+                        <span className="line-clamp-1 truncate">
+                          {device.name}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FieldError errors={[fieldState.error]} />
+              </Field>
+            )}
+          />
+
+          <Controller
+            control={form.control}
+            name="policyId"
+            render={({ field, fieldState }) => (
+              <Field className="min-w-0 xl:flex-1" data-invalid={!!fieldState.error}>
+                <FieldLabel
+                  htmlFor="profile-policy"
+                  className="truncate text-xs font-medium"
+                >
+                  Policy
+                </FieldLabel>
+                <Select
+                  value={field.value || undefined}
+                  onValueChange={field.onChange}
+                >
+                  <SelectTrigger
+                    id="profile-policy"
+                    className="h-11 min-h-11 max-h-11 w-full min-w-0 data-[size=default]:h-11 data-[size=default]:py-0 data-[size=default]:ps-3 data-[size=default]:pe-10"
+                    aria-invalid={!!fieldState.error}
+                  >
+                    <SelectValue placeholder="Select policy" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {policies.map((policy) => (
+                      <SelectItem key={policy.id} value={policy.id}>
+                        <span className="line-clamp-1 truncate">
+                          {policy.name}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FieldError errors={[fieldState.error]} />
+              </Field>
+            )}
+          />
+
+          <div
+            className={
+              editingProfile
+                ? "flex w-full min-w-0 items-center gap-2 xl:basis-full"
+                : "flex w-full min-w-0 items-center gap-2 xl:ml-auto xl:w-auto"
+            }
+          >
+            {editingProfile ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="lg"
+                className="h-11 min-w-0 flex-1 px-3 xl:flex-none"
+                disabled={updateMutation.isPending}
+                onClick={() => resetForm()}
+              >
+                Cancel
+              </Button>
+            ) : null}
+            <Button
+              type="submit"
+              size="lg"
+              className="h-11 min-w-0 flex-1 px-3 xl:flex-none"
+              disabled={
+                createMutation.isPending || updateMutation.isPending
+              }
+            >
+              {createMutation.isPending || updateMutation.isPending ? (
+                <CustomSpinner />
+              ) : editingProfile ? null : (
+                <Plus />
+              )}
+              {editingProfile ? "Save changes" : "Create"}
+            </Button>
+          </div>
+        </div>
+      </form>
+
+      {form.formState.errors.root ? (
         <ErrorAlert
           message={
-            createMutation.error instanceof Error
-              ? createMutation.error.message
-              : "Failed to create profile"
+            form.formState.errors.root.message ?? "Failed to create profile"
           }
         />
       ) : null}
@@ -139,101 +451,164 @@ export function DeviceProfilesPanel({
         />
       ) : null}
 
-      <ul className="space-y-2">
-        {profiles.map((profile) => (
-          <li
-            key={profile.id}
-            className="flex flex-col gap-2 rounded-lg border border-border/70 px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
-          >
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium text-brand-text-heading">
-                {profile.name}
-              </p>
-              <p className="text-xs text-brand-text-muted">
-                {profile.deviceIds.length} device
-                {profile.deviceIds.length === 1 ? "" : "s"}
-                {profile.policyName
-                  ? ` · Policy: ${profile.policyName}`
-                  : " · No policy"}
-              </p>
-            </div>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              disabled={deleteMutation.isPending}
-              onClick={() => deleteMutation.mutate(profile.id)}
-              aria-label={`Delete ${profile.name}`}
-            >
-              <Trash2 className="size-4" />
-            </Button>
-          </li>
-        ))}
-        {profiles.length === 0 && !profilesQuery.isLoading ? (
-          <li className="text-sm text-brand-text-muted">No profiles yet.</li>
-        ) : null}
-      </ul>
-
-      {profiles.length > 0 && devices.length > 0 ? (
-        <div className="flex flex-col gap-2 border-t border-border/60 pt-4 sm:flex-row sm:items-end">
-          <div className="min-w-0 flex-1 space-y-1">
-            <p className="text-xs font-medium text-brand-text-muted">
-              Add device to profile
-            </p>
-            <Select value={assignProfileId} onValueChange={setAssignProfileId}>
-              <SelectTrigger className="h-11 min-h-11 max-h-11 data-[size=default]:h-11 data-[size=default]:py-0 data-[size=default]:ps-3 data-[size=default]:pe-10">
-                <SelectValue placeholder="Profile" />
-              </SelectTrigger>
-              <SelectContent>
-                {profiles.map((profile) => (
-                  <SelectItem key={profile.id} value={profile.id}>
-                    {profile.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="min-w-0 flex-1 space-y-1">
-            <p className="text-xs font-medium text-brand-text-muted">Device</p>
-            <Select value={assignDeviceId} onValueChange={setAssignDeviceId}>
-              <SelectTrigger className="h-11 min-h-11 max-h-11 data-[size=default]:h-11 data-[size=default]:py-0 data-[size=default]:ps-3 data-[size=default]:pe-10">
-                <SelectValue placeholder="Device" />
-              </SelectTrigger>
-              <SelectContent>
-                {devices.map((device) => (
-                  <SelectItem key={device.id} value={device.id}>
-                    {device.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <Button
-            type="button"
-            size="lg"
-            className="h-11 min-h-11 max-h-11 w-fit shrink-0 px-3"
-            disabled={
-              !assignDeviceId ||
-              !assignProfileId ||
-              addDeviceMutation.isPending
-            }
-            onClick={() => addDeviceMutation.mutate()}
-          >
-            {addDeviceMutation.isPending ? <CustomSpinner /> : null}
-            Assign
-          </Button>
-        </div>
-      ) : null}
-
-      {addDeviceMutation.isError ? (
+      {policiesQuery.isError ? (
         <ErrorAlert
           message={
-            addDeviceMutation.error instanceof Error
-              ? addDeviceMutation.error.message
-              : "Failed to assign device"
+            policiesQuery.error instanceof Error
+              ? policiesQuery.error.message
+              : "Failed to load policies"
           }
         />
       ) : null}
+
+      {profiles.length === 0 && !profilesQuery.isLoading ? (
+        <p className="text-sm text-brand-text-muted">No profiles yet.</p>
+      ) : null}
+
+      {profiles.length > 0 ? (
+        <Accordion type="multiple" className="gap-2">
+          {profiles.map((profile) => {
+            const attachedDevices = profile.deviceIds.map((deviceId) => ({
+              id: deviceId,
+              name: deviceNameById.get(deviceId) ?? "Device",
+            }))
+
+            return (
+              <AccordionItem
+                key={profile.id}
+                value={profile.id}
+                className="overflow-hidden rounded-lg border border-border last:border-b not-last:border-b"
+              >
+                <div className="flex min-w-0 items-center gap-1 px-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="relative z-20 shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    disabled={deleteMutation.isPending}
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={(event) => {
+                      event.preventDefault()
+                      event.stopPropagation()
+                      setPendingDelete(profile)
+                    }}
+                    aria-label={`Delete ${profile.name}`}
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="relative z-20 shrink-0 text-brand-text-heading hover:bg-brand-primary/5 hover:text-brand-primary"
+                    disabled={updateMutation.isPending}
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={(event) => {
+                      event.preventDefault()
+                      event.stopPropagation()
+                      startEdit(profile)
+                    }}
+                    aria-label={`Edit ${profile.name}`}
+                  >
+                    <Pencil className="size-4" />
+                  </Button>
+                  <div className="min-w-0 flex-1">
+                    <AccordionTrigger className="min-w-0 w-full py-2.5 hover:no-underline">
+                      <span className="min-w-0 truncate pr-2 text-brand-text-heading capitalize">
+                        {profile.name}
+                      </span>
+                    </AccordionTrigger>
+                  </div>
+                </div>
+                <AccordionContent className="space-y-3 px-3 pb-3 text-brand-text-muted">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <p className="w-16 shrink-0 truncate text-xs font-medium uppercase tracking-wide">
+                      Policy
+                    </p>
+                    <p className="min-w-0 flex-1 truncate text-sm text-brand-text-heading">
+                      {profile.policyName ?? "None attached"}
+                    </p>
+                  </div>
+                  <div className="flex min-w-0 items-start gap-2">
+                    <p className="w-16 shrink-0 truncate text-xs font-medium uppercase tracking-wide">
+                      Devices
+                    </p>
+                    {attachedDevices.length === 0 ? (
+                      <p className="min-w-0 flex-1 truncate text-sm text-brand-text-heading">
+                        None attached
+                      </p>
+                    ) : (
+                      <ul className="min-w-0 flex-1 space-y-1">
+                        {attachedDevices.map((device) => (
+                          <li
+                            key={device.id}
+                            className="line-clamp-1 truncate text-sm text-brand-text-heading"
+                          >
+                            {device.name}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            )
+          })}
+        </Accordion>
+      ) : null}
+
+      <Dialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => {
+          if (!open && !deleteMutation.isPending) {
+            setPendingDelete(null)
+          }
+        }}
+      >
+        <DialogContent showCloseButton={!deleteMutation.isPending}>
+          <DialogHeader>
+            <DialogTitle>Delete profile?</DialogTitle>
+            <DialogDescription>
+              This permanently deletes{" "}
+              <span className="font-medium text-brand-text-heading">
+                {pendingDelete?.name ?? "this profile"}
+              </span>
+              . This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          {deleteMutation.isError ? (
+            <ErrorAlert
+              message={
+                deleteMutation.error instanceof Error
+                  ? deleteMutation.error.message
+                  : "Failed to delete profile"
+              }
+            />
+          ) : null}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={deleteMutation.isPending}
+              onClick={() => setPendingDelete(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={deleteMutation.isPending || !pendingDelete}
+              onClick={() => {
+                if (!pendingDelete) return
+                deleteMutation.mutate(pendingDelete.id)
+              }}
+            >
+              {deleteMutation.isPending ? <CustomSpinner /> : null}
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </section>
   )
 }

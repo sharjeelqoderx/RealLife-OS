@@ -28,10 +28,3 @@ export const mainNavItems: AppNavItem[] = [
   { title: "Settings", href: "/settings", icon: Settings },
   { title: "Guides", href: "/guides", icon: BookOpen },
 ]
-
-export const sidebarUser = {
-  name: "Admin User",
-  email: "admin@securedns.io",
-  role: "Global Access",
-  shortName: "Admin",
-}

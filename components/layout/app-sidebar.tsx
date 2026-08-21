@@ -4,9 +4,10 @@ import Image from "next/image"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useMutation } from "@tanstack/react-query"
+import type { User as AuthUser } from "@supabase/supabase-js"
 import { ChevronDown, HelpCircle, User } from "lucide-react"
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,15 +30,21 @@ import {
   SidebarSeparator,
 } from "@/components/ui/sidebar"
 import { apiClient } from "@/lib/api/client"
-import { mainNavItems, sidebarUser } from "@/lib/navigation/app-navigation"
+import { mainNavItems } from "@/lib/navigation/app-navigation"
 import type { LogoutResponse } from "@/schemas/auth/logout"
 
 const activeItemClassName =
   "data-[active=true]:bg-brand-primary/10 data-[active=true]:font-semibold data-[active=true]:text-brand-primary"
 
-export function AppSidebar() {
+interface AppSidebarProps {
+  user: AuthUser | null
+}
+
+export function AppSidebar({ user }: AppSidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
+  const name = user?.user_metadata?.full_name || user?.email || "User"
+  const image = user?.user_metadata?.avatar_url || user?.user_metadata?.picture
 
   const logoutMutation = useMutation({
     mutationFn: () =>
@@ -123,20 +130,21 @@ export function AppSidebar() {
               <DropdownMenuTrigger asChild>
                 <SidebarMenuButton
                   size="lg"
-                  tooltip={sidebarUser.name}
+                  tooltip={name}
                   className="data-[state=open]:bg-sidebar-accent"
                 >
                   <Avatar className="size-8 rounded-full bg-brand-primary">
+                    {image ? <AvatarImage src={image} alt={name} /> : null}
                     <AvatarFallback className="rounded-full bg-brand-primary text-brand-primary-foreground">
                       <User aria-hidden className="size-4" />
                     </AvatarFallback>
                   </Avatar>
                   <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
                     <span className="truncate font-semibold text-brand-text-heading">
-                      {sidebarUser.name}
+                      {name}
                     </span>
                     <span className="truncate text-xs text-brand-text-muted">
-                      {sidebarUser.email}
+                      {user?.email}
                     </span>
                   </div>
                   <ChevronDown

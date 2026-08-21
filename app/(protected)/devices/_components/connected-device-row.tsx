@@ -1,6 +1,7 @@
 "use client"
 
 import Image from "next/image"
+import { Pencil, Trash2 } from "lucide-react"
 import { useState } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 
@@ -68,76 +69,109 @@ export function ConnectedDeviceRow({ device, className }: ConnectedDeviceRowProp
     <>
       <div
         className={cn(
-          "flex flex-col gap-4 rounded-xl border border-border bg-white px-4 py-4 sm:flex-row sm:items-center sm:justify-between",
+          "rounded-xl border border-border bg-white px-4 py-4",
           className
         )}
       >
-        <div className="flex min-w-0 items-start gap-3">
-          <div className="relative size-10 shrink-0 overflow-hidden rounded-lg bg-brand-surface">
-            <Image
-              src={
-                device.platform === "android" ? "/android.png" : "/iphone.png"
-              }
-              alt=""
-              width={40}
-              height={40}
-              className="size-full object-cover object-top"
-            />
-          </div>
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-brand-text-heading">
-              {device.name}
-            </p>
-            <p className="mt-0.5 text-sm text-brand-text-muted">
-              {device.status === "active" ? "Active" : "Inactive"} • Last seen{" "}
-              {formatLastSeen(device.lastSeenMinutes)} • {platformLabel}
-            </p>
-            <p className="mt-1 text-xs text-brand-text-muted">
-              Profile: {device.profileName ?? "None"}
-              {" · "}
-              Effective: {device.effectivePolicyName ?? "None"}
-              {device.effectivePolicySource &&
-              device.effectivePolicySource !== "none"
-                ? ` (${device.effectivePolicySource === "device" ? "Device" : "Profile"})`
-                : ""}
-            </p>
-            {device.dohSubdomain ? (
-              <p className="mt-1 text-xs text-brand-text-muted">
-                DNS location DoH:{" "}
-                <a
-                  className="underline underline-offset-2"
-                  href={`/api/dns-profile/mobileconfig?deviceId=${encodeURIComponent(device.id)}`}
-                >
-                  Download profile
-                </a>{" "}
-                ({device.dohSubdomain})
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 flex-1 items-start gap-3">
+            <div className="relative size-10 shrink-0 overflow-hidden rounded-lg bg-brand-surface">
+              <Image
+                src={
+                  device.platform === "android" ? "/android.png" : "/iphone.png"
+                }
+                alt=""
+                width={40}
+                height={40}
+                className="size-full object-cover object-top"
+              />
+            </div>
+            <div className="hidden min-w-0 sm:block">
+              <p className="truncate text-sm font-semibold text-brand-text-heading">
+                {device.name}
               </p>
-            ) : null}
+              <p className="mt-0.5 text-sm text-brand-text-muted">
+                {device.status === "active" ? "Active" : "Inactive"} • Last seen{" "}
+                {formatLastSeen(device.lastSeenMinutes)} • {platformLabel}
+              </p>
+              <p className="mt-1 text-xs text-brand-text-muted">
+                Profile: {device.profileName ?? "None"}
+                {" · "}
+                Effective: {device.effectivePolicyName ?? "None"}
+                {device.effectivePolicySource &&
+                device.effectivePolicySource !== "none"
+                  ? ` (${device.effectivePolicySource === "device" ? "Device" : "Profile"})`
+                  : ""}
+              </p>
+              {device.dohSubdomain ? (
+                <p className="mt-1 text-xs text-brand-text-muted">
+                  DNS location DoH:{" "}
+                  <a
+                    className="underline underline-offset-2"
+                    href={`/api/dns-profile/mobileconfig?deviceId=${encodeURIComponent(device.id)}`}
+                  >
+                    Download profile
+                  </a>{" "}
+                  ({device.dohSubdomain})
+                </p>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="flex shrink-0 items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="brandOutline"
+              size="lg"
+              className="h-11 min-h-11 max-h-11 w-fit shrink-0 px-3"
+              onClick={() => {
+                setDisplayName(device.name)
+                setRenameOpen(true)
+              }}
+            >
+              <Pencil className="size-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              size="lg"
+              className="h-11 min-h-11 max-h-11 w-fit shrink-0 px-3"
+              onClick={() => setRemoveOpen(true)}
+            >
+              <Trash2 className="size-4" />
+            </Button>
           </div>
         </div>
 
-        <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
-          <Button
-            type="button"
-            variant="brandOutline"
-            size="lg"
-            className="h-11 min-h-11 max-h-11 w-fit shrink-0 px-3"
-            onClick={() => {
-              setDisplayName(device.name)
-              setRenameOpen(true)
-            }}
-          >
-            Rename Device
-          </Button>
-          <Button
-            type="button"
-            variant="destructive"
-            size="lg"
-            className="h-11 min-h-11 max-h-11 w-fit shrink-0 px-3"
-            onClick={() => setRemoveOpen(true)}
-          >
-            Remove Device
-          </Button>
+        <div className="mt-3 min-w-0 sm:hidden">
+          <p className="truncate text-sm font-semibold text-brand-text-heading">
+            {device.name}
+          </p>
+          <p className="mt-0.5 text-sm text-brand-text-muted">
+            {device.status === "active" ? "Active" : "Inactive"} • Last seen{" "}
+            {formatLastSeen(device.lastSeenMinutes)} • {platformLabel}
+          </p>
+          <p className="mt-1 text-xs text-brand-text-muted">
+            Profile: {device.profileName ?? "None"}
+            {" · "}
+            Effective: {device.effectivePolicyName ?? "None"}
+            {device.effectivePolicySource &&
+            device.effectivePolicySource !== "none"
+              ? ` (${device.effectivePolicySource === "device" ? "Device" : "Profile"})`
+              : ""}
+          </p>
+          {device.dohSubdomain ? (
+            <p className="mt-1 text-xs text-brand-text-muted">
+              DNS location DoH:{" "}
+              <a
+                className="underline underline-offset-2"
+                href={`/api/dns-profile/mobileconfig?deviceId=${encodeURIComponent(device.id)}`}
+              >
+                Download profile
+              </a>{" "}
+              ({device.dohSubdomain})
+            </p>
+          ) : null}
         </div>
       </div>
 

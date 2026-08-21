@@ -36,8 +36,8 @@ export async function PATCH(req: Request, context: RouteContext) {
 export async function DELETE(_req: Request, context: RouteContext) {
   try {
     const { profileId } = await context.params
-    await deleteDeviceProfile(profileId)
-    return NextResponse.json({ ok: true })
+    const deleted = await deleteDeviceProfile(profileId)
+    return NextResponse.json({ data: deleted })
   } catch (error) {
     console.error("DELETE /api/device-profiles/[profileId]:", error)
     return NextResponse.json(

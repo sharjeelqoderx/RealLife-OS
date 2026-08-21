@@ -214,7 +214,7 @@ page.tsx (RSC fetch via lib/services)
 | `/content-policies/[policyId]` | View policy details (read-only) | `app/(protected)/content-policies/(editor)/[policyId]/page.tsx` | `app/(protected)/content-policies/(editor)/[policyId]/loading.tsx` | `policy-view` | ✅ ready |
 | `/content-policies/[policyId]/edit` | Edit Gateway policy — same form as create, prepopulated; Save enabled only when dirty → PUT update | `app/(protected)/content-policies/(editor)/[policyId]/edit/page.tsx` | `app/(protected)/content-policies/(editor)/[policyId]/edit/loading.tsx` | `policy-detail` | ✅ ready |
 | `/[slug]` (protected) | Unknown protected routes (devices, settings, …) → under development | `app/(protected)/[slug]/page.tsx` | `app/(protected)/[slug]/loading.tsx` | `under-development` | ✅ ready |
-| `/devices` | Connected devices list — Cloudflare WARP devices + rename/remove | `app/(protected)/devices/page.tsx` | `app/(protected)/devices/loading.tsx` | `connected-devices-view`, `connected-device-row`, `device-type-picker` | ✅ ready |
+| `/devices` | Connected devices list — Cloudflare WARP devices + rename/remove | `app/(protected)/devices/page.tsx` | `app/(protected)/devices/loading.tsx` | `connected-devices-view`, `connected-device-row`, `device-type-picker`, `device-profiles-panel` | ✅ ready |
 | `/devices/setup` | Device setup questionnaire — Android/iPhone conditional steps | `app/(protected)/devices/setup/page.tsx` | `app/(protected)/devices/setup/loading.tsx` | `device-setup-view` | ✅ ready |
 | `/devices/setup/cloudflare-one` | Cloudflare One 4-step wizard — team name, emails, DNS leak test, app prefs | `app/(protected)/devices/setup/cloudflare-one/page.tsx` | `app/(protected)/devices/setup/cloudflare-one/loading.tsx` | `cloudflare-one-wizard` | ✅ ready |
 | `/devices/setup/andoff` | iPhone supervised mode / WARP Enforcer guide (8 steps + Image slots) | `app/(protected)/devices/setup/andoff/page.tsx` | `app/(protected)/devices/setup/andoff/loading.tsx` | `andoff-guide-view` | ✅ ready (UI mock) |
@@ -240,8 +240,8 @@ page.tsx (RSC fetch via lib/services)
 | GlobalSpinner | `components/feedback/global-spinner.tsx` | Full-screen mutation loader | — | ⚪ unused |
 | QueryProvider | `components/providers/query-provider.tsx` | React Query context | root layout | ✅ ready |
 | DashboardShell | `components/layout/dashboard-shell.tsx` | Protected app shell (sidebar + navbar) | `(protected)/layout` | ✅ ready |
-| AppSidebar | `components/layout/app-sidebar.tsx` | Collapsible sidebar navigation | DashboardShell | ✅ ready |
-| AppNavbar | `components/layout/app-navbar.tsx` | Top navbar with search + actions | DashboardShell | ✅ ready |
+| AppSidebar | `components/layout/app-sidebar.tsx` | Collapsible sidebar navigation; shows signed-in name, email, avatar | DashboardShell | ✅ ready |
+| AppNavbar | `components/layout/app-navbar.tsx` | Top navbar with signed-in name, email, avatar | DashboardShell | ✅ ready |
 | Sidebar | `components/ui/sidebar.tsx` | shadcn collapsible sidebar primitive | AppSidebar | ✅ ready |
 | Sheet | `components/ui/sheet.tsx` | Mobile sidebar drawer | Sidebar | ✅ ready |
 | Avatar | `components/ui/avatar.tsx` | User avatar | navbar, sidebar | ✅ ready |
@@ -250,7 +250,7 @@ page.tsx (RSC fetch via lib/services)
 | Badge | `components/ui/badge.tsx` | Status/category pills | dashboard | ✅ ready |
 | Progress | `components/ui/progress.tsx` | Setup progress bar | dashboard | ✅ ready |
 | Table | `components/ui/table.tsx` | Data tables | dashboard | ✅ ready |
-| Accordion | `components/ui/accordion.tsx` | Collapsible task list | dashboard | ✅ ready |
+| Accordion | `components/ui/accordion.tsx` | Collapsible lists | dashboard, device profiles | ✅ ready |
 | Chart | `components/ui/chart.tsx` | Recharts wrapper + tooltip | dashboard | ✅ ready |
 | Dialog | `components/ui/dialog.tsx` | Modal primitive | PaywallGate | ✅ ready |
 | PaywallGate | `components/billing/paywall-gate.tsx` | Blocking pricing modal until active subscription | `(protected)/layout` | ✅ ready |
@@ -300,7 +300,7 @@ page.tsx (RSC fetch via lib/services)
 
 | Module | Path | Purpose | Status |
 |--------|------|---------|--------|
-| App nav config | `lib/navigation/app-navigation.ts` | Sidebar links + user labels | ✅ ready |
+| App nav config | `lib/navigation/app-navigation.ts` | Sidebar links | ✅ ready |
 
 ### Services (`lib/services/`)
 
@@ -346,6 +346,7 @@ page.tsx (RSC fetch via lib/services)
 | getDeviceEnrollmentInfo | `lib/services/devices/get-enrollment-info.ts` | Team name, DNS profile, store/WARP URLs, enrolled count | `/api/devices/enrollment-info` | ✅ ready |
 | getDeviceSetupSession / updateDeviceSetupSession | `lib/services/devices/setup-session.ts` | Persist questionnaire + wizard step | `/api/devices/setup-session` | ✅ ready |
 | getDeviceAppPreferences / updateDeviceAppPreferences | `lib/services/devices/app-preferences.ts` | Lock filter + prevent logout toggles | `/api/devices/app-preferences` | ✅ ready |
+| listDeviceProfiles / createDeviceProfile / addDeviceToProfile / deleteDeviceProfile | `lib/services/devices/device-profiles.ts` | App profiles; create attaches device + policy | `/api/device-profiles`, Devices page | ✅ ready |
 
 ### Cloudflare (`lib/cloudflare/`)
 
@@ -379,7 +380,7 @@ page.tsx (RSC fetch via lib/services)
 | `/api/access-policies` | GET | `listAccessPolicies` | — | ✅ ready |
 | `/api/access-policies` | POST | `createAccessPolicy` | `createAccessPolicySchema` | ✅ ready |
 | `/api/gateway-policies` | GET | `listGatewayPolicies` | Optional `?q=` / `?status=` / `?type=` (comma lists) | ✅ ready |
-| `/api/device-profiles` | GET/POST | `listDeviceProfiles` / `createDeviceProfile` | App profiles (Kids/Parents/Work) | ✅ ready |
+| `/api/device-profiles` | GET/POST | `listDeviceProfiles` / `createDeviceProfile` | Create requires `{ name, deviceId, policyId }` (assigns device + policy) | ✅ ready |
 | `/api/device-profiles/[id]` | PATCH/DELETE | update / delete profile | Auth + ownership | ✅ ready |
 | `/api/device-profiles/[id]/devices` | POST | `addDeviceToProfile` | `{ deviceId }` | ✅ ready |
 | `/api/device-profiles/[id]/devices/[deviceId]` | DELETE | `removeDeviceFromProfile` | — | ✅ ready |
@@ -429,6 +430,7 @@ page.tsx (RSC fetch via lib/services)
 | `gatewayPresetSchema` | `schemas/content-policies/gateway-preset.ts` | Preset list + apply payload | ✅ ready |
 | `createGatewayLocationSchema` | `schemas/content-policies/gateway-location.ts` | Audience picker create + `/api/gateway-locations` POST | ✅ ready |
 | `connectedDeviceSchema` | `schemas/devices/device.ts` | Device platform, connected device, setup answers | `/devices`, `/devices/setup` | ✅ ready |
+| `deviceProfileCreateSchema` | `schemas/devices/profiles.ts` | Profile create: name + device + policy (form + `POST /api/device-profiles`) | `/devices` | ✅ ready |
 | `deviceEnrollmentInfoSchema` | `schemas/devices/api.ts` | Enrollment info + setup session + app preferences API | `/api/devices/*` | ✅ ready |
 
 ### DB migrations (`supabase/migrations/`)
@@ -470,6 +472,19 @@ Requires `supabase login` + `supabase link` once per machine. Do not squash alre
 
 | Date | Change | Updated By |
 |------|--------|------------|
+| 2026-08-21 | Device profile edit: Cancel + Save stay in the bar without overflowing | Agent |
+| 2026-08-21 | Device profile form: one row when it fits, stacked columns below that — no 2/4-column grid | Agent |
+| 2026-08-21 | Connected device row: Rename/Remove have icons and stay top-right; on mobile name sits below | Agent |
+| 2026-08-21 | Device profile accordion: edit fills the top form and swaps Create for Save changes | Agent |
+| 2026-08-21 | Device profile accordion: delete visible on the left; newest profiles first; each item has a full border | Agent |
+| 2026-08-21 | Device profile delete uses mutation; cache updates from DELETE response (no list refetch) | Agent |
+| 2026-08-21 | Device profile accordion: red delete icon on the left; delete requires confirmation dialog | Agent |
+| 2026-08-21 | Device profile create: labels above fields; Create shows `CustomSpinner` while pending | Agent |
+| 2026-08-21 | Device profile form is responsive: label + input/select stay on one line with truncate/line-clamp | Agent |
+| 2026-08-21 | Device profile create is one form: required name + device + policy (RHF + Zod); mutation assigns all three and updates cache | Agent |
+| 2026-08-21 | Device profile create: insert into `devices.profiles` cache via `setQueryData` (no list refetch) | Agent |
+| 2026-08-21 | Device profiles: Create stays beside the name input; delete stays top-right; created profiles open as accordions showing attached policy and devices | Agent |
+| 2026-08-21 | Navbar + sidebar receive the full Supabase auth `User` and show name, email, avatar | Agent |
 | 2026-08-20 | Audience / DNS location create: block duplicate names (UI + API 409) | Agent |
 | 2026-08-20 | Audience picker: restore search → Create “name” when no match (no separate name field) | Agent |
 | 2026-08-20 | Audience picker: dedicated Name + Create for DNS locations; search no longer doubles as the create name | Agent |
