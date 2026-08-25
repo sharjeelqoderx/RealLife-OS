@@ -472,6 +472,10 @@ Requires `supabase login` + `supabase link` once per machine. Do not squash alre
 
 | Date | Change | Updated By |
 |------|--------|------------|
+| 2026-08-25 | Dashboard insights: show REAL total counts from database tables instead of audit log event counts (fixes 0/0 display when no recent audit entries) | Agent |
+| 2026-08-25 | Dashboard: 100% real data—audit log activity chart, real device/policy stats, setup progress from actual completion, billing details with payment method, zero mock/generated data | Agent |
+| 2026-08-25 | Analytics service: `getDashboardStats` fetches audit log for 7-day activity timeline + insights; `getSetupProgress` calculates completion from real devices/policies/payment | Agent |
+| 2026-08-25 | Dashboard: fully dynamic with real data from devices, policies, and billing; modern design with gradient cards, charts, device breakdown, policy distribution pie chart, and account overview | Agent |
 | 2026-08-21 | Device profile edit: Cancel + Save stay in the bar without overflowing | Agent |
 | 2026-08-21 | Device profile form: one row when it fits, stacked columns below that — no 2/4-column grid | Agent |
 | 2026-08-21 | Connected device row: Rename/Remove have icons and stay top-right; on mobile name sits below | Agent |
