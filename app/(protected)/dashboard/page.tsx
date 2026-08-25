@@ -1,5 +1,11 @@
 import { DashboardContent } from "@/app/(protected)/dashboard/_components/dashboard-content"
 import { createClient } from "@/lib/supabase/server"
+import { listConnectedDevices } from "@/lib/services/devices/list-connected-devices"
+import { getPolicies } from "@/lib/services/content-policies/get-policies"
+import { getBillingDetails } from "@/lib/services/billing/details"
+import { getDashboardStats, getSetupProgress } from "@/lib/services/analytics/dashboard-stats"
+import type { ConnectedDevice } from "@/schemas/devices/device"
+import type { PolicyListResponse } from "@/schemas/content-policies/policy"
 
 function getDisplayName(
   fullName: unknown,
@@ -25,7 +31,57 @@ export default async function DashboardPage() {
     data: { user },
   } = await supabase.auth.getUser()
 
+  if (!user) {
+    return null
+  }
+
   const userName = getDisplayName(user?.user_metadata?.full_name, user?.email)
 
-  return <DashboardContent userName={userName} />
+  // Fetch all real data
+  let devices: ConnectedDevice[] = []
+  let policies: PolicyListResponse = []
+  let billingDetails: Awaited<ReturnType<typeof getBillingDetails>> | null = null
+  let dashboardStats: Awaited<ReturnType<typeof getDashboardStats>> | null = null
+
+  try {
+    devices = await listConnectedDevices()
+  } catch (error) {
+    console.error("Failed to fetch devices:", error)
+  }
+
+  try {
+    policies = await getPolicies()
+  } catch (error) {
+    console.error("Failed to fetch policies:", error)
+  }
+
+  try {
+    billingDetails = await getBillingDetails(user.id)
+  } catch (error) {
+    console.error("Failed to fetch billing details:", error)
+  }
+
+  try {
+    dashboardStats = await getDashboardStats(user.id)
+  } catch (error) {
+    console.error("Failed to fetch dashboard stats:", error)
+  }
+
+  // Calculate setup progress from real data
+  const setupProgress = getSetupProgress({
+    devicesCount: devices.length,
+    policiesCount: policies.length,
+    hasPaymentMethod: Boolean(billingDetails?.paymentMethod),
+  })
+
+  return (
+    <DashboardContent
+      userName={userName}
+      devices={devices}
+      policies={policies}
+      billingDetails={billingDetails}
+      dashboardStats={dashboardStats}
+      setupProgress={setupProgress}
+    />
+  )
 }
