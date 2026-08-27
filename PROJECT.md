@@ -480,6 +480,7 @@ Requires `supabase login` + `supabase link` once per machine. Do not squash alre
 
 | Date | Change | Updated By |
 |------|--------|------------|
+| 2026-08-27 | Policy delete treats a missing Cloudflare Gateway rule as already gone (invalid rule id) and still removes the local policy | Agent |
 | 2026-08-27 | Dashboard UI restored to the original layout (banner, device cards, metrics, traffic chart, setup, blocked activity) with current-user data | Agent |
 | 2026-08-27 | Dashboard shows only the signed-in user's devices and Gateway policies (no mock catalog) | Agent |
 | 2026-08-27 | Policy list/create show the customer name; Cloudflare uniqueness timestamp stays server-side | Agent |

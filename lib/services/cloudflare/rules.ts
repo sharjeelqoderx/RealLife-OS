@@ -131,6 +131,18 @@ export async function getGatewayRule(
 }
 
 /**
+ * Cloudflare returns this when the Gateway rule is already gone, or the
+ * stored id is not a live Gateway rule id (for example a local policy UUID).
+ * That is not the phrase "not found".
+ */
+export function isMissingGatewayRuleError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error)
+  return /no rule with given id|invalid rule id|not found|could not find|404/i.test(
+    message
+  )
+}
+
+/**
  * Delete a Zero Trust Gateway rule.
  * @see https://developers.cloudflare.com/api/resources/zero_trust/subresources/gateway/subresources/rules/methods/delete
  */

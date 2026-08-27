@@ -9,6 +9,7 @@ import { listGatewayLocations } from "@/lib/services/cloudflare/locations"
 import {
   createGatewayRule,
   deleteGatewayRule,
+  isMissingGatewayRuleError,
   getGatewayRule,
   listGatewayRules,
   type GatewayRule,
@@ -1192,8 +1193,7 @@ export async function deleteGatewayPolicy(policyId: string): Promise<void> {
       try {
         await deleteGatewayRule(accountId, policy.cloudflareRuleId)
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error)
-        if (!/not found|could not find|404/i.test(message)) {
+        if (!isMissingGatewayRuleError(error)) {
           throw error
         }
       }

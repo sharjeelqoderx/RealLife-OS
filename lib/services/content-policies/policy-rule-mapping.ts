@@ -2,6 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import {
   createGatewayRule,
   deleteGatewayRule,
+  isMissingGatewayRuleError,
   getGatewayRule,
   type GatewayRuleAction,
 } from "@/lib/services/cloudflare/rules"
@@ -168,8 +169,7 @@ export async function deleteMappedCloudflareRules(input: {
     try {
       await deleteGatewayRule(input.accountId, row.cloudflareRuleId)
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      if (!/not found|could not find|404/i.test(message)) {
+      if (!isMissingGatewayRuleError(error)) {
         throw error
       }
     }
