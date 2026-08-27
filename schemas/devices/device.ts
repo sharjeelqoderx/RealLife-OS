@@ -20,6 +20,9 @@ export const connectedDeviceSchema = z.object({
   effectivePolicyName: z.string().nullable().optional(),
   effectivePolicySource: z.enum(["device", "profile", "none"]).optional(),
   dohSubdomain: z.string().nullable().optional(),
+  protectionStatus: z.enum(["connected", "not_connected"]).optional(),
+  policyStatus: z.enum(["active", "not_active"]).optional(),
+  gatewayStatus: z.enum(["protected", "not_protected"]).optional(),
 })
 
 export type ConnectedDevice = z.infer<typeof connectedDeviceSchema>

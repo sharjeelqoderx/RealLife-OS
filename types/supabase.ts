@@ -10,403 +10,443 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "12"
+    PostgrestVersion: "14.17"
   }
   public: {
     Tables: {
       audit_log: {
         Row: {
-          id: string
-          user_id: string | null
           action: string
-          resource_type: string
-          resource_id: string | null
-          metadata: Json
-          ip_address: string | null
           created_at: string
+          id: string
+          ip_address: unknown
+          metadata: Json
+          resource_id: string | null
+          resource_type: string
+          user_id: string | null
         }
         Insert: {
-          id?: string
-          user_id?: string | null
           action: string
-          resource_type: string
-          resource_id?: string | null
-          metadata?: Json
-          ip_address?: string | null
           created_at?: string
+          id?: string
+          ip_address?: unknown
+          metadata?: Json
+          resource_id?: string | null
+          resource_type: string
+          user_id?: string | null
         }
         Update: {
-          id?: string
-          user_id?: string | null
           action?: string
-          resource_type?: string
-          resource_id?: string | null
-          metadata?: Json
-          ip_address?: string | null
           created_at?: string
+          id?: string
+          ip_address?: unknown
+          metadata?: Json
+          resource_id?: string | null
+          resource_type?: string
+          user_id?: string | null
         }
         Relationships: []
       }
       device_app_preferences: {
         Row: {
-          user_id: string
           lock_filter_switch: boolean
           prevent_logout: boolean
           updated_at: string
+          user_id: string
         }
         Insert: {
-          user_id: string
           lock_filter_switch?: boolean
           prevent_logout?: boolean
           updated_at?: string
+          user_id: string
         }
         Update: {
-          user_id?: string
           lock_filter_switch?: boolean
           prevent_logout?: boolean
           updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
       device_enrollments: {
         Row: {
-          id: string
-          user_id: string
-          requested_device_name: string
-          status: string
-          expires_at: string
           cloudflare_device_id: string | null
           cloudflare_registration_id: string | null
-          created_at: string
           completed_at: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          requested_device_name: string
+          status: string
+          user_id: string
         }
         Insert: {
+          cloudflare_device_id?: string | null
+          cloudflare_registration_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          expires_at: string
           id?: string
-          user_id: string
           requested_device_name: string
           status?: string
-          expires_at: string
-          cloudflare_device_id?: string | null
-          cloudflare_registration_id?: string | null
-          created_at?: string
-          completed_at?: string | null
+          user_id: string
         }
         Update: {
-          id?: string
-          user_id?: string
-          requested_device_name?: string
-          status?: string
-          expires_at?: string
           cloudflare_device_id?: string | null
           cloudflare_registration_id?: string | null
-          created_at?: string
           completed_at?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          requested_device_name?: string
+          status?: string
+          user_id?: string
         }
         Relationships: []
       }
       device_setup_sessions: {
         Row: {
-          user_id: string
-          platform: string
           answers: Json
           cloudflare_wizard_step: number
+          platform: string
           updated_at: string
+          user_id: string
         }
         Insert: {
-          user_id: string
-          platform: string
           answers?: Json
           cloudflare_wizard_step?: number
+          platform: string
           updated_at?: string
+          user_id: string
         }
         Update: {
-          user_id?: string
-          platform?: string
           answers?: Json
           cloudflare_wizard_step?: number
+          platform?: string
           updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
       schema_migrations: {
         Row: {
-          version: string
           applied_at: string
+          version: string
         }
         Insert: {
-          version: string
           applied_at?: string
+          version: string
         }
         Update: {
-          version?: string
           applied_at?: string
+          version?: string
         }
         Relationships: []
       }
       stripe_webhook_events: {
         Row: {
           id: string
-          type: string
           processed_at: string
+          type: string
         }
         Insert: {
-          id?: string
-          type: string
+          id: string
           processed_at?: string
+          type: string
         }
         Update: {
           id?: string
-          type?: string
           processed_at?: string
+          type?: string
         }
         Relationships: []
       }
       tenant_device_metadata: {
         Row: {
-          id: string
-          user_id: string
+          cloudflare_account_id: string | null
           cloudflare_device_id: string
-          display_name: string | null
           cloudflare_location_id: string | null
+          cloudflare_registration_id: string | null
+          created_at: string
+          display_name: string | null
           doh_subdomain: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          cloudflare_device_id: string
-          display_name?: string | null
-          cloudflare_location_id?: string | null
-          doh_subdomain?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          cloudflare_device_id?: string
-          display_name?: string | null
-          cloudflare_location_id?: string | null
-          doh_subdomain?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      tenant_device_profiles: {
-        Row: {
+          enrollment_status: string
           id: string
-          user_id: string
-          name: string
-          description: string | null
-          created_at: string
           updated_at: string
+          user_id: string
         }
         Insert: {
-          id?: string
-          user_id: string
-          name: string
-          description?: string | null
+          cloudflare_account_id?: string | null
+          cloudflare_device_id: string
+          cloudflare_location_id?: string | null
+          cloudflare_registration_id?: string | null
           created_at?: string
+          display_name?: string | null
+          doh_subdomain?: string | null
+          enrollment_status?: string
+          id?: string
           updated_at?: string
+          user_id: string
         }
         Update: {
-          id?: string
-          user_id?: string
-          name?: string
-          description?: string | null
+          cloudflare_account_id?: string | null
+          cloudflare_device_id?: string
+          cloudflare_location_id?: string | null
+          cloudflare_registration_id?: string | null
           created_at?: string
+          display_name?: string | null
+          doh_subdomain?: string | null
+          enrollment_status?: string
+          id?: string
           updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
       tenant_device_profile_members: {
         Row: {
+          created_at: string
+          device_id: string
           id: string
           profile_id: string
-          device_id: string
-          created_at: string
         }
         Insert: {
+          created_at?: string
+          device_id: string
           id?: string
           profile_id: string
-          device_id: string
-          created_at?: string
         }
         Update: {
+          created_at?: string
+          device_id?: string
           id?: string
           profile_id?: string
-          device_id?: string
-          created_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "tenant_device_profile_members_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: true
+            referencedRelation: "tenant_device_metadata"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenant_device_profile_members_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_device_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
-      tenant_policy_assignments: {
+      tenant_device_profiles: {
         Row: {
-          id: string
-          user_id: string
-          policy_id: string
-          target_type: string
-          target_id: string
-          precedence: number
-          sync_status: string
-          sync_error: string | null
-          cloudflare_rule_id: string | null
           created_at: string
+          description: string | null
+          id: string
+          name: string
           updated_at: string
+          user_id: string
         }
         Insert: {
-          id?: string
-          user_id: string
-          policy_id: string
-          target_type: string
-          target_id: string
-          precedence?: number
-          sync_status?: string
-          sync_error?: string | null
-          cloudflare_rule_id?: string | null
           created_at?: string
+          description?: string | null
+          id?: string
+          name: string
           updated_at?: string
+          user_id: string
         }
         Update: {
+          created_at?: string
+          description?: string | null
           id?: string
+          name?: string
+          updated_at?: string
           user_id?: string
-          policy_id?: string
-          target_type?: string
-          target_id?: string
-          precedence?: number
-          sync_status?: string
-          sync_error?: string | null
-          cloudflare_rule_id?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      tenant_policy_gateway_rules: {
-        Row: {
-          id: string
-          user_id: string
-          policy_id: string
-          cloudflare_rule_id: string
-          rule_role: string
-          target_type: string | null
-          target_id: string | null
-          sync_status: string
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          policy_id: string
-          cloudflare_rule_id: string
-          rule_role?: string
-          target_type?: string | null
-          target_id?: string | null
-          sync_status?: string
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          policy_id?: string
-          cloudflare_rule_id?: string
-          rule_role?: string
-          target_type?: string | null
-          target_id?: string | null
-          sync_status?: string
-          created_at?: string
-          updated_at?: string
         }
         Relationships: []
       }
       tenant_gateway_policies: {
         Row: {
-          id: string
-          user_id: string
-          name: string
-          description: string | null
-          type: string
-          cloudflare_rule_id: string
           action: string
-          enabled: boolean
-          precedence: number
+          cloudflare_rule_id: string | null
           configuration_json: Json
-          status: string
           created_at: string
+          description: string | null
+          enabled: boolean
+          id: string
+          name: string
+          precedence: number
+          status: string
+          type: string
           updated_at: string
+          user_id: string
         }
         Insert: {
-          id?: string
-          user_id: string
-          name: string
-          description?: string | null
-          type?: string
-          cloudflare_rule_id: string
           action: string
-          enabled?: boolean
-          precedence?: number
+          cloudflare_rule_id?: string | null
           configuration_json?: Json
-          status?: string
           created_at?: string
+          description?: string | null
+          enabled?: boolean
+          id?: string
+          name: string
+          precedence?: number
+          status?: string
+          type?: string
           updated_at?: string
+          user_id: string
         }
         Update: {
-          id?: string
-          user_id?: string
-          name?: string
-          description?: string | null
-          type?: string
-          cloudflare_rule_id?: string
           action?: string
-          enabled?: boolean
-          precedence?: number
+          cloudflare_rule_id?: string | null
           configuration_json?: Json
-          status?: string
           created_at?: string
+          description?: string | null
+          enabled?: boolean
+          id?: string
+          name?: string
+          precedence?: number
+          status?: string
+          type?: string
           updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
-      user_subscriptions: {
+      tenant_policy_assignments: {
         Row: {
-          user_id: string
-          stripe_customer_id: string | null
-          stripe_subscription_id: string | null
-          stripe_price_id: string | null
-          status: string
-          current_period_end: string | null
-          cancel_at_period_end: boolean
+          cloudflare_rule_id: string | null
           created_at: string
+          id: string
+          policy_id: string
+          precedence: number
+          sync_error: string | null
+          sync_status: string
+          target_id: string
+          target_type: string
           updated_at: string
-          device_limit: number
+          user_id: string
         }
         Insert: {
-          user_id: string
-          stripe_customer_id?: string | null
-          stripe_subscription_id?: string | null
-          stripe_price_id?: string | null
-          status?: string
-          current_period_end?: string | null
-          cancel_at_period_end?: boolean
+          cloudflare_rule_id?: string | null
           created_at?: string
+          id?: string
+          policy_id: string
+          precedence?: number
+          sync_error?: string | null
+          sync_status?: string
+          target_id: string
+          target_type: string
           updated_at?: string
-          device_limit?: number
+          user_id: string
         }
         Update: {
+          cloudflare_rule_id?: string | null
+          created_at?: string
+          id?: string
+          policy_id?: string
+          precedence?: number
+          sync_error?: string | null
+          sync_status?: string
+          target_id?: string
+          target_type?: string
+          updated_at?: string
           user_id?: string
-          stripe_customer_id?: string | null
-          stripe_subscription_id?: string | null
-          stripe_price_id?: string | null
-          status?: string
-          current_period_end?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_policy_assignments_policy_id_fkey"
+            columns: ["policy_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_gateway_policies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenant_policy_gateway_rules: {
+        Row: {
+          cloudflare_rule_id: string
+          created_at: string
+          id: string
+          policy_id: string
+          rule_role: string
+          sync_status: string
+          target_id: string | null
+          target_type: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          cloudflare_rule_id: string
+          created_at?: string
+          id?: string
+          policy_id: string
+          rule_role?: string
+          sync_status?: string
+          target_id?: string | null
+          target_type?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          cloudflare_rule_id?: string
+          created_at?: string
+          id?: string
+          policy_id?: string
+          rule_role?: string
+          sync_status?: string
+          target_id?: string | null
+          target_type?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_policy_gateway_rules_policy_id_fkey"
+            columns: ["policy_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_gateway_policies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_subscriptions: {
+        Row: {
+          cancel_at_period_end: boolean
+          created_at: string
+          current_period_end: string | null
+          device_limit: number
+          status: string
+          stripe_customer_id: string | null
+          stripe_price_id: string | null
+          stripe_subscription_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
           cancel_at_period_end?: boolean
           created_at?: string
-          updated_at?: string
+          current_period_end?: string | null
           device_limit?: number
+          status?: string
+          stripe_customer_id?: string | null
+          stripe_price_id?: string | null
+          stripe_subscription_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          cancel_at_period_end?: boolean
+          created_at?: string
+          current_period_end?: string | null
+          device_limit?: number
+          status?: string
+          stripe_customer_id?: string | null
+          stripe_price_id?: string | null
+          stripe_subscription_id?: string | null
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -524,6 +564,23 @@ export type Enums<
   ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
     ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
     : never
 
 export const Constants = {

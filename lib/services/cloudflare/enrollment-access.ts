@@ -112,9 +112,9 @@ export function selectWarpEnrollmentApp(
 
   if (warpApps.length === 1) return warpApps[0]
   if (warpApps.length > 1) {
-    const named = warpApps.find((app) =>
-      /enrollment|warp|device/i.test(app.name ?? "")
-    )
+    const named =
+      warpApps.find((app) => /enrollment/i.test(app.name ?? "")) ??
+      warpApps.find((app) => /device/i.test(app.name ?? ""))
     return named ?? warpApps[0]
   }
 

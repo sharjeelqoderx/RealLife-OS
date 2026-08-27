@@ -1,6 +1,6 @@
 export type PolicyType = "allow" | "block" | "ytrestricted" | "safesearch"
 
-export type PolicyStatus = "active" | "inactive"
+export type PolicyStatus = "configured" | "active" | "inactive"
 
 export type PolicyListItem = {
   id: string

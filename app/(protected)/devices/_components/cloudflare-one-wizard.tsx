@@ -143,7 +143,7 @@ export function CloudflareOneWizard({
           <WizardSubStep
             step={1}
             title={`Open "Cloudflare One" ${storeLabel} Page`}
-            description="This app will connect to your Content Policy"
+            description="Install Cloudflare One to enroll this device"
           >
             <div className="flex flex-col items-center gap-4 md:flex-row md:items-start md:gap-8">
               <QrCodePlaceholder
@@ -192,7 +192,7 @@ export function CloudflareOneWizard({
               Connect Cloudflare Zero Trust
             </h3>
             <p className="mt-1 text-sm text-brand-text-muted">
-              This associates your device with your Content Policy
+              This enrolls the device in your Cloudflare Zero Trust organization.
             </p>
           </div>
 
@@ -291,23 +291,33 @@ export function CloudflareOneWizard({
       {currentStep === 3 ? (
         <section className="mt-8 space-y-6">
           <div>
-            <h3 className="text-lg font-bold text-brand-text-heading">Test Connection</h3>
+            <h3 className="text-lg font-bold text-brand-text-heading">
+              Enable Traffic and DNS mode
+            </h3>
             <p className="mt-1 text-sm text-brand-text-muted">
-              Ensure your device is connected to your Gateway Policy.
-              {info ? (
-                <>
-                  {" "}
-                  Enrolled devices on your account:{" "}
-                  <strong>{info.enrolledDeviceCount}</strong>
-                </>
-              ) : null}
+              Cloudflare One must use Traffic and DNS mode so Gateway can apply
+              DNS, network, and HTTP policies to this device. DNS-only mode is
+              not full device protection.
             </p>
           </div>
 
           <WizardSubStep
             step={1}
-            title="Open the DNS Leak Test Page"
-            description="Run a DNS leak test to verify that your device is connected to Cloudflare correctly."
+            title="Confirm Traffic and DNS in Cloudflare One"
+            description="In the Cloudflare One app, open settings and confirm the client is in Traffic and DNS mode (not DNS-only)."
+          >
+            <p className="text-sm text-brand-text-muted">
+              Stay signed in to team{" "}
+              <strong className="text-brand-text-heading">{teamName}</strong>.
+              Protection applies only while this device remains connected to the
+              organization and Traffic and DNS mode is active.
+            </p>
+          </WizardSubStep>
+
+          <WizardSubStep
+            step={2}
+            title="Optional: DNS leak check"
+            description="A leak test can show that DNS is routed to Cloudflare. It does not prove identity-scoped Gateway policies matched, and it does not prove YouTube apps are blocked."
           >
             <div className="flex flex-col items-center gap-4">
               <QrCodePlaceholder
@@ -322,36 +332,6 @@ export function CloudflareOneWizard({
               </Button>
             </div>
           </WizardSubStep>
-
-          <WizardSubStep
-            step={2}
-            title="Run a Standard Test"
-            description="Either test will work, but a Standard Test is faster."
-          >
-            <SetupGuideImage
-              src={DEVICE_SETUP_IMAGES.dnsLeakStandardTest}
-              alt="DNS leak standard test — replace public/devices/dns-leak-standard-test.svg"
-              width={560}
-              height={320}
-              className="mx-auto max-w-md"
-            />
-          </WizardSubStep>
-
-          <WizardSubStep
-            step={3}
-            title="Check results for Cloudflare"
-            description="Seeing Cloudflare as the DNS provider confirms DNS routing. It does not by itself prove that your identity-scoped Gateway policy matched a query."
-          >
-            <p className="mb-3 text-xs font-medium text-red-500">
-              Cloudflare should appear in the ISP column when DNS is routed
-            </p>
-            <SetupGuideImage
-              src={DEVICE_SETUP_IMAGES.dnsLeakResults}
-              alt="DNS leak results with Cloudflare ISP — replace public/devices/dns-leak-results.svg"
-              width={640}
-              height={280}
-            />
-          </WizardSubStep>
         </section>
       ) : null}
 
@@ -359,11 +339,13 @@ export function CloudflareOneWizard({
         <section className="mt-8 space-y-8">
           <div>
             <h3 className="text-lg font-bold text-brand-text-heading">
-              Customize App Settings
+              Preferred Cloudflare One settings
             </h3>
             <p className="mt-1 text-sm text-brand-text-muted">
-              Save preferred setup reminders in RealLife OS. These do not change
-              Cloudflare device profiles or WARP lock settings.
+              These are preferred reminders in RealLife OS. They do not lock
+              Cloudflare One Client. Protection remains effective while the
+              device is connected to the organization and Traffic and DNS mode
+              is active.
             </p>
           </div>
 
@@ -386,7 +368,7 @@ export function CloudflareOneWizard({
                   }}
                 />
                 <Label htmlFor="lock-filter" className="font-medium">
-                  Lock Filter Switch
+                  Preferred: lock filter switch
                 </Label>
               </div>
             </div>
@@ -415,7 +397,7 @@ export function CloudflareOneWizard({
                   }}
                 />
                 <Label htmlFor="prevent-logout" className="font-medium">
-                  Prevent App Logout
+                  Preferred: stay signed in
                 </Label>
               </div>
             </div>

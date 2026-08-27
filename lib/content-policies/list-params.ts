@@ -4,6 +4,7 @@ export const POLICY_STATUS_OPTIONS: {
   value: PolicyStatus
   label: string
 }[] = [
+  { value: "configured", label: "Configured" },
   { value: "active", label: "Active" },
   { value: "inactive", label: "Inactive" },
 ]

@@ -112,11 +112,12 @@ protection. They must not be required for normal enrollment.
 
 ## 6. Gateway policy requirements
 
-RealLife OS creates Gateway DNS rules with `filters: ["dns"]` and an
-identity-email selector. The backend stores Cloudflare rule IDs only in
-`tenant_gateway_policies`; browsers receive the local policy UUID. A rule being
-deployed only means Cloudflare accepted it. It does not prove that a particular
-device query matched the rule.
+RealLife OS creates identity-scoped Gateway rules: DNS (`filters: ["dns"]`),
+HTTP (`["http"]` for block/allow), and a shared L4 fallback-DNS rule
+(`["l4"]`) so apps cannot bypass DNS via 8.8.8.8:53. Cloudflare rule IDs stay
+in `tenant_gateway_policies` / `tenant_policy_gateway_rules`. Browsers receive
+the local policy UUID. Status `configured` means Cloudflare accepted the rules,
+not that a phone has been proven to block YouTube.
 
 ## 7. Cloudflare API permissions
 

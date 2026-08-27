@@ -22,11 +22,11 @@
 
    Never prefix these values with `NEXT_PUBLIC_`, add them to URLs, or return
    them from APIs.
-6. Configure the default Cloudflare device profile as an administrator. Customer
-   identity-scoped Gateway policies require **Traffic and DNS** client mode;
-   DNS-only mode is not equivalent. Lock, auto-connect, logout restrictions,
-   and MDM controls are Cloudflare/MDM administrator settings—not RealLife OS
-   app preferences.
+Customer identity-scoped Gateway policies require **Traffic and DNS**
+mode (`service_mode_v2.mode = warp`). DNS-only is not equivalent. The
+application can report and apply the default device profile via
+`GET/PATCH /accounts/{id}/devices/policy`. Lock, leave-org, and MDM
+controls remain Cloudflare/MDM administrator decisions.
 7. Test a WARP enrollment using a test SaaS account, then verify the physical
    device and Gateway DNS filtering from the RealLife OS dashboard.
 

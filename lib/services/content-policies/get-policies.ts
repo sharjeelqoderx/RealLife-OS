@@ -91,8 +91,13 @@ export function filterPolicies(
       return false
     }
 
-    if (statuses.length > 0 && !statuses.includes(policy.status)) {
-      return false
+    if (statuses.length > 0) {
+      const expanded = new Set(statuses)
+      if (expanded.has("active")) expanded.add("configured")
+      if (expanded.has("configured")) expanded.add("active")
+      if (![...expanded].includes(policy.status)) {
+        return false
+      }
     }
 
     if (types.length > 0 && !types.includes(policy.type)) {

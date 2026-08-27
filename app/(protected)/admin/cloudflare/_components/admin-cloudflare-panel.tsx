@@ -14,6 +14,12 @@ type CloudflareStatus = {
     gatewayApi: boolean
     accountConfigured: boolean
     tokenConfigured: boolean
+    trafficAndDns: boolean
+    deviceProfile: {
+      trafficAndDns: boolean
+      serviceMode: string | null
+      disableAutoFallback: boolean | null
+    } | null
   }
 }
 
@@ -21,6 +27,10 @@ type StatusResponse = { success: true; data: CloudflareStatus }
 type SyncResponse = {
   success: true
   data: { seen: number; updated: number; missing: number }
+}
+type ProfileResponse = {
+  success: true
+  data: { trafficAndDns: boolean; serviceMode: string | null }
 }
 
 export interface AdminCloudflarePanelProps {
@@ -44,6 +54,16 @@ export function AdminCloudflarePanel({
       }),
   })
 
+  const profileMutation = useMutation({
+    mutationFn: () =>
+      apiClient<ProfileResponse>("/api/admin/cloudflare/device-profile", {
+        method: "POST",
+      }),
+    onSuccess: () => {
+      void statusQuery.refetch()
+    },
+  })
+
   const status = statusQuery.data?.data.cloudflare ?? initialStatus.cloudflare
 
   return (
@@ -64,16 +84,56 @@ export function AdminCloudflarePanel({
         <StatusCard label="Token configured" value={status.tokenConfigured} />
         <StatusCard label="Devices API" value={status.devicesApi} />
         <StatusCard label="Gateway API" value={status.gatewayApi} />
+        <StatusCard
+          label="Traffic and DNS mode"
+          value={status.trafficAndDns}
+        />
       </div>
 
+      {status.deviceProfile?.serviceMode ? (
+        <p className="text-sm text-brand-text-muted">
+          Default device profile service mode:{" "}
+          <strong>{status.deviceProfile.serviceMode}</strong>
+          {status.deviceProfile.disableAutoFallback === true
+            ? " · auto DNS fallback disabled"
+            : " · auto DNS fallback may still be on"}
+        </p>
+      ) : (
+        <p className="text-sm text-brand-text-muted">
+          Default device profile could not be read. Set Traffic and DNS
+          manually in Cloudflare Zero Trust, or retry Apply below.
+        </p>
+      )}
+
+      <div className="flex flex-wrap gap-3">
       <Button
         type="button"
         onClick={() => syncMutation.mutate()}
-        disabled={syncMutation.isPending}
+        disabled={syncMutation.isPending || profileMutation.isPending}
       >
         {syncMutation.isPending ? <CustomSpinner /> : null}
         Sync Cloudflare devices
       </Button>
+      <Button
+        type="button"
+        variant="brandOutline"
+        onClick={() => profileMutation.mutate()}
+        disabled={profileMutation.isPending || syncMutation.isPending}
+      >
+        {profileMutation.isPending ? <CustomSpinner /> : null}
+        Apply Traffic and DNS profile
+      </Button>
+      </div>
+
+      {profileMutation.isError ? (
+        <ErrorAlert
+          message={
+            profileMutation.error instanceof Error
+              ? profileMutation.error.message
+              : "Unable to apply Traffic and DNS profile"
+          }
+        />
+      ) : null}
 
       {syncMutation.isError ? (
         <ErrorAlert

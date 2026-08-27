@@ -4,6 +4,10 @@ import {
   type CloudflarePhysicalDevice,
 } from "@/lib/services/cloudflare/devices"
 import {
+  getDefaultDevicePolicy,
+  readTrafficAndDnsProfileStatus,
+} from "@/lib/services/cloudflare/device-policy"
+import {
   DeviceServiceError,
   getDeviceAccountContext,
   mapCloudflareDeviceType,
@@ -151,6 +155,14 @@ export async function listConnectedDevices(): Promise<ConnectedDevice[]> {
     console.warn("listConnectedDevices: profiles unavailable:", error)
   }
 
+  let trafficAndDns = false
+  try {
+    const profile = await getDefaultDevicePolicy(accountId)
+    trafficAndDns = readTrafficAndDnsProfileStatus(profile).trafficAndDns
+  } catch (error) {
+    console.warn("listConnectedDevices: device profile lookup failed", error)
+  }
+
   const mapped = physicalDevices
     .filter((device) => metadata.has(device.id))
     .map(async (device) => {
@@ -158,7 +170,7 @@ export async function listConnectedDevices(): Promise<ConnectedDevice[]> {
       const platform = mapCloudflareDeviceType(device.device_type)
       const lastSeenIso = device.last_seen_at ?? device.last_seen
       const hasActiveRegistration = (device.active_registrations ?? 0) > 0
-      const profile = profileByDevice.get(meta.id) ?? null
+      const appProfile = profileByDevice.get(meta.id) ?? null
 
       let effective: {
         effectivePolicyId: string | null
@@ -189,6 +201,17 @@ export async function listConnectedDevices(): Promise<ConnectedDevice[]> {
         }
       }
 
+      const protectionStatus = hasActiveRegistration
+        ? "connected"
+        : "not_connected"
+      const policyStatus = effective.effectivePolicyId
+        ? "active"
+        : "not_active"
+      const gatewayStatus =
+        hasActiveRegistration && trafficAndDns
+          ? "protected"
+          : "not_protected"
+
       return {
         id: meta.id,
         registrationId: null,
@@ -200,9 +223,12 @@ export async function listConnectedDevices(): Promise<ConnectedDevice[]> {
         model: device.model ?? null,
         osVersion: device.os_version ?? null,
         userEmail: device.last_seen_user?.email ?? null,
-        profileId: profile?.id ?? null,
-        profileName: profile?.name ?? null,
+        profileId: appProfile?.id ?? null,
+        profileName: appProfile?.name ?? null,
         dohSubdomain: meta.dohSubdomain,
+        protectionStatus,
+        policyStatus,
+        gatewayStatus,
         ...effective,
       } satisfies ConnectedDevice
     })

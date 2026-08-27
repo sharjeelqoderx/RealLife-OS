@@ -271,6 +271,9 @@ export function DeviceProfilesPanel({
     (b.createdAt ?? "").localeCompare(a.createdAt ?? "")
   )
   const policies = policiesQuery.data ?? []
+  const hasDevices = devices.length > 0
+  const hasPolicies = policies.length > 0
+  const canSubmitProfile = hasDevices && hasPolicies
   const deviceNameById = new Map(
     devices.map((device) => [device.id, device.name])
   )
@@ -335,13 +338,18 @@ export function DeviceProfilesPanel({
                 <Select
                   value={field.value || undefined}
                   onValueChange={field.onChange}
+                  disabled={!hasDevices}
                 >
                   <SelectTrigger
                     id="profile-device"
                     className="h-11 min-h-11 max-h-11 w-full min-w-0 data-[size=default]:h-11 data-[size=default]:py-0 data-[size=default]:ps-3 data-[size=default]:pe-10"
                     aria-invalid={!!fieldState.error}
                   >
-                    <SelectValue placeholder="Select device" />
+                    <SelectValue
+                      placeholder={
+                        hasDevices ? "Select device" : "No devices"
+                      }
+                    />
                   </SelectTrigger>
                   <SelectContent>
                     {devices.map((device) => (
@@ -372,13 +380,18 @@ export function DeviceProfilesPanel({
                 <Select
                   value={field.value || undefined}
                   onValueChange={field.onChange}
+                  disabled={!hasPolicies}
                 >
                   <SelectTrigger
                     id="profile-policy"
                     className="h-11 min-h-11 max-h-11 w-full min-w-0 data-[size=default]:h-11 data-[size=default]:py-0 data-[size=default]:ps-3 data-[size=default]:pe-10"
                     aria-invalid={!!fieldState.error}
                   >
-                    <SelectValue placeholder="Select policy" />
+                    <SelectValue
+                      placeholder={
+                        hasPolicies ? "Select policy" : "No policies"
+                      }
+                    />
                   </SelectTrigger>
                   <SelectContent>
                     {policies.map((policy) => (
@@ -419,7 +432,9 @@ export function DeviceProfilesPanel({
               size="lg"
               className="h-11 min-w-0 flex-1 px-3 xl:flex-none"
               disabled={
-                createMutation.isPending || updateMutation.isPending
+                !canSubmitProfile ||
+                createMutation.isPending ||
+                updateMutation.isPending
               }
             >
               {createMutation.isPending || updateMutation.isPending ? (

@@ -4,6 +4,11 @@ import {
   tryGetCloudflareApiToken,
 } from "@/lib/cloudflare/config"
 import { createLiveCloudflareProvider } from "@/lib/cloudflare/providers/live"
+import {
+  getDefaultDevicePolicy,
+  readTrafficAndDnsProfileStatus,
+  type TrafficAndDnsProfileStatus,
+} from "@/lib/services/cloudflare/device-policy"
 
 export async function getAdminCloudflareStatus(): Promise<{
   cloudflare: {
@@ -12,6 +17,8 @@ export async function getAdminCloudflareStatus(): Promise<{
     gatewayApi: boolean
     accountConfigured: boolean
     tokenConfigured: boolean
+    trafficAndDns: boolean
+    deviceProfile: TrafficAndDnsProfileStatus | null
   }
 }> {
   const accountConfigured = Boolean(tryGetCloudflareAccountId())
@@ -25,6 +32,8 @@ export async function getAdminCloudflareStatus(): Promise<{
         gatewayApi: false,
         accountConfigured,
         tokenConfigured,
+        trafficAndDns: false,
+        deviceProfile: null,
       },
     }
   }
@@ -32,6 +41,7 @@ export async function getAdminCloudflareStatus(): Promise<{
   const provider = createLiveCloudflareProvider()
   let devicesApi = false
   let gatewayApi = false
+  let deviceProfile: TrafficAndDnsProfileStatus | null = null
 
   try {
     await provider.listPhysicalDevices()
@@ -47,6 +57,16 @@ export async function getAdminCloudflareStatus(): Promise<{
     gatewayApi = false
   }
 
+  try {
+    const accountId = tryGetCloudflareAccountId()
+    if (accountId) {
+      const policy = await getDefaultDevicePolicy(accountId)
+      deviceProfile = readTrafficAndDnsProfileStatus(policy)
+    }
+  } catch {
+    deviceProfile = null
+  }
+
   return {
     cloudflare: {
       connected: devicesApi || gatewayApi,
@@ -54,6 +74,8 @@ export async function getAdminCloudflareStatus(): Promise<{
       gatewayApi,
       accountConfigured,
       tokenConfigured,
+      trafficAndDns: deviceProfile?.trafficAndDns === true,
+      deviceProfile,
     },
   }
 }

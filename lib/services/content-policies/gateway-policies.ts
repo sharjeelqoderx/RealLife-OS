@@ -11,7 +11,6 @@ import {
   deleteGatewayRule,
   getGatewayRule,
   listGatewayRules,
-  updateGatewayRule,
   type GatewayRule,
   type GatewayRuleAction,
   type GatewaySchedule,
@@ -25,15 +24,33 @@ import {
   type PolicyListFilters,
 } from "@/lib/services/content-policies/get-policies"
 import {
+  attachOwnedGatewayPolicyRules,
   buildIdentityExpression,
   getOwnedGatewayPolicy,
+  insertPendingOwnedGatewayPolicy,
   listOwnedGatewayPolicies,
   markOwnedGatewayPolicyDeleted,
-  recordOwnedGatewayPolicy,
+  markOwnedGatewayPolicyStatus,
   requirePolicyOwnershipStore,
+  customerFacingGatewayPolicyName,
   uniqueCloudflareGatewayRuleName,
   updateOwnedGatewayPolicyRecord,
 } from "@/lib/services/content-policies/policy-ownership"
+import {
+  buildHttpTrafficExpression,
+  expandAppIdsForPolicy,
+  shouldCreateFallbackDnsLayer,
+  shouldCreateHttpLayer,
+  youtubeDomainRootsForInput,
+  youtubeNeedsExpandedCoverage,
+} from "@/lib/services/content-policies/gateway-policy-layers"
+import {
+  compensateCreatedCloudflareRules,
+  deleteMappedCloudflareRules,
+  ensureIdentityFallbackDnsRule,
+  listMappedGatewayRules,
+  recordMappedGatewayRule,
+} from "@/lib/services/content-policies/policy-rule-mapping"
 import { createClient } from "@/lib/supabase/server"
 import type {
   CreateGatewayPolicyInput,
@@ -44,7 +61,14 @@ import type { Json } from "@/types/supabase"
 
 /** Known consumer apps → domains for DNS policies (Phase 1 without app-ID catalog). */
 const APP_DOMAIN_MAP: Record<string, string[]> = {
-  youtube: ["youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be"],
+  youtube: [
+    "youtube.com",
+    "www.youtube.com",
+    "m.youtube.com",
+    "youtu.be",
+    "googlevideo.com",
+    "ytimg.com",
+  ],
   tiktok: ["tiktok.com", "www.tiktok.com"],
   facebook: ["facebook.com", "www.facebook.com", "fb.com"],
   "facebook messenger": ["messenger.com", "www.messenger.com"],
@@ -105,7 +129,12 @@ const YOUTUBE_DOMAINS = [
   "www.youtube.com",
   "m.youtube.com",
   "youtu.be",
+  "youtube-nocookie.com",
+  "www.youtube-nocookie.com",
   "youtubei.googleapis.com",
+  "googlevideo.com",
+  "ytimg.com",
+  "i.ytimg.com",
 ]
 
 function pad2(n: number) {
@@ -279,9 +308,7 @@ export async function buildTrafficExpression(
   if (categoryExpr) parts.push(categoryExpr)
 
   let domains = [...input.domains]
-  // Prefer Cloudflare app IDs (valid on DNS policies). Domain fallback is only
-  // for legacy label-only payloads without numeric app IDs.
-  const appIds = [...new Set(input.appIds ?? [])]
+  const appIds = await expandAppIdsForPolicy(accountId, input)
   if (appIds.length === 0) {
     domains = [...domains, ...domainsFromApps(input.apps)]
   }
@@ -289,27 +316,47 @@ export async function buildTrafficExpression(
   if (input.type === "safesearch" && domains.length === 0) {
     domains = SAFESEARCH_DOMAINS
   }
-  if (input.type === "ytrestricted" && domains.length === 0) {
-    domains = YOUTUBE_DOMAINS
+  if (
+    input.type === "ytrestricted" &&
+    domains.length === 0 &&
+    appIds.length === 0
+  ) {
+    domains = [...YOUTUBE_DOMAINS]
   }
 
   const fqdnExpr = buildFqdnExpression(domains)
-  if (fqdnExpr) parts.push(fqdnExpr)
 
-  const domainRootExpr = buildDomainRootExpression(input.domainRoots ?? [])
-  if (domainRootExpr) parts.push(domainRootExpr)
-
+  const domainRoots = youtubeDomainRootsForInput({
+    type: input.type,
+    apps: input.apps,
+    domainRoots: input.domainRoots ?? [],
+  })
+  const domainRootExpr = buildDomainRootExpression(domainRoots)
   const keywordExpr = buildKeywordExpression(input.domainKeywords ?? [])
-  if (keywordExpr) parts.push(keywordExpr)
 
   const locationExpr = buildLocationExpression(input.locationIds)
   if (locationExpr) parts.push(locationExpr)
 
   const appExpr = buildAppExpression(appIds)
-  if (appExpr) parts.push(appExpr)
+  const expandYoutube = youtubeNeedsExpandedCoverage({
+    type: input.type,
+    apps: input.apps,
+    appIds,
+  })
+  const trafficMatchers = [appExpr, fqdnExpr, domainRootExpr, keywordExpr].filter(
+    (expr): expr is string => Boolean(expr)
+  )
+  if (trafficMatchers.length > 0) {
+    // YouTube CDN/API hosts often do not carry the YouTube Application ID.
+    // OR those matchers so googlevideo/ytimg still hit the DNS rule.
+    if (expandYoutube && trafficMatchers.length > 1) {
+      parts.push(`(${trafficMatchers.join(" or ")})`)
+    } else {
+      parts.push(...trafficMatchers)
+    }
+  }
 
   if (parts.length === 0) {
-    // Gateway requires a traffic expression; match-all for typed actions only
     if (input.type === "safesearch" || input.type === "ytrestricted") {
       return {
         traffic: buildFqdnExpression(
@@ -322,6 +369,33 @@ export async function buildTrafficExpression(
   }
 
   return { traffic: parts.join(" and "), filters: ["dns"] }
+}
+
+export async function buildHttpLayerTraffic(
+  accountId: string,
+  input: CreateGatewayPolicyInput
+): Promise<string | null> {
+  const appIds = await expandAppIdsForPolicy(accountId, input)
+  const hosts = [
+    ...input.domains,
+    ...(appIds.length === 0 ? domainsFromApps(input.apps) : []),
+  ]
+  if (
+    input.type === "ytrestricted" &&
+    hosts.length === 0 &&
+    appIds.length === 0
+  ) {
+    hosts.push(...YOUTUBE_DOMAINS)
+  }
+  return buildHttpTrafficExpression({
+    appIds,
+    hosts,
+    domainRoots: youtubeDomainRootsForInput({
+      type: input.type,
+      apps: input.apps,
+      domainRoots: input.domainRoots ?? [],
+    }),
+  })
 }
 
 /**
@@ -347,6 +421,9 @@ async function getGatewayRuleForUser(
     throw new Error("Unauthorized")
   }
   const policy = await getOwnedGatewayPolicy(userId, policyId)
+  if (!policy.cloudflareRuleId) {
+    throw new Error("Policy not found")
+  }
 
   const primaryAccountId = await getPolicyCloudflareAccountId(userId)
   try {
@@ -380,11 +457,11 @@ export function mapGatewayRuleToListItem(rule: GatewayRule): PolicyListItem {
   const updatedAt = rule.updated_at ?? rule.created_at
   return {
     id: rule.id ?? "",
-    name: rule.name ?? "Untitled",
+    name: customerFacingGatewayPolicyName(rule.name),
     type,
     typeLabel: formatTypeLabel(type),
     rulesCount: 1,
-    status: rule.enabled === false ? "inactive" : "active",
+    status: rule.enabled === false ? "inactive" : "configured",
     updatedAt: updatedAt
       ? new Date(updatedAt).toLocaleDateString()
       : "—",
@@ -407,7 +484,7 @@ export async function getGatewayPolicyById(
     const detail = {
       ...mapGatewayRuleToDetail(rule),
       id: policyId,
-      name: owned.name?.trim() || rule.name || "Untitled",
+      name: customerFacingGatewayPolicyName(owned.name, rule.name),
     }
     const accountId = await getPolicyCloudflareAccountId(user.id)
     const selectors = await resolveTrafficSelectors(
@@ -448,7 +525,7 @@ export type GatewayPolicyDetail = {
   name: string
   type: PolicyType
   typeLabel: string
-  status: "active" | "inactive"
+  status: "configured" | "inactive"
   description: string | null
   enabled: boolean
   traffic: string | null
@@ -481,7 +558,7 @@ function mapGatewayRuleToDetail(rule: GatewayRule): GatewayPolicyDetail {
     name: rule.name ?? "Untitled",
     type,
     typeLabel: formatTypeLabel(type),
-    status: rule.enabled === false ? "inactive" : "active",
+    status: rule.enabled === false ? "inactive" : "configured",
     description: rule.description ?? null,
     enabled: rule.enabled !== false,
     traffic: rule.traffic ?? null,
@@ -514,18 +591,38 @@ export async function listGatewayPolicies(
   const accountId = await getPolicyCloudflareAccountId(user.id)
   const ownedPolicies = await listOwnedGatewayPolicies(user.id)
   const localPolicyIdByCloudflareRuleId = new Map(
-    ownedPolicies.map((policy) => [policy.cloudflareRuleId, policy.id])
+    ownedPolicies
+      .filter((policy) => policy.cloudflareRuleId)
+      .map((policy) => [policy.cloudflareRuleId as string, policy.id])
+  )
+  const localNameByPolicyId = new Map(
+    ownedPolicies.map((policy) => [policy.id, policy.name])
   )
 
   const rules = await listGatewayRules(accountId)
+  const mappedCounts = new Map<string, number>()
+  for (const owned of ownedPolicies) {
+    try {
+      const mapped = await listMappedGatewayRules(user.id, owned.id)
+      mappedCounts.set(owned.id, Math.max(mapped.length, 1))
+    } catch {
+      mappedCounts.set(owned.id, 1)
+    }
+  }
+
   const policies = rules
-    .filter((r) => r.filters?.includes("dns") || !r.filters?.length)
     .map((rule) => {
       const localPolicyId = rule.id
         ? localPolicyIdByCloudflareRuleId.get(rule.id)
         : undefined
       if (!localPolicyId) return null
-      return { ...mapGatewayRuleToListItem(rule), id: localPolicyId }
+      const item = { ...mapGatewayRuleToListItem(rule), id: localPolicyId }
+      item.name = customerFacingGatewayPolicyName(
+        localNameByPolicyId.get(localPolicyId),
+        rule.name
+      )
+      item.rulesCount = mappedCounts.get(localPolicyId) ?? 1
+      return item
     })
     .filter((item): item is PolicyListItem => item !== null)
     .filter((item) => item.id)
@@ -547,18 +644,36 @@ export async function createGatewayPolicy(
 
   await requirePolicyOwnershipStore()
   const accountId = await getPolicyCloudflareAccountId(user.id)
+  const action = mapPolicyTypeToAction(input.type)
+  const enabled = input.enabled ?? true
+  const createdRuleIds: string[] = []
+
+  let localPolicyId: string
+  try {
+    localPolicyId = await insertPendingOwnedGatewayPolicy({
+      userId: user.id,
+      name: input.name,
+      description: input.description,
+      type: input.type,
+      action,
+      enabled,
+      precedence: input.precedence ?? 1000,
+      configurationJson: JSON.parse(JSON.stringify(input)) as Json,
+    })
+  } catch (error) {
+    throw error
+  }
 
   try {
     const { traffic, filters } = await buildTrafficExpression(accountId, input)
     const schedule = buildGatewaySchedule(input.schedules, input.timeZone)
-    const action = mapPolicyTypeToAction(input.type)
     const identity = buildIdentityExpression(user.email)
 
-    const rule = await createGatewayRule(accountId, {
+    const dnsRule = await createGatewayRule(accountId, {
       name: uniqueCloudflareGatewayRuleName(input.name),
       action,
       description: input.description,
-      enabled: input.enabled ?? true,
+      enabled,
       filters,
       traffic,
       identity,
@@ -566,44 +681,103 @@ export async function createGatewayPolicy(
       precedence: input.precedence,
     })
 
-    if (!rule.id) {
+    if (!dnsRule.id) {
       throw new Error("Cloudflare did not return a Gateway rule id")
     }
+    createdRuleIds.push(dnsRule.id)
 
-    let localPolicyId: string
     try {
-      localPolicyId = await recordOwnedGatewayPolicy({
+      await recordMappedGatewayRule({
         userId: user.id,
-        name: input.name,
-        description: input.description,
-        type: input.type,
-        cloudflareRuleId: rule.id,
-        action,
-        enabled: input.enabled ?? true,
-        precedence: input.precedence ?? rule.precedence ?? 1000,
-        configurationJson: JSON.parse(JSON.stringify(input)) as Json,
+        policyId: localPolicyId,
+        cloudflareRuleId: dnsRule.id,
+        ruleRole: "dns",
       })
-    } catch (ownershipError) {
+    } catch (mappingError) {
+      await compensateCreatedCloudflareRules(accountId, createdRuleIds)
+      await markOwnedGatewayPolicyStatus(user.id, localPolicyId, "failed")
+      throw mappingError
+    }
+
+    const httpTraffic = await buildHttpLayerTraffic(accountId, input)
+    if (shouldCreateHttpLayer(input.type, httpTraffic) && httpTraffic) {
       try {
-        await deleteGatewayRule(accountId, rule.id)
-      } catch {
-        console.error("Failed to compensate for unowned Cloudflare rule", {
-          ruleId: rule.id,
+        const httpRule = await createGatewayRule(accountId, {
+          name: uniqueCloudflareGatewayRuleName(`${input.name} · HTTP`),
+          action: action === "allow" ? "allow" : "block",
+          description: input.description,
+          enabled,
+          filters: ["http"],
+          traffic: httpTraffic,
+          identity,
+          schedule,
+          precedence: input.precedence,
         })
+        if (httpRule.id) {
+          createdRuleIds.push(httpRule.id)
+          try {
+            await recordMappedGatewayRule({
+              userId: user.id,
+              policyId: localPolicyId,
+              cloudflareRuleId: httpRule.id,
+              ruleRole: "http",
+            })
+          } catch (httpMapError) {
+            await compensateCreatedCloudflareRules(accountId, [httpRule.id])
+            const mappedIndex = createdRuleIds.indexOf(httpRule.id)
+            if (mappedIndex >= 0) createdRuleIds.splice(mappedIndex, 1)
+            console.warn(
+              "HTTP Gateway layer mapping failed; Cloudflare rule deleted",
+              httpMapError
+            )
+          }
+        }
+      } catch (httpError) {
+        console.warn("HTTP Gateway layer skipped", httpError)
       }
-      throw ownershipError
+    }
+
+    if (shouldCreateFallbackDnsLayer(input.type)) {
+      const fallback = await ensureIdentityFallbackDnsRule({
+        accountId,
+        userId: user.id,
+        policyId: localPolicyId,
+        email: user.email,
+      })
+      if (fallback.created) {
+        createdRuleIds.push(fallback.ruleId)
+      }
+    }
+
+    try {
+      await attachOwnedGatewayPolicyRules({
+        userId: user.id,
+        policyId: localPolicyId,
+        cloudflareRuleId: dnsRule.id,
+        status: "configured",
+      })
+    } catch (attachError) {
+      await compensateCreatedCloudflareRules(accountId, createdRuleIds)
+      await markOwnedGatewayPolicyStatus(user.id, localPolicyId, "failed")
+      throw attachError
     }
 
     await createAdminAudit(user.id, "POLICY_CREATED", localPolicyId)
     return {
       id: localPolicyId,
-      name: rule.name ?? input.name,
-      action: rule.action ?? action,
-      enabled: rule.enabled !== false,
-      created_at: rule.created_at,
-      updated_at: rule.updated_at,
+      name: customerFacingGatewayPolicyName(input.name, dnsRule.name),
+      action: dnsRule.action ?? action,
+      enabled: dnsRule.enabled !== false,
+      created_at: dnsRule.created_at,
+      updated_at: dnsRule.updated_at,
     }
   } catch (error) {
+    await compensateCreatedCloudflareRules(accountId, createdRuleIds)
+    try {
+      await markOwnedGatewayPolicyStatus(user.id, localPolicyId, "failed")
+    } catch {
+      // Local row may already be failed.
+    }
     const message = error instanceof Error ? error.message : String(error)
     if (/authentication error/i.test(message)) {
       throw new Error(
@@ -635,6 +809,9 @@ export async function updateGatewayPolicy(
   }
 
   const policy = await getOwnedGatewayPolicy(user.id, policyId)
+  if (!policy.cloudflareRuleId) {
+    throw new Error("Policy not found")
+  }
   const accountId = await getPolicyCloudflareAccountId(user.id)
 
   try {
@@ -669,7 +846,7 @@ export async function updateGatewayPolicy(
     await createAdminAudit(user.id, "POLICY_UPDATED", policyId)
     return {
       id: policyId,
-      name: rule?.name ?? input.name,
+      name: customerFacingGatewayPolicyName(input.name, rule?.name),
       action: rule?.action ?? action,
       enabled: rule?.enabled !== false,
       created_at: rule?.created_at ?? existing.created_at,
@@ -966,7 +1143,7 @@ export async function getGatewayPolicyForEditor(
 
   return {
     id: policyId,
-    name: owned.name?.trim() || detail.name,
+    name: customerFacingGatewayPolicyName(owned.name, detail.name),
     type: detail.type,
     enabled: detail.enabled,
     categories: selectors.categories,
@@ -981,7 +1158,7 @@ export async function getGatewayPolicyForEditor(
 }
 
 /**
- * Delete an owned Gateway DNS rule on the shared Zero Trust account.
+ * Delete an owned Gateway policy and every mapped Cloudflare rule.
  */
 export async function deleteGatewayPolicy(policyId: string): Promise<void> {
   const supabase = await createClient()
@@ -1000,7 +1177,29 @@ export async function deleteGatewayPolicy(policyId: string): Promise<void> {
   const policy = await getOwnedGatewayPolicy(user.id, policyId)
   const accountId = await getPolicyCloudflareAccountId(user.id)
 
-  await deleteGatewayRule(accountId, policy.cloudflareRuleId)
+  await deleteMappedCloudflareRules({
+    accountId,
+    userId: user.id,
+    policyId,
+  })
+
+  if (policy.cloudflareRuleId) {
+    const remaining = await listMappedGatewayRules(user.id, policyId)
+    const stillMapped = remaining.some(
+      (row) => row.cloudflareRuleId === policy.cloudflareRuleId
+    )
+    if (!stillMapped) {
+      try {
+        await deleteGatewayRule(accountId, policy.cloudflareRuleId)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        if (!/not found|could not find|404/i.test(message)) {
+          throw error
+        }
+      }
+    }
+  }
+
   await markOwnedGatewayPolicyDeleted(user.id, policyId)
   await createAdminAudit(user.id, "POLICY_DELETED", policyId)
 }

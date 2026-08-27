@@ -254,14 +254,20 @@ export function PolicyView({
               <Badge
                 className={cn(
                   "rounded text-[10px] font-bold tracking-wide",
-                  policy.status === "active"
-                    ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-100"
-                    : "bg-gray-200 text-gray-600 hover:bg-gray-200"
+                  policy.status === "inactive"
+                    ? "bg-gray-200 text-gray-600 hover:bg-gray-200"
+                    : "bg-amber-100 text-amber-900 hover:bg-amber-100"
                 )}
               >
-                {policy.status === "active" ? "DEPLOYED" : "INACTIVE"}
+                {policy.status === "inactive" ? "INACTIVE" : "CONFIGURED"}
               </Badge>
             </div>
+            <p className="max-w-2xl text-sm text-brand-text-muted">
+              Configured means Cloudflare stored the Gateway rules. Protection
+              applies while the enrolled device is connected in Traffic and DNS
+              mode. Cloudflare enforcement is identity-scoped; this account
+              owns the device record locally.
+            </p>
           </div>
         </div>
 

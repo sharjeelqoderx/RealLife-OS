@@ -7,7 +7,7 @@ ID, API token, Gateway rule ID, registration credentials, or service tokens.
 ```
 Customer → RealLife OS UI → authenticated API routes → Supabase ownership data
          → server-only Cloudflare client → shared Zero Trust organization
-         → Cloudflare One Client/WARP → Gateway DNS rules
+         → Cloudflare One Client/WARP → Gateway DNS, HTTP, and L4 rules
 ```
 
 Supabase Auth users are the SaaS identity and database ownership source of

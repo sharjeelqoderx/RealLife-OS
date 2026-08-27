@@ -198,8 +198,8 @@ export function PolicyTable({ policies }: PolicyTableProps) {
           >
             <CardHeader className="rounded-none border-b border-border/60 py-3">
               <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0 space-y-1.5">
-                  <CardTitle className="text-base font-semibold text-brand-text-heading">
+                <div className="min-w-0 overflow-hidden space-y-1.5">
+                  <CardTitle className="truncate text-base font-semibold text-brand-text-heading">
                     {policy.name}
                   </CardTitle>
                   <div className="flex flex-wrap items-center gap-2">
@@ -214,9 +214,9 @@ export function PolicyTable({ policies }: PolicyTableProps) {
                     <Badge
                       className={cn(
                         "rounded text-[10px] font-bold tracking-wide",
-                        policy.status === "active"
-                          ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-100"
-                          : "bg-gray-200 text-gray-600 hover:bg-gray-200"
+                        policy.status === "inactive"
+                          ? "bg-gray-200 text-gray-600 hover:bg-gray-200"
+                          : "bg-amber-100 text-amber-900 hover:bg-amber-100"
                       )}
                     >
                       {policy.status.toUpperCase()}
@@ -248,7 +248,7 @@ export function PolicyTable({ policies }: PolicyTableProps) {
           "hidden gap-0 overflow-hidden py-0 lg:block"
         )}
       >
-        <CardContent className="p-0">
+        <CardContent className="overflow-hidden p-0">
           <Table className={policyTableClassName}>
             <colgroup>
               {policyTableColgroup.map((col) => (
@@ -281,10 +281,12 @@ export function PolicyTable({ policies }: PolicyTableProps) {
                   <TableCell
                     className={cn(
                       tableCellClassName,
-                      "font-medium text-brand-text-heading"
+                      "max-w-0 overflow-hidden font-medium text-brand-text-heading"
                     )}
                   >
-                    {policy.name}
+                    <span className="block w-full truncate">
+                      {policy.name}
+                    </span>
                   </TableCell>
                   <TableCell className={tableCellClassName}>
                     <Badge
@@ -305,9 +307,9 @@ export function PolicyTable({ policies }: PolicyTableProps) {
                     <Badge
                       className={cn(
                         "rounded text-[10px] font-bold tracking-wide",
-                        policy.status === "active"
-                          ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-100"
-                          : "bg-gray-200 text-gray-600 hover:bg-gray-200"
+                        policy.status === "inactive"
+                          ? "bg-gray-200 text-gray-600 hover:bg-gray-200"
+                          : "bg-amber-100 text-amber-900 hover:bg-amber-100"
                       )}
                     >
                       {policy.status.toUpperCase()}

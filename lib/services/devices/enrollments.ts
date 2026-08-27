@@ -40,11 +40,11 @@ function deviceNameForPlatform(platform: DevicePlatform): string {
 
 function platformInstructions(teamName: string): Record<string, string> {
   return {
-    windows: `Install Cloudflare One Client, select Zero Trust, enter ${teamName}, and finish the organization sign-in.`,
-    macos: `Install Cloudflare One Client, select Zero Trust, enter ${teamName}, and finish the organization sign-in.`,
-    linux: `Install Cloudflare One Client, then run: warp-cli registration new ${teamName}. Complete the browser sign-in.`,
-    ios: `Install Cloudflare One Agent, enter ${teamName}, complete sign-in, install the VPN profile, then connect.`,
-    android: `Install Cloudflare One Agent, enter ${teamName}, complete sign-in, and connect.`,
+    windows: `Install Cloudflare One Client, select Zero Trust, enter ${teamName}, finish organization sign-in, and set Traffic and DNS mode (not DNS-only).`,
+    macos: `Install Cloudflare One Client, select Zero Trust, enter ${teamName}, finish organization sign-in, and set Traffic and DNS mode (not DNS-only).`,
+    linux: `Install Cloudflare One Client, then run: warp-cli registration new ${teamName}. Complete the browser sign-in and use Traffic and DNS mode.`,
+    ios: `Install Cloudflare One Agent, enter ${teamName}, complete sign-in, install the VPN profile, connect, and confirm Traffic and DNS mode.`,
+    android: `Install Cloudflare One Agent, enter ${teamName}, complete sign-in, connect, and confirm Traffic and DNS mode.`,
   }
 }
 
@@ -107,6 +107,21 @@ export async function createDeviceEnrollment(
         : "Unable to register your email for Cloudflare device enrollment.",
       502,
       "ENROLLMENT_EMAIL_REGISTER_FAILED"
+    )
+  }
+
+  try {
+    const { accountId } = await getDeviceAccountContext(userId)
+    if (accountId) {
+      const { ensureDefaultTrafficAndDnsProfile } = await import(
+        "@/lib/services/cloudflare/device-policy"
+      )
+      await ensureDefaultTrafficAndDnsProfile(accountId)
+    }
+  } catch (error) {
+    console.warn(
+      "createDeviceEnrollment: Traffic and DNS profile ensure failed",
+      error
     )
   }
 
@@ -319,6 +334,9 @@ export async function getDeviceEnrollmentStatus(enrollmentId: string): Promise<{
       .insert({
         user_id: userId,
         cloudflare_device_id: device.id,
+        cloudflare_account_id: accountId,
+        cloudflare_registration_id: registration.id,
+        enrollment_status: "enrolled",
         display_name: enrollment.requested_device_name,
       })
       .select("id")
@@ -350,6 +368,9 @@ export async function getDeviceEnrollmentStatus(enrollmentId: string): Promise<{
       .from("tenant_device_metadata")
       .update({
         display_name: enrollment.requested_device_name,
+        cloudflare_account_id: accountId,
+        cloudflare_registration_id: registration.id,
+        enrollment_status: "enrolled",
         updated_at: new Date().toISOString(),
       })
       .eq("user_id", userId)

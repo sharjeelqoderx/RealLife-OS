@@ -31,6 +31,8 @@ export default async function AdminCloudflarePage() {
       gatewayApi: false,
       accountConfigured: false,
       tokenConfigured: false,
+      trafficAndDns: false,
+      deviceProfile: null,
     },
   }))
 

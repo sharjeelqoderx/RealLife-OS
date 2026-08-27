@@ -343,7 +343,13 @@ export function DeviceSetupView({
                       .
                     </li>
                     <li>
+                      After sign-in, confirm Traffic and DNS mode is on — not
+                      DNS-only.
+                    </li>
+                    <li>
                       Keep Cloudflare One connected while we detect the device.
+                      Installing the app is not protection until enrollment is
+                      verified here.
                     </li>
                   </ol>
                   {installUrl ? (

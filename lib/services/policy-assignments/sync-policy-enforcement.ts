@@ -2,10 +2,14 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { createClient } from "@/lib/supabase/server"
 import {
   buildGatewaySchedule,
+  buildHttpLayerTraffic,
   buildTrafficExpression,
   getPolicyCloudflareAccountId,
   mapPolicyTypeToAction,
 } from "@/lib/services/content-policies/gateway-policies"
+import {
+  assignmentPrecedenceBase,
+} from "@/lib/services/content-policies/gateway-policy-layers"
 import {
   buildIdentityExpression,
   getOwnedGatewayPolicy,
@@ -65,16 +69,20 @@ export async function syncPolicyCloudflareEnforcement(
       policyId
     )
 
-    const precedence = hasDeviceAssignment
-      ? DEVICE_ASSIGNMENT_PRECEDENCE_BASE + stableOffset(policyId, 40)
-      : hasAssignments
-        ? PROFILE_ASSIGNMENT_PRECEDENCE_BASE + stableOffset(policyId, 40)
-        : UNASSIGNED_POLICY_PRECEDENCE_BASE + stableOffset(policyId, 40)
-
     const email = await getUserEmailForSync(userId)
     const identity = buildIdentityExpression(email)
 
     const config = parseStoredConfig(policyRow.configuration_json)
+    const draftAction = mapPolicyTypeToAction(
+      (config.type ?? policyRow.type) as CreateGatewayPolicyInput["type"]
+    )
+    const precedence =
+      assignmentPrecedenceBase({
+        action: draftAction,
+        hasDeviceAssignment,
+        hasAssignments,
+      }) + stableOffset(policyId, 40)
+
     const draft = {
       ...config,
       locationIds,
@@ -89,6 +97,10 @@ export async function syncPolicyCloudflareEnforcement(
       throw new Error(
         parsed.error.issues[0]?.message ?? "Invalid policy configuration"
       )
+    }
+
+    if (!policyRow.cloudflare_rule_id) {
+      throw new Error("Cloudflare Gateway rule missing for policy")
     }
 
     const { traffic, filters } = await buildTrafficExpression(
@@ -123,6 +135,33 @@ export async function syncPolicyCloudflareEnforcement(
       ),
       precedence,
     })
+
+    const { listMappedGatewayRules } = await import(
+      "@/lib/services/content-policies/policy-rule-mapping"
+    )
+    const mapped = await listMappedGatewayRules(userId, policyId)
+    const httpMapped = mapped.find((row) => row.ruleRole === "http")
+    const httpTraffic = await buildHttpLayerTraffic(accountId, parsed.data)
+    if (httpMapped && httpTraffic) {
+      try {
+        await updateGatewayRule(accountId, httpMapped.cloudflareRuleId, {
+          name: `RL HTTP ${policyRow.name}`.slice(0, 175),
+          action: action === "allow" ? "allow" : "block",
+          description: parsed.data.description,
+          enabled: ruleEnabled,
+          filters: ["http"],
+          traffic: httpTraffic,
+          identity,
+          schedule: buildGatewaySchedule(
+            parsed.data.schedules,
+            parsed.data.timeZone
+          ),
+          precedence,
+        })
+      } catch (httpError) {
+        console.warn("HTTP Gateway layer sync skipped", httpError)
+      }
+    }
 
     await admin
       .from("tenant_gateway_policies")
@@ -349,11 +388,13 @@ export async function reconcilePolicyGatewayRules(userId: string): Promise<{
   const mismatches: Array<{ policyId: string; issue: string }> = []
 
   for (const policy of policies ?? []) {
-    const live = ruleById.get(policy.cloudflare_rule_id)
+    const cloudflareRuleId = policy.cloudflare_rule_id
+    if (!cloudflareRuleId) continue
+    const live = ruleById.get(cloudflareRuleId)
     if (!live) {
       mismatches.push({
         policyId: policy.id,
-        issue: `Cloudflare rule ${policy.cloudflare_rule_id} missing`,
+        issue: `Cloudflare rule ${cloudflareRuleId} missing`,
       })
       continue
     }

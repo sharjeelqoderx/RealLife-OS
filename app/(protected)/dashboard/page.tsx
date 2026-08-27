@@ -1,18 +1,18 @@
 import { DashboardContent } from "@/app/(protected)/dashboard/_components/dashboard-content"
-import { createClient } from "@/lib/supabase/server"
-import { listConnectedDevices } from "@/lib/services/devices/list-connected-devices"
-import { getPolicies } from "@/lib/services/content-policies/get-policies"
-import { getBillingDetails } from "@/lib/services/billing/details"
 import { getDashboardStats, getSetupProgress } from "@/lib/services/analytics/dashboard-stats"
-import type { ConnectedDevice } from "@/schemas/devices/device"
+import { getBillingDetails } from "@/lib/services/billing/details"
+import { listGatewayPolicies } from "@/lib/services/content-policies/gateway-policies"
+import { listConnectedDevices } from "@/lib/services/devices/list-connected-devices"
+import { createClient } from "@/lib/supabase/server"
 import type { PolicyListResponse } from "@/schemas/content-policies/policy"
+import type { ConnectedDevice } from "@/schemas/devices/device"
 
 function getDisplayName(
   fullName: unknown,
   email: string | undefined
 ): string {
   if (typeof fullName === "string" && fullName.trim().length > 0) {
-    return fullName.trim().split(/\s+/)[0] ?? "Alex"
+    return fullName.trim().split(/\s+/)[0] ?? "there"
   }
 
   if (email) {
@@ -22,7 +22,7 @@ function getDisplayName(
     }
   }
 
-  return "Alex"
+  return "there"
 }
 
 export default async function DashboardPage() {
@@ -35,9 +35,8 @@ export default async function DashboardPage() {
     return null
   }
 
-  const userName = getDisplayName(user?.user_metadata?.full_name, user?.email)
+  const userName = getDisplayName(user.user_metadata?.full_name, user.email)
 
-  // Fetch all real data
   let devices: ConnectedDevice[] = []
   let policies: PolicyListResponse = []
   let billingDetails: Awaited<ReturnType<typeof getBillingDetails>> | null = null
@@ -50,7 +49,7 @@ export default async function DashboardPage() {
   }
 
   try {
-    policies = await getPolicies()
+    policies = await listGatewayPolicies()
   } catch (error) {
     console.error("Failed to fetch policies:", error)
   }
@@ -67,7 +66,6 @@ export default async function DashboardPage() {
     console.error("Failed to fetch dashboard stats:", error)
   }
 
-  // Calculate setup progress from real data
   const setupProgress = getSetupProgress({
     devicesCount: devices.length,
     policiesCount: policies.length,

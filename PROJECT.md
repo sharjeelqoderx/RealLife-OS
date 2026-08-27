@@ -98,6 +98,7 @@ reallife-os/
 │   │   └── dns-profile/
 │
 ├── docs/                            # Cloudflare architecture + setup docs
+│   ├── CLOUDFLARE_DEVICE_ENFORCEMENT.md
 │   ├── cloudflare-architecture.md
 │   ├── cloudflare-setup.md
 │   ├── CLOUDFLARE_DEVICE_ENROLLMENT_SETUP.md
@@ -320,8 +321,9 @@ page.tsx (RSC fetch via lib/services)
 | setAccountDeviceLimit | `lib/services/billing/subscriptions.ts` | Set/clear per-account `device_limit` override | Enterprise deals (ops) | ✅ ready |
 | processStripeWebhookEvent | `lib/services/billing/webhook/` | Event → dedicated handler module → DB | `/api/stripe/webhook` | ✅ ready |
 | getPolicies / filterPolicies | `lib/services/content-policies/get-policies.ts` | Shared list filter helper (`query` / `statuses` / `types`) used by `listGatewayPolicies` | `/api/gateway-policies` GET | ✅ ready |
+| getDashboardOverview | `lib/services/dashboard/get-dashboard-overview.ts` | Current-user device/policy/profile counts (ownership-scoped) | `/dashboard` | ✅ ready |
 | listAccessPolicies / createAccessPolicy | `lib/services/content-policies/access-policies.ts` | Cloudflare Access app policies list + create | `/api/access-policies` | ✅ ready |
-| listGatewayPolicies / createGatewayPolicy / updateGatewayPolicy / getGatewayPolicyById / getGatewayPolicyForEditor / deleteGatewayPolicy | `lib/services/content-policies/gateway-policies.ts` | Gateway DNS policies CRUD + editor prepopulation; list accepts `query` / `statuses` / `types` filters | `/api/gateway-policies`, list/view/create/edit | ✅ ready |
+| listGatewayPolicies / createGatewayPolicy / updateGatewayPolicy / getGatewayPolicyById / getGatewayPolicyForEditor / deleteGatewayPolicy | `lib/services/content-policies/gateway-policies.ts` | Layered Gateway DNS + HTTP + fallback-DNS CRUD; local IDs only; status `configured`; list accepts `query` / `statuses` / `types` | `/api/gateway-policies`, list/view/create/edit | ✅ ready |
 | parseTrafficExpression / parseGatewaySchedule | `lib/services/content-policies/parse-gateway-rule.ts` | Wirefilter + schedule → editor fields | `getGatewayPolicyForEditor` | ✅ ready |
 | updateGatewayRule | `lib/services/cloudflare/rules.ts` | PUT `/accounts/{id}/gateway/rules/{ruleId}` | `updateGatewayPolicy` | ✅ ready |
 | deleteAccessPolicy | `lib/services/content-policies/access-policies.ts` | Delete Cloudflare Access app policy | Gateway delete fallback | ✅ ready |
@@ -341,7 +343,10 @@ page.tsx (RSC fetch via lib/services)
 | createDeviceEnrollment / getDeviceEnrollmentStatus | `lib/services/devices/enrollments.ts` | Pending enrollment + email/time-bound ownership claim | `/api/devices/enrollment*` | ✅ ready |
 | revokeConnectedDevice | `lib/services/devices/revoke-device.ts` | Ownership-checked physical-device revoke | `/api/devices/[id]/revoke` | ✅ ready |
 | requireAdminUser | `lib/services/admin/require-admin.ts` | Gate admin routes via `ADMIN_EMAILS` | `/api/admin/*`, `/admin/cloudflare` | ✅ ready |
-| getAdminCloudflareStatus | `lib/services/admin/cloudflare-status.ts` | Health probe for account/token/devices/gateway APIs | `/api/admin/cloudflare/status` | ✅ ready |
+| getAdminCloudflareStatus | `lib/services/admin/cloudflare-status.ts` | Health probe for account/token/devices/gateway + Traffic and DNS profile | `/api/admin/cloudflare/status` | ✅ ready |
+| getDefaultDevicePolicy / ensureDefaultTrafficAndDnsProfile | `lib/services/cloudflare/device-policy.ts` | Default Cloudflare One profile (`service_mode_v2.mode=warp`) | enrollment + admin device-profile | ✅ ready |
+| gateway policy layers | `lib/services/content-policies/gateway-policy-layers.ts` | DNS/HTTP/fallback-DNS expressions, YouTube coverage, precedence bands | gateway-policies | ✅ ready |
+| policy rule mapping | `lib/services/content-policies/policy-rule-mapping.ts` | Multi-layer Cloudflare rule IDs + identity fallback DNS | create/update/delete policy | ✅ ready |
 | listConnectedDevices / renameConnectedDevice / removeConnectedDevice | `lib/services/devices/list-connected-devices.ts`, `rename-device.ts`, `remove-device.ts` | Shared Zero Trust account; list filtered by DB ownership (`tenant_device_metadata`) | `/api/devices` | ✅ ready |
 | getDeviceEnrollmentInfo | `lib/services/devices/get-enrollment-info.ts` | Team name, DNS profile, store/WARP URLs, enrolled count | `/api/devices/enrollment-info` | ✅ ready |
 | getDeviceSetupSession / updateDeviceSetupSession | `lib/services/devices/setup-session.ts` | Persist questionnaire + wizard step | `/api/devices/setup-session` | ✅ ready |
@@ -413,6 +418,7 @@ page.tsx (RSC fetch via lib/services)
 | `/api/admin/cloudflare/registrations` | GET | live CF registrations (admin) | admin emails | ✅ ready |
 | `/api/admin/cloudflare/gateway-rules` | GET | live Gateway rules (admin) | admin emails | ✅ ready |
 | `/api/admin/cloudflare/sync` | POST | `syncCloudflareDevices` | admin emails | ✅ ready |
+| `/api/admin/cloudflare/device-profile` | POST | `ensureDefaultTrafficAndDnsProfile` | admin emails | ✅ ready |
 | `/api/admin/audit-log` | GET | recent `audit_log` rows | admin emails | ✅ ready |
 
 ### Schemas (`schemas/`)
@@ -455,6 +461,8 @@ Requires `supabase login` + `supabase link` once per machine. Do not squash alre
 | `20260816194000_remove_tenant_cloudflare_accounts.sql` | Drop obsolete per-user Cloudflare account mapping and unused policy-device links | ✅ applied to Reallife-OS [Production] |
 | `20260816195000_enrollment_and_policy_integrity.sql` | Enforce one pending enrollment per user and policy ownership integrity | ✅ applied to Reallife-OS [Production] |
 | `20260816196000_fix_gateway_policy_types.sql` | Align `tenant_gateway_policies.type` with editor values (`allow`/`block`/`safesearch`/`ytrestricted`) | ✅ applied to Reallife-OS [Production] |
+| `20260820160000_device_profiles_and_policy_assignments.sql` | App profiles, policy assignments, per-device DNS locations, `tenant_policy_gateway_rules` | ✅ applied to Reallife-OS [Production] |
+| `20260827120000_device_enforcement_layers.sql` | Device enrollment fields; pending/configured policy status; nullable primary rule id; expanded Gateway layer roles | ✅ applied to Reallife-OS [Production] |
 
 ### Generic Validators (`schemas/generic/`)
 
@@ -472,10 +480,13 @@ Requires `supabase login` + `supabase link` once per machine. Do not squash alre
 
 | Date | Change | Updated By |
 |------|--------|------------|
-| 2026-08-25 | Dashboard insights: show REAL total counts from database tables instead of audit log event counts (fixes 0/0 display when no recent audit entries) | Agent |
-| 2026-08-25 | Dashboard: 100% real data—audit log activity chart, real device/policy stats, setup progress from actual completion, billing details with payment method, zero mock/generated data | Agent |
-| 2026-08-25 | Analytics service: `getDashboardStats` fetches audit log for 7-day activity timeline + insights; `getSetupProgress` calculates completion from real devices/policies/payment | Agent |
-| 2026-08-25 | Dashboard: fully dynamic with real data from devices, policies, and billing; modern design with gradient cards, charts, device breakdown, policy distribution pie chart, and account overview | Agent |
+| 2026-08-27 | Dashboard UI restored to the original layout (banner, device cards, metrics, traffic chart, setup, blocked activity) with current-user data | Agent |
+| 2026-08-27 | Dashboard shows only the signed-in user's devices and Gateway policies (no mock catalog) | Agent |
+| 2026-08-27 | Policy list/create show the customer name; Cloudflare uniqueness timestamp stays server-side | Agent |
+| 2026-08-27 | Fallback-DNS L4 traffic uses `net.dst.ip in {…}` — Gateway rejects MapEach on scalar `Ip` | Agent |
+| 2026-08-27 | Applied `20260827120000_device_enforcement_layers.sql` (drop unique constraint before index) and regenerated `types/supabase.ts` | Agent |
+| 2026-08-27 | Device-level Gateway enforcement: Traffic and DNS profile, DNS+HTTP+fallback-DNS layers, `configured` status, fail-closed fallback DNS, honest setup/policy copy | Agent |
+| 2026-08-27 | WARP enrollment app picker prefers an Access app named enrollment/device over a generic Warp app | Agent |
 | 2026-08-21 | Device profile edit: Cancel + Save stay in the bar without overflowing | Agent |
 | 2026-08-21 | Device profile form: one row when it fits, stacked columns below that — no 2/4-column grid | Agent |
 | 2026-08-21 | Connected device row: Rename/Remove have icons and stay top-right; on mobile name sits below | Agent |

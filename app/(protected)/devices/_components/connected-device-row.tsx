@@ -95,6 +95,20 @@ export function ConnectedDeviceRow({ device, className }: ConnectedDeviceRowProp
                 {formatLastSeen(device.lastSeenMinutes)} • {platformLabel}
               </p>
               <p className="mt-1 text-xs text-brand-text-muted">
+                Protection:{" "}
+                {device.protectionStatus === "connected"
+                  ? "CONNECTED"
+                  : "NOT CONNECTED"}
+                {" · "}
+                Policy:{" "}
+                {device.policyStatus === "active" ? "ACTIVE" : "NOT ACTIVE"}
+                {" · "}
+                Gateway:{" "}
+                {device.gatewayStatus === "protected"
+                  ? "PROTECTED"
+                  : "NOT PROTECTED"}
+              </p>
+              <p className="mt-1 text-xs text-brand-text-muted">
                 Profile: {device.profileName ?? "None"}
                 {" · "}
                 Effective: {device.effectivePolicyName ?? "None"}
@@ -150,6 +164,20 @@ export function ConnectedDeviceRow({ device, className }: ConnectedDeviceRowProp
           <p className="mt-0.5 text-sm text-brand-text-muted">
             {device.status === "active" ? "Active" : "Inactive"} • Last seen{" "}
             {formatLastSeen(device.lastSeenMinutes)} • {platformLabel}
+          </p>
+          <p className="mt-1 text-xs text-brand-text-muted">
+            Protection:{" "}
+            {device.protectionStatus === "connected"
+              ? "CONNECTED"
+              : "NOT CONNECTED"}
+            {" · "}
+            Policy:{" "}
+            {device.policyStatus === "active" ? "ACTIVE" : "NOT ACTIVE"}
+            {" · "}
+            Gateway:{" "}
+            {device.gatewayStatus === "protected"
+              ? "PROTECTED"
+              : "NOT PROTECTED"}
           </p>
           <p className="mt-1 text-xs text-brand-text-muted">
             Profile: {device.profileName ?? "None"}

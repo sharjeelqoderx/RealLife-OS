@@ -150,25 +150,27 @@ type GeneralRuleOption = {
 const generalRuleOptions: GeneralRuleOption[] = [
   {
     type: "block",
-    title: "Block",
-    description: "Block access to categories, apps, and domains.",
+    title: "Block website / domain / application / category",
+    description:
+      "Device traffic policy: Gateway DNS (required), HTTP when proxy is available, and fallback-DNS so apps cannot retry public resolvers. Not a browser-only URL list. Coverage depends on Cloudflare selectors for that app/platform.",
   },
   {
     type: "allow",
     title: "Allow",
-    description: "Whitelist something that is blocked in another rule.",
+    description:
+      "Allow exception evaluated before blocks of the same Gateway filter. Does not disable fallback-DNS protection.",
   },
   {
     type: "ytrestricted",
-    title: "YouTube Restricted",
+    title: "Restrict YouTube",
     description:
-      "Enforces restricted mode on YouTube to filter out mature content.",
+      "Gateway YouTube Restricted Mode (ytrestricted). Not a full YouTube block. Native apps may still need Traffic and DNS plus fallback-DNS protection.",
   },
   {
     type: "safesearch",
-    title: "SafeSearch",
+    title: "Safe Search",
     description:
-      "Enforces SafeSearch if supported by a search engine.",
+      "Gateway SafeSearch on supported search engines (DNS action). Not a guarantee on every app.",
   },
 ]
 
@@ -219,14 +221,14 @@ function toPolicyListItem(
   const updatedAt = rule.updated_at ?? rule.created_at
   return {
     id,
-    name: rule.name?.trim() || payload.name,
+    name: payload.name.trim() || rule.name?.trim() || "Untitled",
     type: payload.type,
     typeLabel: formatPolicyTypeLabel(payload.type),
     rulesCount: 1,
     status:
       rule.enabled === false || payload.enabled === false
         ? "inactive"
-        : "active",
+        : "configured",
     updatedAt: updatedAt
       ? new Date(updatedAt).toLocaleDateString()
       : new Date().toLocaleDateString(),
@@ -1150,6 +1152,11 @@ export function PolicyDetail({ mode, policyId, initialData }: Props) {
           <h1 className="text-2xl font-bold tracking-tight text-brand-text-heading md:text-3xl">
             {isCreateMode ? "New Policy" : "Edit Policy"}
           </h1>
+          <p className="mt-1 text-sm text-brand-text-muted">
+            Device-level Cloudflare Gateway policy for this account identity.
+            Saving configures Gateway rules; it does not prove YouTube is blocked
+            on every app until the device is connected in Traffic and DNS mode.
+          </p>
           {!isCreateMode && (initialData?.name || selectedRule?.name) ? (
             <p className="mt-1 text-sm text-brand-text-muted">
               {initialData?.name ?? selectedRule?.name}

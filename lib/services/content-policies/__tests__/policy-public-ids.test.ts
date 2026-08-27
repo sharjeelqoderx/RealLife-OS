@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest"
 
-import { buildIdentityExpression } from "@/lib/services/content-policies/policy-ownership"
+import {
+  buildIdentityExpression,
+  customerFacingGatewayPolicyName,
+  uniqueCloudflareGatewayRuleName,
+} from "@/lib/services/content-policies/policy-ownership"
 import {
   mapGatewayRuleToListItem,
   mapPolicyTypeToAction,
@@ -24,6 +28,7 @@ describe("customer-facing Gateway policy identifiers", () => {
     }
 
     expect(item.id).toBe(localPolicyId)
+    expect(item.status).toBe("configured")
     expect(item.id).not.toBe(rule.id)
     expect(JSON.stringify(item)).not.toContain("cf-rule-secret")
   })
@@ -42,5 +47,24 @@ describe("customer-facing Gateway policy identifiers", () => {
     expect(mapPolicyTypeToAction("allow")).toBe("allow")
     expect(mapPolicyTypeToAction("safesearch")).toBe("safesearch")
     expect(mapPolicyTypeToAction("ytrestricted")).toBe("ytrestricted")
+  })
+
+  it("keeps the uniqueness timestamp on the Cloudflare rule name, not the customer name", () => {
+    const unique = uniqueCloudflareGatewayRuleName(
+      "SafeSearch on Supported Search Engines",
+      new Date(1_787_260_470_054)
+    )
+    expect(unique).toBe(
+      "SafeSearch on Supported Search Engines · 1787260470054"
+    )
+    expect(customerFacingGatewayPolicyName(unique)).toBe(
+      "SafeSearch on Supported Search Engines"
+    )
+    expect(
+      customerFacingGatewayPolicyName(
+        "SafeSearch on Supported Search Engines",
+        unique
+      )
+    ).toBe("SafeSearch on Supported Search Engines")
   })
 })
