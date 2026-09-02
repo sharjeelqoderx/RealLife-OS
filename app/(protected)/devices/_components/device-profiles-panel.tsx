@@ -494,7 +494,7 @@ export function DeviceProfilesPanel({
                 value={profile.id}
                 className="overflow-hidden rounded-lg border border-border last:border-b not-last:border-b"
               >
-                <div className="flex min-w-0 items-center gap-1 px-1">
+                <div className="flex min-w-0 items-center gap-1 px-3 pt-2">
                   <Button
                     type="button"
                     variant="ghost"
@@ -528,42 +528,44 @@ export function DeviceProfilesPanel({
                     <Pencil className="size-4" />
                   </Button>
                   <div className="min-w-0 flex-1">
-                    <AccordionTrigger className="min-w-0 w-full py-2.5 hover:no-underline">
-                      <span className="min-w-0 truncate pr-2 text-brand-text-heading capitalize">
+                    <AccordionTrigger className="min-w-0 w-full justify-start py-2 pe-1 text-left hover:no-underline">
+                      <span className="min-w-0 truncate text-sm font-medium capitalize text-brand-text-heading">
                         {profile.name}
                       </span>
                     </AccordionTrigger>
                   </div>
                 </div>
-                <AccordionContent className="space-y-3 px-3 pb-3 text-brand-text-muted">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <p className="w-16 shrink-0 truncate text-xs font-medium uppercase tracking-wide">
-                      Policy
-                    </p>
-                    <p className="min-w-0 flex-1 truncate text-sm text-brand-text-heading">
-                      {profile.policyName ?? "None attached"}
-                    </p>
-                  </div>
-                  <div className="flex min-w-0 items-start gap-2">
-                    <p className="w-16 shrink-0 truncate text-xs font-medium uppercase tracking-wide">
-                      Devices
-                    </p>
-                    {attachedDevices.length === 0 ? (
-                      <p className="min-w-0 flex-1 truncate text-sm text-brand-text-heading">
-                        None attached
+                <AccordionContent className="pb-0 pt-0 text-left text-brand-text-muted">
+                  <div className="space-y-3 border-t border-border/50 px-3 pb-4 pt-3">
+                    <div className="grid grid-cols-[4.5rem_minmax(0,1fr)] items-baseline gap-x-3 gap-y-1">
+                      <p className="text-xs font-medium uppercase tracking-wide text-brand-text-muted">
+                        Policy
                       </p>
-                    ) : (
-                      <ul className="min-w-0 flex-1 space-y-1">
-                        {attachedDevices.map((device) => (
-                          <li
-                            key={device.id}
-                            className="line-clamp-1 truncate text-sm text-brand-text-heading"
-                          >
-                            {device.name}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
+                      <p className="min-w-0 truncate text-sm text-brand-text-heading">
+                        {profile.policyName ?? "None attached"}
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-[4.5rem_minmax(0,1fr)] items-start gap-x-3 gap-y-1">
+                      <p className="pt-0.5 text-xs font-medium uppercase tracking-wide text-brand-text-muted">
+                        Devices
+                      </p>
+                      {attachedDevices.length === 0 ? (
+                        <p className="min-w-0 truncate text-sm text-brand-text-heading">
+                          None attached
+                        </p>
+                      ) : (
+                        <ul className="min-w-0 space-y-1">
+                          {attachedDevices.map((device) => (
+                            <li
+                              key={device.id}
+                              className="truncate text-sm text-brand-text-heading"
+                            >
+                              {device.name}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
                   </div>
                 </AccordionContent>
               </AccordionItem>
