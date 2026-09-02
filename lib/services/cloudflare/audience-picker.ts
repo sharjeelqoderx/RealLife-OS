@@ -3,6 +3,7 @@ import {
   listGatewayLocations,
   type GatewayLocation,
 } from "@/lib/services/cloudflare/locations"
+import { listUserOwnedDnsLocations } from "@/lib/services/devices/list-user-dns-locations"
 
 function locationDescription(loc: GatewayLocation): string | undefined {
   const parts: string[] = []
@@ -77,4 +78,30 @@ export async function listGatewayAudiencePickerGroups(
 ): Promise<PickerGroupDto[]> {
   const locations = await listGatewayLocations(accountId)
   return mapLocationsToPickerGroups(locations, searchQuery)
+}
+
+/** DNS locations owned by this user's enrolled devices only (not the whole CF account). */
+export async function listUserGatewayAudiencePickerGroups(
+  accountId: string,
+  userId: string,
+  searchQuery?: string
+): Promise<PickerGroupDto[]> {
+  const owned = await listUserOwnedDnsLocations(userId)
+  if (owned.length === 0) return []
+
+  const ownedIds = new Set(owned.map((row) => row.locationId))
+  const displayNameByLocationId = new Map(
+    owned.map((row) => [row.locationId, row.displayName])
+  )
+
+  const locations = await listGatewayLocations(accountId)
+  const scoped = locations
+    .filter((loc) => loc.id && ownedIds.has(loc.id))
+    .map((loc) => {
+      const friendlyName = displayNameByLocationId.get(loc.id!)?.trim()
+      if (!friendlyName) return loc
+      return { ...loc, name: friendlyName }
+    })
+
+  return mapLocationsToPickerGroups(scoped, searchQuery)
 }

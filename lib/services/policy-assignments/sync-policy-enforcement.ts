@@ -85,7 +85,7 @@ export async function syncPolicyCloudflareEnforcement(
 
     const draft = {
       ...config,
-      locationIds,
+      locationIds: hasAssignments ? locationIds : [],
       name: policyRow.name,
       type: (config.type ?? policyRow.type) as CreateGatewayPolicyInput["type"],
       enabled: policyRow.enabled,
@@ -116,8 +116,7 @@ export async function syncPolicyCloudflareEnforcement(
     }
 
     const action = mapPolicyTypeToAction(parsed.data.type)
-    const ruleEnabled =
-      policyRow.enabled && (!hasAssignments || locationIds.length > 0)
+    const ruleEnabled = policyRow.enabled !== false
 
     await updateGatewayRule(accountId, policyRow.cloudflare_rule_id, {
       name:
@@ -140,8 +139,55 @@ export async function syncPolicyCloudflareEnforcement(
       "@/lib/services/content-policies/policy-rule-mapping"
     )
     const mapped = await listMappedGatewayRules(userId, policyId)
+    const { shouldCreateHttpLayer } = await import(
+      "@/lib/services/content-policies/gateway-policy-layers"
+    )
     const httpMapped = mapped.find((row) => row.ruleRole === "http")
     const httpTraffic = await buildHttpLayerTraffic(accountId, parsed.data)
+    if (!httpMapped && shouldCreateHttpLayer(parsed.data.type, httpTraffic) && httpTraffic) {
+      try {
+        const { createGatewayRule } = await import("@/lib/services/cloudflare/rules")
+        const { uniqueCloudflareGatewayRuleName } = await import(
+          "@/lib/services/content-policies/policy-ownership"
+        )
+        const { recordMappedGatewayRule } = await import(
+          "@/lib/services/content-policies/policy-rule-mapping"
+        )
+        const { takeNextGatewayPrecedence } = await import(
+          "@/lib/services/content-policies/gateway-policy-layers"
+        )
+        const liveRules = await listGatewayRules(accountId)
+        const usedPrecedences = new Set(
+          liveRules
+            .map((rule) => rule.precedence)
+            .filter((value): value is number => typeof value === "number")
+        )
+        const httpRule = await createGatewayRule(accountId, {
+          name: uniqueCloudflareGatewayRuleName(`${policyRow.name} · HTTP`),
+          action: action === "allow" ? "allow" : "block",
+          description: parsed.data.description,
+          enabled: ruleEnabled,
+          filters: ["http"],
+          traffic: httpTraffic,
+          identity,
+          schedule: buildGatewaySchedule(
+            parsed.data.schedules,
+            parsed.data.timeZone
+          ),
+          precedence: takeNextGatewayPrecedence(usedPrecedences, precedence + 1),
+        })
+        if (httpRule.id) {
+          await recordMappedGatewayRule({
+            userId,
+            policyId,
+            cloudflareRuleId: httpRule.id,
+            ruleRole: "http",
+          })
+        }
+      } catch (httpCreateError) {
+        console.warn("HTTP Gateway layer create skipped", httpCreateError)
+      }
+    }
     if (httpMapped && httpTraffic) {
       try {
         await updateGatewayRule(accountId, httpMapped.cloudflareRuleId, {

@@ -270,7 +270,7 @@ page.tsx (RSC fetch via lib/services)
 | PolicyView | `app/(protected)/content-policies/(editor)/_components/policy-view.tsx` | Read-only policy detail with categories, audience, apps, web addresses; View/Download config JSON + DNS .mobileconfig | `/content-policies/[policyId]` | ✅ ready |
 | PolicyViewLoading | `app/(protected)/content-policies/(editor)/_components/policy-view-loading.tsx` | View-page skeleton (separate from editor loading) | `/content-policies/[policyId]` loading | ✅ ready |
 | PolicyEditorLoading | `app/(protected)/content-policies/(editor)/_components/policy-editor-loading.tsx` | Shared editor skeleton (sticky sidebar + detail panel) | editor routes loading.tsx | ✅ ready |
-| ScheduleSheet | `app/(protected)/content-policies/(editor)/_components/schedule-sheet.tsx` | Right-side Sheet with weekly 24h calendar grid — click-to-add, click-to-remove, drag-to-resize (15-min snap) | PolicyDetail schedules | ✅ ready |
+| ScheduleSheet | `app/(protected)/content-policies/(editor)/_components/schedule-sheet.tsx` | Right-side Sheet with weekly 24h calendar grid — click empty to add, click block to remove, drag to move/resize (15-min snap), drag between days | PolicyDetail schedules | ✅ ready |
 | PickerDialog | `app/(protected)/content-policies/(editor)/_components/picker-dialog.tsx` | Search modal; empty / no-match shows Create “query” from search. Categories, Apps, Audience | PolicyDetail | ✅ ready |
 | UnderDevelopment | `app/(protected)/[slug]/_components/under-development.tsx` | Placeholder for unimplemented protected nav routes | `/[slug]` catch-all | ✅ ready |
 | SetupGuideImage | `app/(protected)/devices/_components/setup-guide-image.tsx` | Shared `next/image` wrapper + `DEVICE_SETUP_IMAGES` paths under `public/devices/` | Device setup flows | ✅ ready |
@@ -333,7 +333,9 @@ page.tsx (RSC fetch via lib/services)
 | listGatewayCategories / resolveCategoryIdsByLabels | `lib/services/cloudflare/categories.ts` | Gateway content category catalog | `/api/gateway-categories`, create policy | ✅ ready |
 | listGatewayCategoryPickerGroups | `lib/services/cloudflare/category-picker.ts` | Categories → picker groups | Policy editor Add category | ✅ ready |
 | listGatewayAppTypes / listGatewayAppPickerGroups | `lib/services/cloudflare/app-types.ts` | Gateway app_types → picker groups | Policy editor Add app | ✅ ready |
-| listGatewayAudiencePickerGroups | `lib/services/cloudflare/audience-picker.ts` | Gateway locations → Audience picker | Policy editor Add location | ✅ ready |
+| listUserOwnedDnsLocations | `lib/services/devices/list-user-dns-locations.ts` | User's device DNS location IDs from `tenant_device_metadata` | Audience picker scope | ✅ ready |
+| listUserGatewayAudiencePickerGroups | `lib/services/cloudflare/audience-picker.ts` | User-scoped Gateway locations → Audience picker | Policy editor Add location | ✅ ready |
+| listGatewayAudiencePickerGroups | `lib/services/cloudflare/audience-picker.ts` | All account Gateway locations → picker (admin/internal) | — | ✅ ready |
 | listGatewayPresets | `lib/services/content-policies/gateway-presets.ts` | Curated presets resolved against CF categories/apps | `/api/gateway-presets`, Create Rule Presets tab | ✅ ready |
 | createGatewayRule / listGatewayRules | `lib/services/cloudflare/rules.ts` | Low-level shared-account Gateway rules API | gateway-policies | ✅ ready |
 | createGatewayLocation | `lib/services/cloudflare/locations.ts` | Create a location in the shared Cloudflare account | Audience picker create | ✅ ready |
@@ -399,7 +401,7 @@ page.tsx (RSC fetch via lib/services)
 | `/api/gateway-policies/[policyId]` | DELETE | `deleteGatewayPolicy` | — | ✅ ready |
 | `/api/gateway-categories` | GET | `listGatewayCategoryPickerGroups` | Auth; `{ groups }` | ✅ ready |
 | `/api/gateway-apps` | GET | `listGatewayAppPickerGroups` | Auth; `{ groups }` | ✅ ready |
-| `/api/gateway-locations` | GET | `listGatewayAudiencePickerGroups` | Auth; `{ groups }` | ✅ ready |
+| `/api/gateway-locations` | GET | `listUserGatewayAudiencePickerGroups` | Auth; user's device DNS locations only; `{ groups }` | ✅ ready |
 | `/api/gateway-locations` | POST | `createGatewayLocation` | `createGatewayLocationSchema` | ✅ ready |
 | `/api/gateway-presets` | GET | `listGatewayPresets` | Auth; `{ presets }` resolved vs CF catalog | ✅ ready |
 | `/api/dns-profile/mobileconfig` | GET | `buildDohMobileconfig` + Gateway location | Auth required; downloads .mobileconfig | ✅ ready |
@@ -480,6 +482,12 @@ Requires `supabase login` + `supabase link` once per machine. Do not squash alre
 
 | Date | Change | Updated By |
 |------|--------|------------|
+| 2026-09-02 | Content policies list: client React Query cache drives list (no blocking server fetch on navigate); create/update optimistically upserts list cache for instant back navigation | Agent |
+| 2026-09-02 | Policy editor modals: max-height `min(90svh,720px)` + scrollable body on pickers, Add Rule, Add address, schedule sheet | Agent |
+| 2026-09-02 | Policy editor schedules: restored calendar `ScheduleSheet` (grid UI); removed inline `schedule-list-editor`; Add/Edit opens sheet, day-grouped summary on page | Agent |
+| 2026-08-30 | Policy editor schedules: inline list with day/from/to selects (indexed rows); ScheduleSheet commented out; Add schedule appends to array | Agent |
+| 2026-08-30 | Schedule sheet: responsive width (full on mobile/md, 50% on lg+) | Agent |
+| 2026-08-27 | Gateway policy create auto-assigns a free Cloudflare precedence (duplicate precedence, not name) | Agent |
 | 2026-08-27 | Policy delete treats a missing Cloudflare Gateway rule as already gone (invalid rule id) and still removes the local policy | Agent |
 | 2026-08-27 | Dashboard UI restored to the original layout (banner, device cards, metrics, traffic chart, setup, blocked activity) with current-user data | Agent |
 | 2026-08-27 | Dashboard shows only the signed-in user's devices and Gateway policies (no mock catalog) | Agent |

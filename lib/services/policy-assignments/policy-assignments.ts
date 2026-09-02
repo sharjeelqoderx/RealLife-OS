@@ -144,13 +144,12 @@ export async function createPolicyAssignment(input: {
   if (!policy) throw new Error("Policy not found")
 
   if (input.targetType === "device") {
-    const { data: device } = await admin
-      .from("tenant_device_metadata")
-      .select("id")
-      .eq("id", input.targetId)
-      .eq("user_id", userId)
-      .maybeSingle()
-    if (!device) throw new Error("Device not found")
+    const { resolveOwnedDeviceMetadataId } = await import(
+      "@/lib/services/devices/owned-device"
+    )
+    const deviceId = await resolveOwnedDeviceMetadataId(userId, input.targetId)
+    if (!deviceId) throw new Error("Device not found")
+    input = { ...input, targetId: deviceId }
   } else {
     const { data: profile } = await admin
       .from("tenant_device_profiles")

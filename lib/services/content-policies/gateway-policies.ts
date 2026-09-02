@@ -38,10 +38,12 @@ import {
   updateOwnedGatewayPolicyRecord,
 } from "@/lib/services/content-policies/policy-ownership"
 import {
+  assignmentPrecedenceBase,
   buildHttpTrafficExpression,
   expandAppIdsForPolicy,
   shouldCreateFallbackDnsLayer,
   shouldCreateHttpLayer,
+  takeNextGatewayPrecedence,
   youtubeDomainRootsForInput,
   youtubeNeedsExpandedCoverage,
 } from "@/lib/services/content-policies/gateway-policy-layers"
@@ -648,6 +650,21 @@ export async function createGatewayPolicy(
   const action = mapPolicyTypeToAction(input.type)
   const enabled = input.enabled ?? true
   const createdRuleIds: string[] = []
+  const existingRules = await listGatewayRules(accountId)
+  const usedPrecedences = new Set(
+    existingRules
+      .map((rule) => rule.precedence)
+      .filter((value): value is number => typeof value === "number")
+  )
+  const dnsPrecedence = takeNextGatewayPrecedence(
+    usedPrecedences,
+    input.precedence ??
+      assignmentPrecedenceBase({
+        action,
+        hasDeviceAssignment: false,
+        hasAssignments: false,
+      })
+  )
 
   let localPolicyId: string
   try {
@@ -658,7 +675,7 @@ export async function createGatewayPolicy(
       type: input.type,
       action,
       enabled,
-      precedence: input.precedence ?? 1000,
+      precedence: dnsPrecedence,
       configurationJson: JSON.parse(JSON.stringify(input)) as Json,
     })
   } catch (error) {
@@ -679,7 +696,7 @@ export async function createGatewayPolicy(
       traffic,
       identity,
       schedule,
-      precedence: input.precedence,
+      precedence: dnsPrecedence,
     })
 
     if (!dnsRule.id) {
@@ -712,7 +729,7 @@ export async function createGatewayPolicy(
           traffic: httpTraffic,
           identity,
           schedule,
-          precedence: input.precedence,
+          precedence: takeNextGatewayPrecedence(usedPrecedences, dnsPrecedence + 1),
         })
         if (httpRule.id) {
           createdRuleIds.push(httpRule.id)

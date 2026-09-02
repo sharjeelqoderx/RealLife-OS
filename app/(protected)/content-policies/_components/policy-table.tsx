@@ -47,7 +47,7 @@ import {
   policyTableHeadClassName,
 } from "@/app/(protected)/content-policies/_components/policy-table-layout"
 import { ApiError, apiClient } from "@/lib/api/client"
-import { queryKeys } from "@/lib/query/keys"
+import { removeGatewayPolicyFromListCache } from "@/lib/content-policies/gateway-policies-list-cache"
 import { cn } from "@/lib/utils"
 import type { PolicyListItem, PolicyType } from "@/schemas/content-policies/policy"
 import { CustomSpinner } from "@/components/feedback/custom-spinner"
@@ -163,10 +163,7 @@ export function PolicyTable({ policies }: PolicyTableProps) {
     onSuccess: (_data, policyId) => {
       setPendingDelete(null)
       setDeleteError("")
-      queryClient.setQueriesData<PolicyListItem[]>(
-        { queryKey: queryKeys.gatewayPolicies.list() },
-        (current) => (current ?? []).filter((policy) => policy.id !== policyId)
-      )
+      removeGatewayPolicyFromListCache(queryClient, policyId)
     },
     onError: (error) => {
       setDeleteError(

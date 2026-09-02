@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 
-import { listGatewayAudiencePickerGroups } from "@/lib/services/cloudflare/audience-picker"
+import { listUserGatewayAudiencePickerGroups } from "@/lib/services/cloudflare/audience-picker"
 import {
   createGatewayLocation,
   listGatewayLocations,
@@ -28,7 +28,11 @@ export async function GET(req: Request) {
     const q = searchParams.get("q")?.trim() || undefined
 
     const accountId = await getPolicyCloudflareAccountId(user.id)
-    const groups = await listGatewayAudiencePickerGroups(accountId, q)
+    const groups = await listUserGatewayAudiencePickerGroups(
+      accountId,
+      user.id,
+      q
+    )
     return NextResponse.json({ groups })
   } catch (error) {
     console.error("GET /api/gateway-locations:", error)

@@ -164,7 +164,9 @@ export function shouldCreateHttpLayer(
   type: CreateGatewayPolicyInput["type"],
   httpTraffic: string | null
 ): boolean {
-  if (type !== "block" && type !== "allow") return false
+  if (type !== "block" && type !== "allow" && type !== "ytrestricted") {
+    return false
+  }
   return Boolean(httpTraffic)
 }
 
@@ -206,4 +208,31 @@ export function assignmentPrecedenceBase(input: {
   return isAllow
     ? UNASSIGNED_ALLOW_PRECEDENCE_BASE
     : UNASSIGNED_BLOCK_PRECEDENCE_BASE
+}
+
+/** Cloudflare requires unique precedence on every Gateway rule in the account. */
+export function nextAvailableGatewayPrecedence(
+  used: Iterable<number | null | undefined>,
+  preferred: number
+): number {
+  const taken = new Set<number>()
+  for (const value of used) {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      taken.add(value)
+    }
+  }
+  let candidate = Math.max(1, Math.floor(preferred))
+  while (taken.has(candidate)) {
+    candidate += 1
+  }
+  return candidate
+}
+
+export function takeNextGatewayPrecedence(
+  used: Set<number>,
+  preferred: number
+): number {
+  const value = nextAvailableGatewayPrecedence(used, preferred)
+  used.add(value)
+  return value
 }

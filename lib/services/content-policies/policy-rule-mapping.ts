@@ -4,11 +4,13 @@ import {
   deleteGatewayRule,
   isMissingGatewayRuleError,
   getGatewayRule,
+  listGatewayRules,
   type GatewayRuleAction,
 } from "@/lib/services/cloudflare/rules"
 import {
   buildFallbackDnsTrafficExpression,
   FALLBACK_DNS_PRECEDENCE_BASE,
+  takeNextGatewayPrecedence,
 } from "@/lib/services/content-policies/gateway-policy-layers"
 import {
   buildIdentityExpression,
@@ -108,6 +110,12 @@ export async function ensureIdentityFallbackDnsRule(input: {
   }
 
   const identity = buildIdentityExpression(input.email)
+  const liveRules = await listGatewayRules(input.accountId)
+  const usedPrecedences = new Set(
+    liveRules
+      .map((rule) => rule.precedence)
+      .filter((value): value is number => typeof value === "number")
+  )
   const rule = await createGatewayRule(input.accountId, {
     name: uniqueCloudflareGatewayRuleName(`RL fallback DNS · ${input.email}`),
     action: "block" satisfies GatewayRuleAction,
@@ -117,7 +125,10 @@ export async function ensureIdentityFallbackDnsRule(input: {
     filters: ["l4"],
     traffic: buildFallbackDnsTrafficExpression(),
     identity,
-    precedence: FALLBACK_DNS_PRECEDENCE_BASE,
+    precedence: takeNextGatewayPrecedence(
+      usedPrecedences,
+      FALLBACK_DNS_PRECEDENCE_BASE
+    ),
   })
 
   if (!rule.id) {

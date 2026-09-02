@@ -8,6 +8,7 @@ import {
   Check,
   ChevronRight,
   MoreHorizontal,
+  Pencil,
   Plus,
   Search,
   Shield,
@@ -54,6 +55,12 @@ import {
   ScheduleSheet,
   type ScheduleBlock,
 } from "./schedule-sheet"
+import { validateScheduleBlock } from "./schedule-utils"
+import { upsertGatewayPolicyListCache } from "@/lib/content-policies/gateway-policies-list-cache"
+import {
+  buildGatewayPoliciesListPath,
+  normalizePolicyListFilters,
+} from "@/lib/content-policies/list-params"
 
 type PolicyType = "allow" | "block" | "ytrestricted" | "safesearch"
 
@@ -374,6 +381,19 @@ export function PolicyDetail({ mode, policyId, initialData }: Props) {
   const router = useRouter()
   const queryClient = useQueryClient()
   const idCounterRef = useRef(100)
+
+  useEffect(() => {
+    const defaultFilters = normalizePolicyListFilters({})
+    void queryClient.prefetchQuery({
+      queryKey: queryKeys.gatewayPolicies.list(defaultFilters),
+      queryFn: () =>
+        apiClient<PolicyListItem[]>(
+          buildGatewayPoliciesListPath(defaultFilters)
+        ),
+      staleTime: 5 * 60 * 1000,
+    })
+  }, [queryClient])
+
   const nextId = (prefix: string) => {
     idCounterRef.current += 1
     const c = idCounterRef.current
@@ -483,21 +503,7 @@ export function PolicyDetail({ mode, policyId, initialData }: Props) {
     onSuccess: ({ rule, payload, mode: saveMode }) => {
       const listItem = toPolicyListItem(rule, payload)
       if (listItem) {
-        queryClient.setQueriesData<PolicyListItem[]>(
-          { queryKey: queryKeys.gatewayPolicies.list() },
-          (current) => {
-            if (saveMode === "edit") {
-              const list = current ?? []
-              const exists = list.some((p) => p.id === listItem.id)
-              if (!exists) return [listItem, ...list]
-              return list.map((p) => (p.id === listItem.id ? listItem : p))
-            }
-            return [
-              listItem,
-              ...(current ?? []).filter((policy) => policy.id !== listItem.id),
-            ]
-          }
-        )
+        upsertGatewayPolicyListCache(queryClient, listItem, saveMode)
       }
       router.push("/content-policies")
     },
@@ -916,7 +922,6 @@ export function PolicyDetail({ mode, policyId, initialData }: Props) {
       })),
     }
   })
-  const [editingScheduleId, setEditingScheduleId] = useState<string | null>(null)
   const [scheduleSheetKey, setScheduleSheetKey] = useState(0)
 
   const currentSchedules = selectedRuleId
@@ -1013,11 +1018,18 @@ export function PolicyDetail({ mode, policyId, initialData }: Props) {
     initialData?.precedence,
   ])
 
+  const schedulesAreValid = useMemo(
+    () =>
+      currentSchedules.every((schedule) => validateScheduleBlock(schedule) === null),
+    [currentSchedules]
+  )
+
   const isPayloadValid = useMemo(
     () =>
       draftSavePayload != null &&
+      schedulesAreValid &&
       createGatewayPolicySchema.safeParse(draftSavePayload).success,
-    [draftSavePayload]
+    [draftSavePayload, schedulesAreValid]
   )
 
   const canSave =
@@ -1028,14 +1040,12 @@ export function PolicyDetail({ mode, policyId, initialData }: Props) {
 
   const openAddSchedule = () => {
     setScheduleMode("add")
-    setEditingScheduleId(null)
     setScheduleSheetKey((k) => k + 1)
     setIsScheduleSheetOpen(true)
   }
 
-  const openEditSchedule = (scheduleId: string) => {
+  const openEditSchedule = () => {
     setScheduleMode("edit")
-    setEditingScheduleId(scheduleId)
     setScheduleSheetKey((k) => k + 1)
     setIsScheduleSheetOpen(true)
   }
@@ -1184,9 +1194,9 @@ export function PolicyDetail({ mode, policyId, initialData }: Props) {
               </DialogTrigger>
               <DialogContent
                 showCloseButton
-                className="max-w-[560px] p-0 shadow-2xl ring-0 max-sm:w-[calc(100%-1.5rem)] max-sm:max-h-[min(90svh,720px)] max-sm:overflow-hidden sm:max-w-[560px]"
+                className="flex max-h-[min(90svh,720px)] w-[calc(100%-1.5rem)] max-w-[560px] flex-col gap-0 overflow-hidden p-0 shadow-2xl ring-0 sm:max-w-[560px]"
               >
-                <div className="flex flex-col max-sm:max-h-[min(90svh,720px)]">
+                <div className="flex min-h-0 max-h-[min(90svh,720px)] flex-col">
                 <div className="flex shrink-0 items-center justify-between px-6 pt-6 pb-4 max-sm:px-4 max-sm:pt-5 max-sm:pb-3">
                   <DialogTitle className="text-xl font-bold tracking-tight text-brand-text-heading max-sm:text-lg">
                     Create a New Rule
@@ -1223,7 +1233,7 @@ export function PolicyDetail({ mode, policyId, initialData }: Props) {
                 </div>
 
                 {/* Tab content */}
-                <div className="px-6 pb-5 max-sm:min-h-0 max-sm:flex-1 max-sm:overflow-y-auto max-sm:overscroll-contain max-sm:px-4">
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 pb-5 max-sm:px-4">
                   {createRuleTab === "general" ? (
                     <div className="space-y-3">
                       {generalRuleOptions.map((opt) => (
@@ -1268,7 +1278,7 @@ export function PolicyDetail({ mode, policyId, initialData }: Props) {
                           className="h-11 border-0 bg-gray-50 pl-10 text-sm focus-visible:ring-0 focus-visible:border-brand-primary/50"
                         />
                       </div>
-                      <div className="max-h-[420px] space-y-2.5 overflow-y-auto pr-1 max-sm:max-h-[min(50svh,420px)] max-sm:overscroll-contain">
+                      <div className="space-y-2.5 pr-1">
                         {presetsQuery.isLoading || presetsQuery.isFetching ? (
                           <div className="flex flex-col items-center justify-center gap-3 py-10 text-sm text-brand-text-muted">
                             <CustomSpinner className="size-5 text-brand-primary" />
@@ -1700,15 +1710,16 @@ export function PolicyDetail({ mode, policyId, initialData }: Props) {
                   </DialogTrigger>
                   <DialogContent
                     showCloseButton
-                    className="max-w-[620px] p-0 shadow-2xl ring-0 max-sm:w-[calc(100%-1.5rem)] max-sm:max-h-[min(90svh,720px)] max-sm:overflow-y-auto max-sm:overscroll-contain sm:max-w-[620px]"
+                    className="flex max-h-[min(90svh,720px)] w-[calc(100%-1.5rem)] max-w-[620px] flex-col gap-0 overflow-hidden p-0 shadow-2xl ring-0 sm:max-w-[620px]"
                   >
-                    <div className="flex items-center justify-between px-6 pt-6 pb-4 max-sm:px-4 max-sm:pt-5 max-sm:pb-3">
+                    <div className="flex min-h-0 max-h-[min(90svh,720px)] flex-col">
+                    <div className="flex shrink-0 items-center justify-between px-6 pt-6 pb-4 max-sm:px-4 max-sm:pt-5 max-sm:pb-3">
                       <DialogTitle className="text-xl font-bold tracking-tight text-brand-text-heading max-sm:text-lg">
                         Add a web address
                       </DialogTitle>
                     </div>
 
-                    <div className="space-y-4 px-6 pb-4 max-sm:px-4 max-sm:pb-5">
+                    <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-6 pb-4 max-sm:px-4 max-sm:pb-5">
                       {/* Mode tabs — drive validation + Gateway selector */}
                       <div className="flex items-center gap-1 border-b border-border/70">
                         {(
@@ -1835,7 +1846,7 @@ export function PolicyDetail({ mode, policyId, initialData }: Props) {
                     </div>
 
                     {/* Footer */}
-                    <div className="flex justify-end px-6 py-4 border-t border-border/50 bg-gray-50/40 rounded-b-xl">
+                    <div className="flex shrink-0 justify-end rounded-b-xl border-t border-border/50 bg-gray-50/40 px-6 py-4">
                       <Button
                         size="lg"
                         disabled={!hasAnyPendingSelected}
@@ -1848,6 +1859,7 @@ export function PolicyDetail({ mode, policyId, initialData }: Props) {
                       >
                         Add Selections
                       </Button>
+                    </div>
                     </div>
                   </DialogContent>
                 </Dialog>
@@ -2031,16 +2043,12 @@ export function PolicyDetail({ mode, policyId, initialData }: Props) {
                     No schedule yet
                   </p>
                   <div className="mt-1.5 max-w-md text-sm leading-relaxed text-brand-text-muted">
-                    <>
-                      This rule is always active. Add a schedule to
-                      <br />
-                      scope this rule to a specific day and time
-                    </>
+                    This rule is always active. Add a schedule to scope this
+                    rule to specific days and times.
                   </div>
                 </div>
               ) : (
                 <div className="rounded-md border border-border/70 bg-white divide-y divide-border/50">
-                  {/* Group blocks by day */}
                   {(() => {
                     const byDay: Record<number, ScheduleBlock[]> = {}
                     currentSchedules.forEach((s) => {
@@ -2053,8 +2061,8 @@ export function PolicyDetail({ mode, policyId, initialData }: Props) {
 
                     return orderedDays.map((dayIdx) => (
                       <div key={dayIdx} className="px-4 py-3">
-                        <div className="flex items-center gap-3 mb-2.5">
-                          <span className="text-xs font-bold uppercase tracking-wider text-brand-text-muted bg-gray-100 px-2.5 py-1 rounded">
+                        <div className="mb-2.5 flex items-center gap-3">
+                          <span className="rounded bg-gray-100 px-2.5 py-1 text-xs font-bold uppercase tracking-wider text-brand-text-muted">
                             {DAYS_LABELS[dayIdx]}
                           </span>
                         </div>
@@ -2062,48 +2070,20 @@ export function PolicyDetail({ mode, policyId, initialData }: Props) {
                           {byDay[dayIdx].map((s) => (
                             <div
                               key={s.id}
-                              className="flex items-center justify-between gap-3 rounded-md border border-brand-primary/20 bg-brand-primary/[0.04] px-3.5 py-2.5 group hover:border-brand-primary/40"
+                              className="group flex items-center justify-between gap-3 rounded-md border border-border/60 bg-gray-50/80 px-3.5 py-2.5 hover:border-brand-primary/30"
                             >
-                              <div className="flex items-center gap-3 min-w-0">
-                                <div className="flex size-7 shrink-0 items-center justify-center rounded-sm bg-brand-primary/15 text-brand-primary">
-                                  <svg
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="2"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    className="size-4"
-                                  >
-                                    <circle cx="12" cy="12" r="10" />
-                                    <polyline points="12 6 12 12 16 14" />
-                                  </svg>
-                                </div>
-                                <div className="min-w-0">
-                                  <p className="text-sm font-semibold text-brand-text-heading font-mono">
-                                    {formatScheduleRange(s)}
-                                  </p>
-                                </div>
-                              </div>
-                              <div className="flex shrink-0 items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <p className="font-mono text-sm font-semibold text-brand-text-heading">
+                                {formatScheduleRange(s)}
+                              </p>
+                              <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                                 <button
                                   type="button"
-                                  onClick={() => openEditSchedule(s.id)}
-                                  className="rounded-md p-1.5 text-brand-text-muted hover:bg-brand-primary/10 hover:text-brand-primary transition-colors"
+                                  onClick={openEditSchedule}
+                                  className="rounded-md p-1.5 text-brand-text-muted transition-colors hover:bg-brand-primary/10 hover:text-brand-primary"
                                   aria-label="Edit schedule"
                                   title="Edit"
                                 >
-                                  <svg
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="2"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    className="size-3.5"
-                                  >
-                                    <path d="M17 3a2.828 2.828 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
-                                  </svg>
+                                  <Pencil className="size-3.5" />
                                 </button>
                                 <button
                                   type="button"
@@ -2200,7 +2180,6 @@ export function PolicyDetail({ mode, policyId, initialData }: Props) {
               }}
             />
 
-            {/* Schedule Sheet (right side) */}
             <ScheduleSheet
               key={`schedule-sheet-${scheduleSheetKey}`}
               open={isScheduleSheetOpen}
@@ -2222,6 +2201,11 @@ export function PolicyDetail({ mode, policyId, initialData }: Props) {
                     : isEditMode
                       ? "Failed to update policy"
                       : "Failed to save policy"}
+                </p>
+              ) : selectedRule && !schedulesAreValid ? (
+                <p className="w-full text-sm text-destructive">
+                  Fix schedule times — end must be at least 15 minutes after
+                  start.
                 </p>
               ) : selectedRule &&
                 !isPayloadValid &&

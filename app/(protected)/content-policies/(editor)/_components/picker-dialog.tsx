@@ -96,7 +96,6 @@ export function PickerDialog<TGroupId extends string>({
     groupId: TGroupId
   ) => {
     onSelect?.({ ...item, groupId })
-    onOpenChange(false)
   }
 
   const trimmedQuery = query.trim()
@@ -141,9 +140,9 @@ export function PickerDialog<TGroupId extends string>({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton={false}
-        className="max-w-[620px] gap-0 rounded-[20px] border-0 bg-white p-0 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.15)] ring-0 max-sm:w-[calc(100%-1.5rem)] max-sm:max-h-[min(90svh,720px)] max-sm:overflow-hidden max-sm:rounded-2xl sm:max-w-[620px]"
+        className="flex max-h-[min(90svh,720px)] w-[calc(100%-1.5rem)] max-w-[620px] flex-col gap-0 overflow-hidden rounded-[20px] border-0 bg-white p-0 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.15)] ring-0 sm:max-w-[620px] sm:rounded-[20px]"
       >
-        <div className="flex flex-col max-sm:max-h-[min(90svh,720px)]">
+        <div className="flex min-h-0 max-h-[min(90svh,720px)] flex-col">
           <div className="flex shrink-0 items-center gap-3 px-6 pt-6 pb-5 max-sm:px-4 max-sm:pt-5 max-sm:pb-4">
             <div className="flex flex-1 items-center gap-3">
               <Search className="size-5 shrink-0 text-brand-text-muted" />
@@ -173,7 +172,7 @@ export function PickerDialog<TGroupId extends string>({
 
           <div className="mx-6 h-px shrink-0 bg-border/60 max-sm:mx-4" />
 
-          <div className="max-h-[520px] overflow-y-auto px-3 py-3 max-sm:min-h-0 max-sm:flex-1 max-sm:max-h-none max-sm:overscroll-contain">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3">
             {isLoading ? (
               <div className="flex flex-col items-center justify-center gap-3 px-4 py-16 text-sm text-brand-text-muted">
                 <CustomSpinner className="size-5 text-brand-primary" />

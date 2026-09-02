@@ -19,26 +19,21 @@ import {
   readPolicyListParams,
   serializePolicyListParam,
   updatePolicyListUrlParam,
-  type PolicyListQueryFilters,
 } from "@/lib/content-policies/list-params"
 import { queryKeys } from "@/lib/query/keys"
-import type {
-  PolicyListItem,
-  PolicyStatus,
-  PolicyType,
-} from "@/schemas/content-policies/policy"
+import type { PolicyListItem, PolicyStatus, PolicyType } from "@/schemas/content-policies/policy"
+
+const LIST_STALE_TIME_MS = 5 * 60 * 1000
 
 type FilterControl = "search" | "status" | "type"
 
 export interface PoliciesPageProps {
-  initialPolicies: PolicyListItem[]
   searchQuery: string
   statusFilters: PolicyStatus[]
   typeFilters: PolicyType[]
 }
 
 export function PoliciesPage({
-  initialPolicies,
   searchQuery,
   statusFilters: initialStatusFilters,
   typeFilters: initialTypeFilters,
@@ -62,27 +57,13 @@ export function PoliciesPage({
     [query, statusFilters, typeFilters]
   )
 
-  const initialListFilters = useMemo(
-    () =>
-      normalizePolicyListFilters({
-        q: searchQuery,
-        status: initialStatusFilters,
-        type: initialTypeFilters,
-      }),
-    [searchQuery, initialStatusFilters, initialTypeFilters]
-  )
-
-  const matchesInitialFilters = useMemo(
-    () => arePolicyListFiltersEqual(listFilters, initialListFilters),
-    [listFilters, initialListFilters]
-  )
-
   const policiesQuery = useQuery({
     queryKey: queryKeys.gatewayPolicies.list(listFilters),
     queryFn: () =>
       apiClient<PolicyListItem[]>(buildGatewayPoliciesListPath(listFilters)),
-    initialData: matchesInitialFilters ? initialPolicies : undefined,
     placeholderData: keepPreviousData,
+    staleTime: LIST_STALE_TIME_MS,
+    refetchOnWindowFocus: false,
   })
 
   const handleQueryChange = useCallback((nextQuery: string) => {
@@ -181,7 +162,7 @@ export function PoliciesPage({
       </div>
 
       <div className="flex-1">
-        {policiesQuery.isLoading && !policiesQuery.data ? (
+        {policiesQuery.isPending ? (
           <PolicyTableLoading />
         ) : policiesQuery.isError ? (
           <p role="alert" className="text-sm text-destructive">
@@ -194,17 +175,5 @@ export function PoliciesPage({
         )}
       </div>
     </div>
-  )
-}
-
-function arePolicyListFiltersEqual(
-  left: PolicyListQueryFilters,
-  right: PolicyListQueryFilters
-) {
-  return (
-    left.q === right.q &&
-    serializePolicyListParam(left.status) ===
-      serializePolicyListParam(right.status) &&
-    serializePolicyListParam(left.type) === serializePolicyListParam(right.type)
   )
 }

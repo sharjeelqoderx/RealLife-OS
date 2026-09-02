@@ -1,17 +1,9 @@
 "use client"
 
 import { useMemo, useRef, useState } from "react"
-import { CalendarDays, Plus, Trash2, X } from "lucide-react"
+import { Save, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import {
   Sheet,
   SheetContent,
@@ -31,39 +23,32 @@ export type ScheduleBlock = {
   saved?: boolean
 }
 
-const DAYS = [
-  { index: 0, short: "Sun", full: "Sunday" },
-  { index: 1, short: "Mon", full: "Monday" },
-  { index: 2, short: "Tue", full: "Tuesday" },
-  { index: 3, short: "Wed", full: "Wednesday" },
-  { index: 4, short: "Thu", full: "Thursday" },
-  { index: 5, short: "Fri", full: "Friday" },
-  { index: 6, short: "Sat", full: "Saturday" },
-] as const
+const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+const HOURS_FROM = 0
+const HOURS_TO = 23
+const HOUR_HEIGHT = 48
+const GRID_PADDING_TOP = 52
+const GRID_PADDING_LEFT = 72
+const DAY_COLUMN_WIDTH = 100
+const DRAG_THRESHOLD_PX = 6
+const MIN_BLOCK_MINUTES = 15
+const DAY_END_MINUTES = HOURS_TO * 60 + 60
+const AUTO_SCROLL_EDGE_PX = 56
+const AUTO_SCROLL_STEP_PX = 16
 
-const TIME_OPTIONS = Array.from({ length: 24 * 4 }, (_, i) => {
-  const total = i * 15
-  const hour = Math.floor(total / 60)
-  const minute = total % 60
-  return {
-    value: `${hour}:${minute}`,
-    minutes: total,
-    label: formatClock(hour, minute),
-  }
-})
+type DragType = "create" | "resize-top" | "resize-bottom" | "move" | null
 
-function formatClock(hour: number, minute: number) {
-  const h12 = hour % 12 === 0 ? 12 : hour % 12
-  const suffix = hour < 12 ? "AM" : "PM"
-  return `${h12}:${minute.toString().padStart(2, "0")} ${suffix}`
+function formatTime(hour: number, minute: number) {
+  const h = hour % 24
+  return `${h.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}`
 }
 
 function formatBlockRange(block: ScheduleBlock) {
-  const start = block.startHour * 60 + block.startMinute
-  const end = start + block.durationMinutes
-  const endH = Math.floor(end / 60) % 24
-  const endM = end % 60
-  return `${formatClock(block.startHour, block.startMinute)} – ${formatClock(endH, endM)}`
+  const startTotal = block.startHour * 60 + block.startMinute
+  const endTotal = startTotal + block.durationMinutes
+  const endH = Math.floor(endTotal / 60) % 24
+  const endM = endTotal % 60
+  return `${formatTime(block.startHour, block.startMinute)}\u2014${formatTime(endH, endM)}`
 }
 
 function serializeScheduleBlocks(blocks: ScheduleBlock[]): string {
@@ -85,9 +70,139 @@ function serializeScheduleBlocks(blocks: ScheduleBlock[]): string {
   )
 }
 
-function parseTimeValue(value: string) {
-  const [h, m] = value.split(":").map(Number)
-  return { hour: h ?? 0, minute: m ?? 0, minutes: (h ?? 0) * 60 + (m ?? 0) }
+function blockStartMinutes(block: ScheduleBlock) {
+  return block.startHour * 60 + block.startMinute
+}
+
+function blockEndMinutes(block: ScheduleBlock) {
+  return blockStartMinutes(block) + block.durationMinutes
+}
+
+function minutesToBlockParts(totalMinutes: number) {
+  const clamped = Math.max(0, Math.min(DAY_END_MINUTES, totalMinutes))
+  return {
+    startHour: Math.floor(clamped / 60),
+    startMinute: clamped % 60,
+  }
+}
+
+function snapToMinutes(minutes: number, step = 15) {
+  return Math.round(minutes / step) * step
+}
+
+function rangesOverlap(startA: number, endA: number, startB: number, endB: number) {
+  return startA < endB && startB < endA
+}
+
+function getDayBlocks(
+  blocks: ScheduleBlock[],
+  dayIndex: number,
+  excludeId?: string
+) {
+  return blocks
+    .filter((b) => b.dayIndex === dayIndex && b.id !== excludeId)
+    .sort((a, b) => blockStartMinutes(a) - blockStartMinutes(b))
+}
+
+function isMinuteInsideBlock(dayIndex: number, minute: number, blocks: ScheduleBlock[]) {
+  return getDayBlocks(blocks, dayIndex).some((block) => {
+    const start = blockStartMinutes(block)
+    return minute >= start && minute < blockEndMinutes(block)
+  })
+}
+
+function clampBlock(block: ScheduleBlock): ScheduleBlock {
+  const startMin = snapToMinutes(blockStartMinutes(block))
+  const maxDuration = Math.max(MIN_BLOCK_MINUTES, DAY_END_MINUTES - startMin)
+  const durationMinutes = Math.min(
+    Math.max(MIN_BLOCK_MINUTES, block.durationMinutes),
+    maxDuration
+  )
+  const { startHour, startMinute } = minutesToBlockParts(startMin)
+
+  return {
+    ...block,
+    dayIndex: Math.max(0, Math.min(6, block.dayIndex)),
+    startHour,
+    startMinute,
+    durationMinutes,
+    saved: false,
+  }
+}
+
+function constrainMoveBlock(
+  block: ScheduleBlock,
+  proposedStartMin: number,
+  allBlocks: ScheduleBlock[]
+): ScheduleBlock {
+  const duration = block.durationMinutes
+  let start = snapToMinutes(proposedStartMin)
+  start = Math.max(0, Math.min(start, DAY_END_MINUTES - duration))
+
+  for (let pass = 0; pass < 4; pass += 1) {
+    for (const other of getDayBlocks(allBlocks, block.dayIndex, block.id)) {
+      const oStart = blockStartMinutes(other)
+      const oEnd = blockEndMinutes(other)
+
+      if (!rangesOverlap(start, start + duration, oStart, oEnd)) continue
+
+      if (proposedStartMin <= oStart) {
+        start = Math.min(start, oStart - duration)
+      } else {
+        start = Math.max(start, oEnd)
+      }
+    }
+    start = Math.max(0, Math.min(start, DAY_END_MINUTES - duration))
+  }
+
+  const { startHour, startMinute } = minutesToBlockParts(start)
+  return clampBlock({ ...block, startHour, startMinute, durationMinutes: duration })
+}
+
+function constrainResizeBottom(
+  block: ScheduleBlock,
+  proposedEndMin: number,
+  allBlocks: ScheduleBlock[]
+): ScheduleBlock {
+  const start = blockStartMinutes(block)
+  let end = snapToMinutes(proposedEndMin)
+  end = Math.max(start + MIN_BLOCK_MINUTES, Math.min(end, DAY_END_MINUTES))
+
+  for (const other of getDayBlocks(allBlocks, block.dayIndex, block.id)) {
+    const oStart = blockStartMinutes(other)
+    if (oStart > start) {
+      end = Math.min(end, oStart)
+    }
+  }
+
+  end = Math.max(start + MIN_BLOCK_MINUTES, end)
+  return clampBlock({ ...block, durationMinutes: end - start })
+}
+
+function constrainResizeTop(
+  block: ScheduleBlock,
+  proposedStartMin: number,
+  allBlocks: ScheduleBlock[]
+): ScheduleBlock {
+  const end = blockEndMinutes(block)
+  let start = snapToMinutes(proposedStartMin)
+  start = Math.max(0, Math.min(start, end - MIN_BLOCK_MINUTES))
+
+  for (const other of getDayBlocks(allBlocks, block.dayIndex, block.id)) {
+    const oEnd = blockEndMinutes(other)
+    if (oEnd <= end) {
+      start = Math.max(start, oEnd)
+    }
+  }
+
+  start = Math.max(0, Math.min(start, end - MIN_BLOCK_MINUTES))
+  const { startHour, startMinute } = minutesToBlockParts(start)
+  return clampBlock({
+    ...block,
+    startHour,
+    startMinute,
+    durationMinutes: end - start,
+  })
 }
 
 type Props = {
@@ -106,6 +221,8 @@ export function ScheduleSheet({
   onSave,
 }: Props) {
   const idCounterRef = useRef(0)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+
   const nextId = () => {
     idCounterRef.current += 1
     const c = idCounterRef.current
@@ -115,10 +232,23 @@ export function ScheduleSheet({
   const [blocks, setBlocks] = useState<ScheduleBlock[]>(() =>
     initialBlocks.map((b) => ({ ...b, saved: b.saved ?? true }))
   )
-  const [selectedDays, setSelectedDays] = useState<number[]>([1, 2, 3, 4, 5])
-  const [startTime, setStartTime] = useState("8:0")
-  const [endTime, setEndTime] = useState("17:0")
-  const [formError, setFormError] = useState("")
+  const [isDragging, setIsDragging] = useState(false)
+  const [activeBlockId, setActiveBlockId] = useState<string | null>(null)
+
+  const dragStateRef = useRef<{
+    type: DragType
+    blockId?: string
+    anchorStartMin?: number
+    pointerId?: number
+  }>({ type: null })
+
+  const blockPointerRef = useRef<{
+    blockId: string
+    startX: number
+    startY: number
+    moved: boolean
+    pointerId: number
+  } | null>(null)
 
   const baselineSnapshot = useMemo(
     () => serializeScheduleBlocks(initialBlocks),
@@ -129,98 +259,233 @@ export function ScheduleSheet({
     [blocks]
   )
   const isDirty = currentSnapshot !== baselineSnapshot
-  const canSaveSchedule = isDirty
 
-  const blocksByDay = useMemo(() => {
-    const map: Record<number, ScheduleBlock[]> = {}
-    for (const day of DAYS) map[day.index] = []
-    for (const block of blocks) {
-      map[block.dayIndex] = [...(map[block.dayIndex] ?? []), block]
-    }
-    for (const day of DAYS) {
-      map[day.index] = (map[day.index] ?? []).sort(
-        (a, b) =>
-          a.startHour * 60 +
-          a.startMinute -
-          (b.startHour * 60 + b.startMinute)
-      )
-    }
-    return map
-  }, [blocks])
-
-  const toggleDay = (dayIndex: number) => {
-    setSelectedDays((prev) =>
-      prev.includes(dayIndex)
-        ? prev.filter((d) => d !== dayIndex)
-        : [...prev, dayIndex].sort((a, b) => a - b)
-    )
+  const yToMinutes = (y: number) => {
+    const rel = Math.max(0, y - GRID_PADDING_TOP)
+    return snapToMinutes((rel / HOUR_HEIGHT) * 60)
   }
 
-  const addBlocks = () => {
-    if (selectedDays.length === 0) {
-      setFormError("Select at least one day")
-      return
+  const minutesToY = (totalMinutes: number) =>
+    GRID_PADDING_TOP + (totalMinutes / 60) * HOUR_HEIGHT
+
+  const findDayIndexFromX = (x: number) => {
+    const rel = Math.max(0, x - GRID_PADDING_LEFT)
+    const idx = Math.floor(rel / DAY_COLUMN_WIDTH)
+    return Math.max(0, Math.min(DAYS.length - 1, idx))
+  }
+
+  const getGridElement = (target: EventTarget | null) =>
+    (target as HTMLElement | null)?.closest(
+      "[data-schedule-grid]"
+    ) as HTMLElement | null
+
+  const autoScrollDuringDrag = (clientY: number) => {
+    const container = scrollContainerRef.current
+    if (!container) return
+
+    const rect = container.getBoundingClientRect()
+    if (clientY < rect.top + AUTO_SCROLL_EDGE_PX) {
+      container.scrollTop -= AUTO_SCROLL_STEP_PX
+    } else if (clientY > rect.bottom - AUTO_SCROLL_EDGE_PX) {
+      container.scrollTop += AUTO_SCROLL_STEP_PX
     }
+  }
 
-    const start = parseTimeValue(startTime)
-    const end = parseTimeValue(endTime)
+  const endDrag = (grid: HTMLElement | null, pointerId: number) => {
+    dragStateRef.current = { type: null }
+    blockPointerRef.current = null
+    setIsDragging(false)
+    setActiveBlockId(null)
 
-    if (end.minutes <= start.minutes) {
-      setFormError("End time must be after start time")
-      return
+    if (grid) {
+      try {
+        grid.releasePointerCapture(pointerId)
+      } catch {
+        /* ignore */
+      }
     }
-
-    setFormError("")
-    const durationMinutes = end.minutes - start.minutes
-    const next = selectedDays.map((dayIndex) => ({
-      id: nextId(),
-      dayIndex,
-      startHour: start.hour,
-      startMinute: start.minute,
-      durationMinutes,
-      saved: false,
-    }))
-    setBlocks((prev) => [...prev, ...next])
   }
 
   const removeBlock = (id: string) => {
     setBlocks((prev) => prev.filter((b) => b.id !== id))
   }
 
-  const clearAll = () => setBlocks([])
+  const handleGridPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if ((e.target as HTMLElement).closest("[data-schedule-block]")) return
+    if (e.button !== 0) return
 
-  const applyWeekdays = () => {
-    setSelectedDays([1, 2, 3, 4, 5])
-    setStartTime("8:0")
-    setEndTime("17:0")
-    setFormError("")
-    setBlocks(
-      [1, 2, 3, 4, 5].map((dayIndex) => ({
-        id: nextId(),
-        dayIndex,
-        startHour: 8,
-        startMinute: 0,
-        durationMinutes: 9 * 60,
-        saved: false,
-      }))
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
+    const dayIndex = findDayIndexFromX(x)
+    const startTotalMin = yToMinutes(y)
+
+    if (isMinuteInsideBlock(dayIndex, startTotalMin, blocks)) return
+
+    const newBlock: ScheduleBlock = clampBlock({
+      id: nextId(),
+      dayIndex,
+      startHour: Math.floor(startTotalMin / 60),
+      startMinute: startTotalMin % 60,
+      durationMinutes: 60,
+      saved: false,
+    })
+
+    setBlocks((prev) => [...prev, newBlock])
+    setIsDragging(true)
+    setActiveBlockId(newBlock.id)
+    dragStateRef.current = {
+      type: "resize-bottom",
+      blockId: newBlock.id,
+      anchorStartMin: startTotalMin,
+      pointerId: e.pointerId,
+    }
+    e.currentTarget.setPointerCapture(e.pointerId)
+  }
+
+  const handleGridPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    autoScrollDuringDrag(e.clientY)
+
+    const rect = e.currentTarget.getBoundingClientRect()
+    const y = e.clientY - rect.top
+    const x = e.clientX - rect.left
+    const state = dragStateRef.current
+
+    if (!state.type || !state.blockId) return
+
+    if (state.type === "move") {
+      const dayIndex = findDayIndexFromX(x)
+      const startTotalMin = yToMinutes(y)
+      setBlocks((prev) =>
+        prev.map((b) =>
+          b.id === state.blockId
+            ? constrainMoveBlock(
+                { ...b, dayIndex },
+                startTotalMin,
+                prev
+              )
+            : b
+        )
+      )
+      return
+    }
+
+    const currentMin = yToMinutes(y)
+
+    setBlocks((prev) =>
+      prev.map((b) => {
+        if (b.id !== state.blockId) return b
+
+        if (state.type === "resize-bottom") {
+          return constrainResizeBottom(b, currentMin, prev)
+        }
+
+        if (state.type === "resize-top") {
+          return constrainResizeTop(b, currentMin, prev)
+        }
+
+        if (state.type === "create") {
+          const anchorMin = state.anchorStartMin ?? blockStartMinutes(b)
+          if (currentMin >= anchorMin) {
+            return constrainResizeBottom(b, currentMin, prev)
+          }
+          return constrainResizeTop(b, currentMin, prev)
+        }
+
+        return b
+      })
     )
   }
 
-  const applyEveryNight = () => {
-    setSelectedDays([0, 1, 2, 3, 4, 5, 6])
-    setStartTime("21:0")
-    setEndTime("23:45")
-    setFormError("")
-    setBlocks(
-      [0, 1, 2, 3, 4, 5, 6].map((dayIndex) => ({
-        id: nextId(),
-        dayIndex,
-        startHour: 21,
-        startMinute: 0,
-        durationMinutes: 165,
-        saved: false,
-      }))
+  const handleGridPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    const session = blockPointerRef.current
+    if (session?.pointerId === e.pointerId && !session.moved) {
+      removeBlock(session.blockId)
+    }
+
+    endDrag(e.currentTarget, e.pointerId)
+  }
+
+  const handleBlockPointerDown = (
+    e: React.PointerEvent<HTMLDivElement>,
+    block: ScheduleBlock
+  ) => {
+    if ((e.target as HTMLElement).closest("[data-resize-handle]")) return
+    if (e.button !== 0) return
+
+    e.stopPropagation()
+    const grid = getGridElement(e.currentTarget)
+    if (!grid) return
+
+    blockPointerRef.current = {
+      blockId: block.id,
+      startX: e.clientX,
+      startY: e.clientY,
+      moved: false,
+      pointerId: e.pointerId,
+    }
+    setActiveBlockId(block.id)
+    grid.setPointerCapture(e.pointerId)
+  }
+
+  const handleBlockPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const session = blockPointerRef.current
+    if (!session || session.pointerId !== e.pointerId) return
+
+    autoScrollDuringDrag(e.clientY)
+
+    const dx = e.clientX - session.startX
+    const dy = e.clientY - session.startY
+    if (!session.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD_PX) return
+
+    session.moved = true
+    setIsDragging(true)
+    dragStateRef.current = {
+      type: "move",
+      blockId: session.blockId,
+      pointerId: e.pointerId,
+    }
+
+    const grid = getGridElement(e.currentTarget)
+    if (!grid) return
+
+    const rect = grid.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
+    const dayIndex = findDayIndexFromX(x)
+    const startTotalMin = yToMinutes(y)
+
+    setBlocks((prev) =>
+      prev.map((b) =>
+        b.id === session.blockId
+          ? constrainMoveBlock({ ...b, dayIndex }, startTotalMin, prev)
+          : b
+      )
     )
+  }
+
+  const handleResizePointerDown = (
+    e: React.PointerEvent<HTMLDivElement>,
+    block: ScheduleBlock,
+    edge: "top" | "bottom"
+  ) => {
+    e.stopPropagation()
+    const grid = getGridElement(e.currentTarget)
+    if (!grid) return
+
+    blockPointerRef.current = null
+    setIsDragging(true)
+    setActiveBlockId(block.id)
+    dragStateRef.current = {
+      type: edge === "top" ? "resize-top" : "resize-bottom",
+      blockId: block.id,
+      anchorStartMin:
+        edge === "top"
+          ? blockStartMinutes(block)
+          : blockEndMinutes(block),
+      pointerId: e.pointerId,
+    }
+    grid.setPointerCapture(e.pointerId)
   }
 
   const handleSave = () => {
@@ -228,32 +493,38 @@ export function ScheduleSheet({
     onOpenChange(false)
   }
 
+  const totalMinutesToEnd = DAY_END_MINUTES
+  const gridBodyHeight = (totalMinutesToEnd / 60) * HOUR_HEIGHT
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
         showCloseButton={false}
         className={cn(
-          "flex h-full min-h-0 w-full flex-col gap-0 overflow-hidden bg-brand-surface p-0",
-          "data-[side=right]:w-[min(100vw,560px)] data-[side=right]:max-w-[min(100vw,560px)]",
-          // Phone only: inset + fixed height for scroll
-          "max-sm:data-[side=right]:inset-y-3 max-sm:data-[side=right]:right-3 max-sm:data-[side=right]:left-3 max-sm:data-[side=right]:h-[calc(100svh-1.5rem)] max-sm:data-[side=right]:max-h-[calc(100svh-1.5rem)] max-sm:data-[side=right]:w-auto max-sm:data-[side=right]:max-w-none max-sm:data-[side=right]:rounded-2xl max-sm:data-[side=right]:border max-sm:data-[side=right]:border-border/60"
+          "flex max-h-[100svh] min-h-0 flex-col gap-0 overflow-hidden bg-white p-0",
+          "data-[side=right]:inset-y-0 data-[side=right]:right-0 data-[side=right]:h-full data-[side=right]:max-h-[100svh]",
+          "data-[side=right]:!max-w-none sm:data-[side=right]:!max-w-none",
+          "max-lg:data-[side=right]:!w-full max-lg:data-[side=right]:left-0",
+          "lg:data-[side=right]:left-auto lg:data-[side=right]:!w-1/2 lg:data-[side=right]:!max-w-[50vw]",
+          "max-sm:data-[side=right]:inset-y-3 max-sm:data-[side=right]:right-3 max-sm:data-[side=right]:left-3 max-sm:data-[side=right]:h-[calc(100svh-1.5rem)] max-sm:data-[side=right]:max-h-[calc(100svh-1.5rem)] max-sm:data-[side=right]:!w-auto max-sm:data-[side=right]:rounded-2xl max-sm:data-[side=right]:border max-sm:data-[side=right]:border-border/60"
         )}
       >
-        <SheetHeader className="shrink-0 space-y-0 border-b border-border/60 px-6 py-5 text-left max-sm:px-4 max-sm:py-4">
-          <div className="flex items-start justify-between gap-4">
+        <SheetHeader className="shrink-0 space-y-0 border-b border-border/50 px-6 py-5 text-left max-sm:px-4 max-sm:py-4">
+          <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1 space-y-1.5">
               <SheetTitle className="text-xl font-bold tracking-tight text-brand-text-heading max-sm:text-lg">
                 {mode === "edit" ? "Edit Rule Schedule" : "Add Rule Schedule"}
               </SheetTitle>
               <SheetDescription className="text-sm leading-relaxed text-brand-text-muted">
-                Choose days and a time range when this rule should be active.
+                Click empty space to add. Click a block to remove. Drag a block
+                to move between days. Use top or bottom edge to stretch.
               </SheetDescription>
             </div>
             <button
               type="button"
               onClick={() => onOpenChange(false)}
-              className="shrink-0 rounded-md p-1.5 text-brand-text-muted transition-colors hover:bg-muted hover:text-brand-text-heading"
+              className="-mr-1 -mt-1 shrink-0 rounded-md p-1.5 text-brand-text-muted transition-colors hover:bg-gray-100 hover:text-brand-text-heading"
               aria-label="Close"
             >
               <X className="size-5" />
@@ -261,192 +532,183 @@ export function ScheduleSheet({
           </div>
         </SheetHeader>
 
-        <div className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain px-6 py-5 max-sm:px-4">
-          {/* Quick presets */}
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="brandOutline"
-              size="sm"
-              className="h-8"
-              onClick={applyWeekdays}
+        <div
+          ref={scrollContainerRef}
+          className="min-h-0 flex-1 overflow-x-auto overflow-y-auto overscroll-contain px-6 py-5 max-sm:px-4"
+        >
+          <div
+            data-schedule-grid
+            className={cn(
+              "relative mx-auto select-none overflow-hidden rounded-xl border border-border/60 bg-white shadow-sm",
+              isDragging && "touch-none"
+            )}
+            style={{
+              width: GRID_PADDING_LEFT + DAY_COLUMN_WIDTH * DAYS.length + 4,
+            }}
+            onPointerDown={handleGridPointerDown}
+            onPointerMove={(e) => {
+              handleGridPointerMove(e)
+              handleBlockPointerMove(e)
+            }}
+            onPointerUp={handleGridPointerUp}
+            onPointerCancel={handleGridPointerUp}
+          >
+            <div
+              className="relative"
+              style={{
+                width: GRID_PADDING_LEFT + DAY_COLUMN_WIDTH * DAYS.length,
+                height: GRID_PADDING_TOP + gridBodyHeight,
+              }}
             >
-              Weekdays 8am–5pm
-            </Button>
-            <Button
-              type="button"
-              variant="brandOutline"
-              size="sm"
-              className="h-8"
-              onClick={applyEveryNight}
-            >
-              Every night 9pm–11:45pm
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-8 text-brand-text-muted"
-              onClick={clearAll}
-              disabled={blocks.length === 0}
-            >
-              Clear all
-            </Button>
-          </div>
-
-          {/* Days */}
-          <div className="space-y-2.5">
-            <Label className="text-sm font-semibold text-brand-text-heading">
-              Days
-            </Label>
-            <div className="grid grid-cols-7 gap-1.5">
-              {DAYS.map((day) => {
-                const active = selectedDays.includes(day.index)
-                return (
-                  <button
-                    key={day.index}
-                    type="button"
-                    onClick={() => toggleDay(day.index)}
+              <div
+                className="absolute left-0 right-0 top-0 z-30 flex border-b border-border/60 bg-white"
+                style={{
+                  height: GRID_PADDING_TOP,
+                  paddingLeft: GRID_PADDING_LEFT,
+                }}
+              >
+                {DAYS.map((day, i) => (
+                  <div
+                    key={day}
                     className={cn(
-                      "flex h-11 flex-col items-center justify-center rounded-md border text-xs font-semibold transition-colors",
-                      active
-                        ? "border-brand-primary bg-brand-primary text-brand-primary-foreground"
-                        : "border-border/70 bg-white text-brand-text-heading hover:border-brand-primary/40 hover:bg-brand-primary/5"
+                      "flex h-full items-center justify-center border-r border-border/60 text-xs font-semibold text-brand-text-heading last:border-r-0",
+                      i === 0 || i === 6 ? "bg-gray-50/60" : "bg-white"
                     )}
-                    aria-pressed={active}
+                    style={{ width: DAY_COLUMN_WIDTH }}
                   >
-                    {day.short}
-                  </button>
+                    {day}
+                  </div>
+                ))}
+              </div>
+
+              {Array.from({ length: HOURS_TO - HOURS_FROM + 1 }).map((_, i) => {
+                const hour = HOURS_FROM + i
+                const label =
+                  hour === 0
+                    ? "12 am"
+                    : hour < 12
+                      ? `${hour} am`
+                      : hour === 12
+                        ? "12 pm"
+                        : `${hour - 12} pm`
+                const y = GRID_PADDING_TOP + i * HOUR_HEIGHT
+                const isMidnight =
+                  hour === 0 || hour === 6 || hour === 12 || hour === 18
+                return (
+                  <div key={hour}>
+                    <div
+                      className="absolute left-0 z-10 flex items-center justify-end bg-white pr-3 text-xs font-medium text-brand-text-muted/90"
+                      style={{
+                        top: y - 6,
+                        width: GRID_PADDING_LEFT,
+                        height: 16,
+                      }}
+                    >
+                      {label}
+                    </div>
+                    <div
+                      className={cn(
+                        "absolute right-0 border-t border-dashed",
+                        isMidnight ? "border-border/70" : "border-border/30"
+                      )}
+                      style={{ top: y, left: GRID_PADDING_LEFT }}
+                    />
+                  </div>
+                )
+              })}
+
+              {Array.from({ length: HOURS_TO - HOURS_FROM }).map((_, i) => {
+                const hour = HOURS_FROM + i
+                const y = GRID_PADDING_TOP + (i + 0.5) * HOUR_HEIGHT
+                return (
+                  <div
+                    key={`hh-${hour}`}
+                    className="absolute right-0 border-t border-dotted border-border/20"
+                    style={{ top: y, left: GRID_PADDING_LEFT }}
+                  />
+                )
+              })}
+
+              {DAYS.map((_, i) => {
+                const isWeekend = i === 0 || i === 6
+                return (
+                  <div
+                    key={`col-${i}`}
+                    className={cn(
+                      "absolute top-0 border-r border-border/40 last:border-r-0",
+                      isWeekend ? "bg-gray-50/30" : "bg-white"
+                    )}
+                    style={{
+                      left: GRID_PADDING_LEFT + i * DAY_COLUMN_WIDTH,
+                      width: DAY_COLUMN_WIDTH,
+                      height: GRID_PADDING_TOP + gridBodyHeight,
+                    }}
+                  />
+                )
+              })}
+
+              {blocks.map((block) => {
+                const startTotal = blockStartMinutes(block)
+                const top = minutesToY(startTotal)
+                const height = (block.durationMinutes / 60) * HOUR_HEIGHT
+                const left =
+                  GRID_PADDING_LEFT + block.dayIndex * DAY_COLUMN_WIDTH + 2
+                const width = DAY_COLUMN_WIDTH - 4
+                const isActive = activeBlockId === block.id
+
+                return (
+                  <div
+                    key={block.id}
+                    data-schedule-block
+                    onPointerDown={(e) => handleBlockPointerDown(e, block)}
+                    className={cn(
+                      "absolute flex cursor-grab flex-col justify-between overflow-hidden rounded-md border border-gray-300 bg-gray-100 px-2 py-1.5 text-[10px] leading-tight text-brand-text-heading shadow-sm active:cursor-grabbing",
+                      !block.saved && "border-gray-400/80",
+                      isActive ? "z-20 ring-2 ring-brand-primary/30" : "z-10"
+                    )}
+                    style={{
+                      top,
+                      left,
+                      width,
+                      height: Math.max(28, height - 2),
+                    }}
+                    title="Click to remove, drag to move, stretch from edges"
+                  >
+                    <div
+                      data-resize-handle
+                      onPointerDown={(e) =>
+                        handleResizePointerDown(e, block, "top")
+                      }
+                      className="absolute inset-x-0 top-0 z-10 h-2.5 cursor-ns-resize touch-none bg-gradient-to-b from-gray-400/35 to-transparent"
+                    />
+                    <div className="pointer-events-none truncate pt-1 font-mono font-semibold">
+                      {formatBlockRange(block)}
+                    </div>
+                    {!block.saved ? (
+                      <div className="pointer-events-none truncate text-[9px] font-medium text-brand-text-muted">
+                        (not saved)
+                      </div>
+                    ) : null}
+                    <div
+                      data-resize-handle
+                      onPointerDown={(e) =>
+                        handleResizePointerDown(e, block, "bottom")
+                      }
+                      className="absolute inset-x-0 bottom-0 z-10 h-2.5 cursor-ns-resize touch-none bg-gradient-to-t from-gray-400/35 to-transparent"
+                    />
+                  </div>
                 )
               })}
             </div>
           </div>
-
-          {/* Time range */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label
-                htmlFor="schedule-start"
-                className="text-sm font-semibold text-brand-text-heading"
-              >
-                Start time
-              </Label>
-              <Select value={startTime} onValueChange={setStartTime}>
-                <SelectTrigger id="schedule-start" className="w-full">
-                  <SelectValue placeholder="Start" />
-                </SelectTrigger>
-                <SelectContent>
-                  {TIME_OPTIONS.map((opt) => (
-                    <SelectItem key={`start-${opt.value}`} value={opt.value}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label
-                htmlFor="schedule-end"
-                className="text-sm font-semibold text-brand-text-heading"
-              >
-                End time
-              </Label>
-              <Select value={endTime} onValueChange={setEndTime}>
-                <SelectTrigger id="schedule-end" className="w-full">
-                  <SelectValue placeholder="End" />
-                </SelectTrigger>
-                <SelectContent>
-                  {TIME_OPTIONS.map((opt) => (
-                    <SelectItem key={`end-${opt.value}`} value={opt.value}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {formError ? (
-            <p className="text-sm text-destructive">{formError}</p>
-          ) : null}
-
-          <Button
-            type="button"
-            variant="brandOutline"
-            className="h-10 w-full gap-1.5"
-            onClick={addBlocks}
-          >
-            <Plus className="size-4" />
-            Add to schedule
-          </Button>
-
-          {/* Weekly summary */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              <h3 className="text-sm font-semibold text-brand-text-heading">
-                This week
-              </h3>
-              <span className="text-xs text-brand-text-muted">
-                {blocks.length} block{blocks.length === 1 ? "" : "s"}
-              </span>
-            </div>
-
-            {blocks.length === 0 ? (
-              <div className="flex min-h-[160px] flex-col items-center justify-center rounded-lg border border-dashed border-border/70 bg-white px-4 py-8 text-center">
-                <CalendarDays className="mb-3 size-8 text-brand-text-muted/70" />
-                <p className="text-sm font-semibold text-brand-text-heading">
-                  No schedule yet
-                </p>
-                <p className="mt-1 max-w-xs text-sm text-brand-text-muted">
-                  Pick days and times above, or use a quick preset.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-2 rounded-lg border border-border/70 bg-white p-2">
-                {DAYS.map((day) => {
-                  const dayBlocks = blocksByDay[day.index] ?? []
-                  if (dayBlocks.length === 0) return null
-                  return (
-                    <div
-                      key={day.index}
-                      className="rounded-md border border-border/50 bg-muted/20 px-3 py-2.5"
-                    >
-                      <p className="mb-2 text-xs font-bold uppercase tracking-wide text-brand-text-muted">
-                        {day.full}
-                      </p>
-                      <div className="space-y-1.5">
-                        {dayBlocks.map((block) => (
-                          <div
-                            key={block.id}
-                            className="flex items-center justify-between gap-3 rounded-md border border-brand-primary/20 bg-brand-primary/[0.06] px-3 py-2"
-                          >
-                            <span className="text-sm font-medium text-brand-text-heading">
-                              {formatBlockRange(block)}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => removeBlock(block.id)}
-                              className="rounded-md p-1.5 text-brand-text-muted transition-colors hover:bg-destructive/10 hover:text-destructive"
-                              aria-label={`Remove ${day.full} block`}
-                            >
-                              <Trash2 className="size-3.5" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
         </div>
 
-        <SheetFooter className="m-0 shrink-0 flex-row items-center justify-end gap-3 border-t border-border/60 bg-muted/30 px-6 py-4 sm:flex-row sm:space-x-0 max-sm:px-4 max-sm:py-3">
+        <SheetFooter className="m-0 shrink-0 flex-row items-center justify-end gap-3 border-t border-border/50 bg-gray-50/40 px-6 py-4 sm:flex-row sm:space-x-0 max-sm:px-4 max-sm:py-3">
           <Button
             type="button"
             variant="outline"
             size="lg"
+            className="h-11 bg-white px-6 text-sm font-semibold hover:bg-gray-100"
             onClick={() => onOpenChange(false)}
           >
             Close
@@ -454,10 +716,12 @@ export function ScheduleSheet({
           <Button
             type="button"
             size="lg"
-            disabled={!canSaveSchedule}
+            disabled={!isDirty}
             onClick={handleSave}
+            className="h-11 gap-2 px-6 text-sm font-semibold shadow-md shadow-brand-primary/20"
           >
-            Save schedule
+            <Save className="size-4" />
+            Save
           </Button>
         </SheetFooter>
       </SheetContent>

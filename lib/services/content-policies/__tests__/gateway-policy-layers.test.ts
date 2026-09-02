@@ -5,8 +5,10 @@ import {
   buildFallbackDnsTrafficExpression,
   buildHttpTrafficExpression,
   FALLBACK_DNS_RESOLVER_IPS,
+  nextAvailableGatewayPrecedence,
   shouldCreateFallbackDnsLayer,
   shouldCreateHttpLayer,
+  takeNextGatewayPrecedence,
   youtubeDomainRootsForInput,
   youtubeNeedsExpandedCoverage,
   YOUTUBE_DOMAIN_ROOTS,
@@ -53,10 +55,10 @@ describe("Gateway policy layers", () => {
     ).toContain("http.request.host == \"youtube.com\"")
   })
 
-  it("creates HTTP layer only for block/allow with traffic", () => {
+  it("creates HTTP layer for block/allow/ytrestricted when traffic exists", () => {
     expect(shouldCreateHttpLayer("block", "any(app.ids[*] in {505})")).toBe(true)
     expect(shouldCreateHttpLayer("ytrestricted", "any(app.ids[*] in {505})")).toBe(
-      false
+      true
     )
     expect(shouldCreateHttpLayer("safesearch", "http.request.host == \"x\"")).toBe(
       false
@@ -86,5 +88,10 @@ describe("Gateway policy layers", () => {
         hasAssignments: false,
       })
     ).toBeGreaterThan(40)
+  })
+
+  it("skips occupied Cloudflare precedence numbers", () => {
+    expect(nextAvailableGatewayPrecedence([1000, 1001], 1000)).toBe(1002)
+    expect(takeNextGatewayPrecedence(new Set([40]), 40)).toBe(41)
   })
 })
