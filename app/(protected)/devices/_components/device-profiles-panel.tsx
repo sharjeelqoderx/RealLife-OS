@@ -3,6 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Pencil, Plus, Trash2 } from "lucide-react"
+import Link from "next/link"
 import { useState } from "react"
 import { Controller, useForm } from "react-hook-form"
 
@@ -541,9 +542,18 @@ export function DeviceProfilesPanel({
                       <p className="text-xs font-medium uppercase tracking-wide text-brand-text-muted">
                         Policy
                       </p>
-                      <p className="min-w-0 truncate text-sm text-brand-text-heading">
-                        {profile.policyName ?? "None attached"}
-                      </p>
+                      {profile.policyId && profile.policyName ? (
+                        <Link
+                          href={`/content-policies/${profile.policyId}`}
+                          className="min-w-0 truncate text-sm font-medium text-brand-text-heading underline-offset-4 hover:underline"
+                        >
+                          {profile.policyName}
+                        </Link>
+                      ) : (
+                        <p className="min-w-0 truncate text-sm text-brand-text-heading">
+                          None attached
+                        </p>
+                      )}
                     </div>
                     <div className="grid grid-cols-[4.5rem_minmax(0,1fr)] items-start gap-x-3 gap-y-1">
                       <p className="pt-0.5 text-xs font-medium uppercase tracking-wide text-brand-text-muted">
