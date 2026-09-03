@@ -177,7 +177,7 @@ export default function Home() {
             </nav>
             <div className="flex shrink-0 items-center gap-2 sm:gap-3">
               <Link
-                href="/sign-up"
+                href="/login"
                 className="rounded-lg bg-brand-primary px-3 py-2 text-xs font-semibold text-brand-primary-foreground transition-all hover:bg-brand-primary/90 sm:px-5 sm:py-2.5 sm:text-sm"
               >
                 Start Free
@@ -224,7 +224,7 @@ export default function Home() {
 
             <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row sm:gap-4">
               <Link
-                href="/sign-up"
+                href="/login"
                 className="w-full rounded-lg bg-brand-primary px-6 py-3.5 text-sm font-semibold text-brand-primary-foreground transition-all hover:bg-brand-primary/90 sm:w-auto"
               >
                 Start 7-Day Free Trial
@@ -545,7 +545,7 @@ export default function Home() {
                   </ul>
 
                   <Link
-                    href={plan.kind === "custom" ? ENTERPRISE_CONTACT_HREF : "/sign-up"}
+                    href={plan.kind === "custom" ? ENTERPRISE_CONTACT_HREF : "/login"}
                     className={`mt-8 flex w-full items-center justify-center rounded-lg px-6 py-3 text-sm font-semibold transition-all ${plan.highlighted
                       ? "bg-brand-primary text-brand-primary-foreground hover:bg-brand-primary/90"
                       : "border border-brand-primary bg-white text-slate-900 hover:bg-slate-50"
@@ -664,7 +664,7 @@ export default function Home() {
                 </p>
                 <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row sm:gap-4">
                   <Link
-                    href="/sign-up"
+                    href="/login"
                     className="w-full rounded-xl bg-brand-primary px-8 py-3.5 text-sm font-semibold text-brand-primary-foreground transition-all hover:bg-brand-primary/90 sm:w-auto"
                   >
                     Get Started for Free
