@@ -824,18 +824,26 @@ export function PolicyDetail({ mode, policyId, initialData }: Props) {
   }) => {
     if (!selectedRuleId) return
     const ruleId = selectedRuleId
-    if (currentCategories.some((c) => c.id === item.id)) return
-    setCategoriesByRule((prev) => ({
-      ...prev,
-      [ruleId]: [
-        ...(prev[ruleId] ?? []),
-        {
-          id: item.id,
-          label: item.label,
-          groupLabel: groupLabelById(categoryGroups, item.groupId),
-        },
-      ],
-    }))
+    setCategoriesByRule((prev) => {
+      const current = prev[ruleId] ?? []
+      if (current.some((c) => c.id === item.id)) {
+        return {
+          ...prev,
+          [ruleId]: current.filter((c) => c.id !== item.id),
+        }
+      }
+      return {
+        ...prev,
+        [ruleId]: [
+          ...current,
+          {
+            id: item.id,
+            label: item.label,
+            groupLabel: groupLabelById(categoryGroups, item.groupId),
+          },
+        ],
+      }
+    })
   }
   const removeCategory = (id: string) => {
     if (!selectedRuleId) return
@@ -853,18 +861,26 @@ export function PolicyDetail({ mode, policyId, initialData }: Props) {
   }) => {
     if (!selectedRuleId) return
     const ruleId = selectedRuleId
-    if (currentApps.some((c) => c.id === item.id)) return
-    setAppsByRule((prev) => ({
-      ...prev,
-      [ruleId]: [
-        ...(prev[ruleId] ?? []),
-        {
-          id: item.id,
-          label: item.label,
-          groupLabel: groupLabelById(appGroups, item.groupId),
-        },
-      ],
-    }))
+    setAppsByRule((prev) => {
+      const current = prev[ruleId] ?? []
+      if (current.some((c) => c.id === item.id)) {
+        return {
+          ...prev,
+          [ruleId]: current.filter((c) => c.id !== item.id),
+        }
+      }
+      return {
+        ...prev,
+        [ruleId]: [
+          ...current,
+          {
+            id: item.id,
+            label: item.label,
+            groupLabel: groupLabelById(appGroups, item.groupId),
+          },
+        ],
+      }
+    })
   }
   const removeApp = (id: string) => {
     if (!selectedRuleId) return
@@ -882,18 +898,26 @@ export function PolicyDetail({ mode, policyId, initialData }: Props) {
   }) => {
     if (!selectedRuleId) return
     const ruleId = selectedRuleId
-    if (currentAudience.some((c) => c.id === item.id)) return
-    setAudienceByRule((prev) => ({
-      ...prev,
-      [ruleId]: [
-        ...(prev[ruleId] ?? []),
-        {
-          id: item.id,
-          label: item.label,
-          groupLabel: groupLabelById(audienceGroups, item.groupId),
-        },
-      ],
-    }))
+    setAudienceByRule((prev) => {
+      const current = prev[ruleId] ?? []
+      if (current.some((c) => c.id === item.id)) {
+        return {
+          ...prev,
+          [ruleId]: current.filter((c) => c.id !== item.id),
+        }
+      }
+      return {
+        ...prev,
+        [ruleId]: [
+          ...current,
+          {
+            id: item.id,
+            label: item.label,
+            groupLabel: groupLabelById(audienceGroups, item.groupId),
+          },
+        ],
+      }
+    })
   }
   const removeAudience = (id: string) => {
     if (!selectedRuleId) return

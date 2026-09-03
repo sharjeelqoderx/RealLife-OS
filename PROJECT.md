@@ -488,6 +488,7 @@ Requires `supabase login` + `supabase link` once per machine. Do not squash alre
 
 | Date | Change | Updated By |
 |------|--------|------------|
+| 2026-09-03 | Policy editor pickers (categories/apps/audience): tap selected item again to deselect | Agent |
 | 2026-09-03 | First-time enforcement: profile/policy assign runs Traffic+DNS + identity-only sync (no manual Repair); create never stamps `dns.location`; hard `block` beats `ytrestricted`/`safesearch` precedence | Agent |
 | 2026-09-03 | Repair Gateway: drop orphan assignments to soft-deleted policies; show real sync errors (not generic token message); delete assignments when a policy is soft-deleted | Agent |
 | 2026-09-03 | Devices: **Repair Gateway** button + identity-only enforcement sync (no `dns.location` on assigned DNS rules); enable TCP/UDP Gateway proxy; Android DoH copy clarifies MDM | Agent |
