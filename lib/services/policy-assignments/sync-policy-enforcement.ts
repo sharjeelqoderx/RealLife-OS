@@ -9,7 +9,10 @@ import {
 } from "@/lib/services/content-policies/gateway-policies"
 import {
   assignmentPrecedenceBase,
+  shouldCreateFallbackDnsLayer,
+  shouldCreateHttpLayer,
 } from "@/lib/services/content-policies/gateway-policy-layers"
+import { ensureIdentityFallbackDnsRule } from "@/lib/services/content-policies/policy-rule-mapping"
 import {
   buildIdentityExpression,
   getOwnedGatewayPolicy,
@@ -32,11 +35,13 @@ export const PROFILE_ASSIGNMENT_PRECEDENCE_BASE = 500
 export const UNASSIGNED_POLICY_PRECEDENCE_BASE = 1000
 
 /**
- * Sync one logical policy's Cloudflare Gateway rule to match current
- * device/profile assignments via `dns.location` + `identity.email`.
+ * Sync one logical policy's Cloudflare Gateway rules for current assignments.
  *
- * Cloudflare does not accept SaaS device UUIDs as Gateway selectors.
- * Per-device DNS locations are the Phase 1 enforcement mechanism.
+ * Enforcement uses `identity.email` (+ DNS/HTTP/L4 layers). Per-device DNS
+ * locations are still provisioned for optional DoH profiles, but Gateway traffic
+ * is not scoped with `dns.location` on sync — WARP on Android (and most clients
+ * without MDM `gateway_unique_id`) uses the org default location, so location
+ * selectors silently prevent block rules from matching.
  *
  * @see https://developers.cloudflare.com/api/resources/zero_trust/subresources/gateway/subresources/rules/methods/update/
  * @see https://developers.cloudflare.com/cloudflare-one/traffic-policies/order-of-enforcement/
@@ -62,7 +67,11 @@ export async function syncPolicyCloudflareEnforcement(
     if (!policyRow) throw new Error("Policy not found")
 
     const accountId = await getPolicyCloudflareAccountId(userId)
-    const locationIds = await listLocationIdsForPolicy(userId, policyId)
+    const { ensureGatewayProxyEnabled } = await import(
+      "@/lib/services/cloudflare/device-settings"
+    )
+    await ensureGatewayProxyEnabled(accountId)
+    await listLocationIdsForPolicy(userId, policyId)
     const hasAssignments = await hasAnyAssignment(userId, policyId)
     const hasDeviceAssignment = await policyHasDeviceAssignment(
       userId,
@@ -85,7 +94,7 @@ export async function syncPolicyCloudflareEnforcement(
 
     const draft = {
       ...config,
-      locationIds: hasAssignments ? locationIds : [],
+      locationIds: [],
       name: policyRow.name,
       type: (config.type ?? policyRow.type) as CreateGatewayPolicyInput["type"],
       enabled: policyRow.enabled,
@@ -139,9 +148,6 @@ export async function syncPolicyCloudflareEnforcement(
       "@/lib/services/content-policies/policy-rule-mapping"
     )
     const mapped = await listMappedGatewayRules(userId, policyId)
-    const { shouldCreateHttpLayer } = await import(
-      "@/lib/services/content-policies/gateway-policy-layers"
-    )
     const httpMapped = mapped.find((row) => row.ruleRole === "http")
     const httpTraffic = await buildHttpLayerTraffic(accountId, parsed.data)
     if (!httpMapped && shouldCreateHttpLayer(parsed.data.type, httpTraffic) && httpTraffic) {
@@ -209,6 +215,15 @@ export async function syncPolicyCloudflareEnforcement(
       }
     }
 
+    if (shouldCreateFallbackDnsLayer(parsed.data.type)) {
+      await ensureIdentityFallbackDnsRule({
+        accountId,
+        userId,
+        policyId,
+        email,
+      })
+    }
+
     await admin
       .from("tenant_gateway_policies")
       .update({
@@ -221,12 +236,8 @@ export async function syncPolicyCloudflareEnforcement(
     await admin
       .from("tenant_policy_assignments")
       .update({
-        sync_status:
-          hasAssignments && locationIds.length === 0 ? "pending" : "active",
-        sync_error:
-          hasAssignments && locationIds.length === 0
-            ? "Waiting for device DNS locations"
-            : null,
+        sync_status: "active",
+        sync_error: null,
         cloudflare_rule_id: policyRow.cloudflare_rule_id,
         precedence,
         updated_at: new Date().toISOString(),
@@ -408,16 +419,87 @@ async function getUserEmailForSync(userId: string): Promise<string> {
   return data.user.email.trim().toLowerCase()
 }
 
+/** Re-push every assigned policy to Cloudflare (fixes stale dns.location rules). */
+export async function resyncAllAssignedPolicies(userId: string): Promise<{
+  policiesSynced: number
+  orphansRemoved: number
+  failures: Array<{ policyId: string; error: string }>
+}> {
+  const admin = createAdminClient()
+  const { data: assignments, error } = await admin
+    .from("tenant_policy_assignments")
+    .select("id, policy_id")
+    .eq("user_id", userId)
+
+  if (error) throw error
+
+  const byPolicy = new Map<string, string[]>()
+  for (const row of assignments ?? []) {
+    const list = byPolicy.get(row.policy_id) ?? []
+    list.push(row.id)
+    byPolicy.set(row.policy_id, list)
+  }
+
+  const failures: Array<{ policyId: string; error: string }> = []
+  let policiesSynced = 0
+  let orphansRemoved = 0
+
+  for (const [policyId, assignmentIds] of byPolicy) {
+    const { data: policyRow, error: policyError } = await admin
+      .from("tenant_gateway_policies")
+      .select("id, status, cloudflare_rule_id")
+      .eq("id", policyId)
+      .eq("user_id", userId)
+      .maybeSingle()
+
+    if (policyError) throw policyError
+
+    if (!policyRow || policyRow.status === "deleted") {
+      const { error: deleteError } = await admin
+        .from("tenant_policy_assignments")
+        .delete()
+        .in("id", assignmentIds)
+        .eq("user_id", userId)
+      if (deleteError) throw deleteError
+      orphansRemoved += assignmentIds.length
+      continue
+    }
+
+    if (!policyRow.cloudflare_rule_id) {
+      failures.push({
+        policyId,
+        error:
+          "Cloudflare Gateway rule missing for this policy. Open Content Policies, edit and save the policy, then try Repair again.",
+      })
+      continue
+    }
+
+    const result = await syncPolicyCloudflareEnforcement(userId, policyId)
+    if (result.syncStatus === "sync_failed") {
+      failures.push({
+        policyId,
+        error: result.error ?? "Cloudflare sync failed",
+      })
+    } else {
+      policiesSynced += 1
+    }
+  }
+
+  return { policiesSynced, orphansRemoved, failures }
+}
+
 /**
- * Compare expected assignment-backed location sets vs live Cloudflare rules.
+ * Re-sync assigned policies, then compare live Cloudflare rules vs expectations.
  */
 export async function reconcilePolicyGatewayRules(userId: string): Promise<{
+  resync: Awaited<ReturnType<typeof resyncAllAssignedPolicies>>
   policiesChecked: number
   mismatches: Array<{
     policyId: string
     issue: string
   }>
 }> {
+  const resync = await resyncAllAssignedPolicies(userId)
   const admin = createAdminClient()
   const accountId = await getPolicyCloudflareAccountId(userId)
   const rules = await listGatewayRules(accountId)
@@ -445,22 +527,18 @@ export async function reconcilePolicyGatewayRules(userId: string): Promise<{
       continue
     }
 
-    const expectedLocations = await listLocationIdsForPolicy(
-      userId,
-      policy.id
-    )
     const traffic = live.traffic ?? ""
-    for (const locationId of expectedLocations) {
-      if (!traffic.includes(locationId)) {
-        mismatches.push({
-          policyId: policy.id,
-          issue: `Expected dns.location ${locationId} missing from rule traffic`,
-        })
-      }
+    if (traffic.includes("dns.location")) {
+      mismatches.push({
+        policyId: policy.id,
+        issue:
+          "DNS rule still scoped by dns.location; re-sync to use identity-only enforcement",
+      })
     }
   }
 
   return {
+    resync,
     policiesChecked: policies?.length ?? 0,
     mismatches,
   }

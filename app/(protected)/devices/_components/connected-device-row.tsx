@@ -119,14 +119,24 @@ export function ConnectedDeviceRow({ device, className }: ConnectedDeviceRowProp
               </p>
               {device.dohSubdomain ? (
                 <p className="mt-1 text-xs text-brand-text-muted">
-                  DNS location DoH:{" "}
-                  <a
-                    className="underline underline-offset-2"
-                    href={`/api/dns-profile/mobileconfig?deviceId=${encodeURIComponent(device.id)}`}
-                  >
-                    Download profile
-                  </a>{" "}
-                  ({device.dohSubdomain})
+                  {device.platform === "android" ? (
+                    <>
+                      Per-device DNS location ({device.dohSubdomain}) is for
+                      optional MDM — Android uses identity-scoped Gateway rules
+                      after Repair Gateway.
+                    </>
+                  ) : (
+                    <>
+                      DNS location DoH:{" "}
+                      <a
+                        className="underline underline-offset-2"
+                        href={`/api/dns-profile/mobileconfig?deviceId=${encodeURIComponent(device.id)}`}
+                      >
+                        Download profile
+                      </a>{" "}
+                      ({device.dohSubdomain})
+                    </>
+                  )}
                 </p>
               ) : null}
             </div>
@@ -190,14 +200,24 @@ export function ConnectedDeviceRow({ device, className }: ConnectedDeviceRowProp
           </p>
           {device.dohSubdomain ? (
             <p className="mt-1 text-xs text-brand-text-muted">
-              DNS location DoH:{" "}
-              <a
-                className="underline underline-offset-2"
-                href={`/api/dns-profile/mobileconfig?deviceId=${encodeURIComponent(device.id)}`}
-              >
-                Download profile
-              </a>{" "}
-              ({device.dohSubdomain})
+              {device.platform === "android" ? (
+                <>
+                  Per-device DNS location ({device.dohSubdomain}) is for optional
+                  MDM — Android uses identity-scoped Gateway rules after Repair
+                  Gateway.
+                </>
+              ) : (
+                <>
+                  DNS location DoH:{" "}
+                  <a
+                    className="underline underline-offset-2"
+                    href={`/api/dns-profile/mobileconfig?deviceId=${encodeURIComponent(device.id)}`}
+                  >
+                    Download profile
+                  </a>{" "}
+                  ({device.dohSubdomain})
+                </>
+              )}
             </p>
           ) : null}
         </div>

@@ -226,7 +226,8 @@ export async function markOwnedGatewayPolicyDeleted(
   userId: string,
   policyId: string
 ): Promise<void> {
-  const { error } = await createAdminClient()
+  const admin = createAdminClient()
+  const { error } = await admin
     .from("tenant_gateway_policies")
     .update({
       status: "deleted",
@@ -236,6 +237,12 @@ export async function markOwnedGatewayPolicyDeleted(
     .eq("id", policyId)
 
   if (error) throw error
+
+  await admin
+    .from("tenant_policy_assignments")
+    .delete()
+    .eq("user_id", userId)
+    .eq("policy_id", policyId)
 }
 
 export function buildIdentityExpression(email: string): string {

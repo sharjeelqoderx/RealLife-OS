@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useState } from "react"
-import { useQuery } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Plus } from "lucide-react"
 
 import { ConnectedDeviceRow } from "@/app/(protected)/devices/_components/connected-device-row"
@@ -20,6 +20,16 @@ export interface ConnectedDevicesViewProps {
   initialDevices: ConnectedDevice[]
   enrollmentInfo: DeviceEnrollmentInfo
   initialPlatform?: DevicePlatform
+}
+
+type RepairGatewayResponse = {
+  resync: {
+    policiesSynced: number
+    orphansRemoved: number
+    failures: Array<{ policyId: string; error: string }>
+  }
+  policiesChecked: number
+  mismatches: Array<{ policyId: string; issue: string }>
 }
 
 function formatDeviceQuota(info: DeviceEnrollmentInfo): string {
@@ -80,8 +90,10 @@ export function ConnectedDevicesView({
   enrollmentInfo,
   initialPlatform = "android",
 }: ConnectedDevicesViewProps) {
+  const queryClient = useQueryClient()
   const [selectedPlatform, setSelectedPlatform] =
     useState<DevicePlatform>(initialPlatform)
+  const [repairMessage, setRepairMessage] = useState<string | null>(null)
 
   const devicesQuery = useQuery({
     queryKey: queryKeys.devices.list(),
@@ -94,6 +106,50 @@ export function ConnectedDevicesView({
     queryFn: () =>
       apiClient<DeviceEnrollmentInfo>("/api/devices/enrollment-info"),
     initialData: enrollmentInfo,
+  })
+
+  const repairEnforcementMutation = useMutation({
+    mutationFn: () =>
+      apiClient<RepairGatewayResponse>("/api/policy-assignments/reconcile", {
+        method: "POST",
+      }),
+    onSuccess: (result) => {
+      const failed = result.resync.failures.length
+      const synced = result.resync.policiesSynced
+      const orphans = result.resync.orphansRemoved
+      const firstError = result.resync.failures[0]?.error
+
+      if (failed > 0) {
+        setRepairMessage(
+          `Synced ${synced} policies; ${failed} failed${
+            orphans > 0 ? `; removed ${orphans} stale assignment(s)` : ""
+          }. ${firstError ?? "Check Content Policies and re-assign."}`
+        )
+      } else if (synced === 0) {
+        setRepairMessage(
+          orphans > 0
+            ? `Removed ${orphans} stale assignment(s) to deleted policies. Re-assign Blacklist to your profile (edit profile → save), then tap Repair Gateway again.`
+            : "No policy assignments to sync. Assign a policy to your device profile, then tap Repair Gateway."
+        )
+      } else {
+        setRepairMessage(
+          `Gateway enforcement updated (${synced} policies synced${
+            orphans > 0 ? `; cleaned ${orphans} stale assignment(s)` : ""
+          }). Turn WARP off and on, then test YouTube in Chrome.`
+        )
+      }
+      void queryClient.invalidateQueries({ queryKey: queryKeys.devices.list() })
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.devices.profiles(),
+      })
+    },
+    onError: (error) => {
+      setRepairMessage(
+        error instanceof Error
+          ? error.message
+          : "Failed to repair Gateway enforcement"
+      )
+    },
   })
 
   const devices = devicesQuery.data ?? []
@@ -113,9 +169,8 @@ export function ConnectedDevicesView({
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-brand-text-muted">
             Manage enrolled devices, application profiles, and effective Gateway
-            policies. Per-device enforcement uses Cloudflare DNS locations
-            (`dns.location`) with your identity email. Identity-scoped rules
-            require Cloudflare One Traffic and DNS mode ({quota.planName}).
+            policies. Rules use your identity email with Cloudflare One Traffic
+            and DNS mode ({quota.planName}).
           </p>
           <p className="mt-2 text-sm font-medium text-brand-text-heading">
             {formatDeviceQuota(quota)}
@@ -124,22 +179,38 @@ export function ConnectedDevicesView({
               : null}
           </p>
         </div>
-        {canSetupDevice ? (
-          <Button asChild size="lg" className="shrink-0">
-            <Link href={`/devices/setup?platform=${selectedPlatform}`}>
-              <Plus aria-hidden className="size-4" />
-              Add Device
-            </Link>
-          </Button>
-        ) : atDeviceLimit ? (
-          <Button asChild size="lg" variant="brandOutline" className="shrink-0">
-            <Link href="/billing">Upgrade plan</Link>
-          </Button>
-        ) : !quota.hasAccess ? (
-          <Button asChild size="lg" variant="brandOutline" className="shrink-0">
-            <Link href="/billing">View billing</Link>
-          </Button>
-        ) : null}
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {devices.length > 0 ? (
+            <Button
+              type="button"
+              variant="brandOutline"
+              size="lg"
+              disabled={repairEnforcementMutation.isPending}
+              onClick={() => {
+                setRepairMessage(null)
+                repairEnforcementMutation.mutate()
+              }}
+            >
+              Repair Gateway
+            </Button>
+          ) : null}
+          {canSetupDevice ? (
+            <Button asChild size="lg">
+              <Link href={`/devices/setup?platform=${selectedPlatform}`}>
+                <Plus aria-hidden className="size-4" />
+                Add Device
+              </Link>
+            </Button>
+          ) : atDeviceLimit ? (
+            <Button asChild size="lg" variant="brandOutline">
+              <Link href="/billing">Upgrade plan</Link>
+            </Button>
+          ) : !quota.hasAccess ? (
+            <Button asChild size="lg" variant="brandOutline">
+              <Link href="/billing">View billing</Link>
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       {!quota.tenantReady ? (
@@ -164,6 +235,14 @@ export function ConnectedDevicesView({
               : "Failed to load devices"
           }
         />
+      ) : null}
+
+      {repairMessage ? (
+        repairEnforcementMutation.isError ? (
+          <ErrorAlert message={repairMessage} />
+        ) : (
+          <WarningAlert message={repairMessage} />
+        )
       ) : null}
 
       <section className="space-y-4">

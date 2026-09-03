@@ -647,6 +647,10 @@ export async function createGatewayPolicy(
 
   await requirePolicyOwnershipStore()
   const accountId = await getPolicyCloudflareAccountId(user.id)
+  const { ensureGatewayProxyEnabled } = await import(
+    "@/lib/services/cloudflare/device-settings"
+  )
+  await ensureGatewayProxyEnabled(accountId)
   const action = mapPolicyTypeToAction(input.type)
   const enabled = input.enabled ?? true
   const createdRuleIds: string[] = []

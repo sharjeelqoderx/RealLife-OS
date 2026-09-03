@@ -346,7 +346,8 @@ page.tsx (RSC fetch via lib/services)
 | revokeConnectedDevice | `lib/services/devices/revoke-device.ts` | Ownership-checked physical-device revoke | `/api/devices/[id]/revoke` | ✅ ready |
 | requireAdminUser | `lib/services/admin/require-admin.ts` | Gate admin routes via `ADMIN_EMAILS` | `/api/admin/*`, `/admin/cloudflare` | ✅ ready |
 | getAdminCloudflareStatus | `lib/services/admin/cloudflare-status.ts` | Health probe for account/token/devices/gateway + Traffic and DNS profile | `/api/admin/cloudflare/status` | ✅ ready |
-| getDefaultDevicePolicy / ensureDefaultTrafficAndDnsProfile | `lib/services/cloudflare/device-policy.ts` | Default Cloudflare One profile (`service_mode_v2.mode=warp`) | enrollment + admin device-profile | ✅ ready |
+| getDefaultDevicePolicy / ensureDefaultTrafficAndDnsProfile | `lib/services/cloudflare/device-policy.ts` | Default Cloudflare One profile (`service_mode_v2.mode=warp`) + `gateway: true` | enrollment + admin device-profile | ✅ ready |
+| ensureGatewayProxyEnabled | `lib/services/cloudflare/device-settings.ts` | Account-level TCP/UDP Gateway proxy for HTTP/L4 policies | policy sync + create + Repair Gateway | ✅ ready |
 | gateway policy layers | `lib/services/content-policies/gateway-policy-layers.ts` | DNS/HTTP/fallback-DNS expressions, YouTube coverage, precedence bands | gateway-policies | ✅ ready |
 | policy rule mapping | `lib/services/content-policies/policy-rule-mapping.ts` | Multi-layer Cloudflare rule IDs + identity fallback DNS | create/update/delete policy | ✅ ready |
 | listConnectedDevices / renameConnectedDevice / removeConnectedDevice | `lib/services/devices/list-connected-devices.ts`, `rename-device.ts`, `remove-device.ts` | Shared Zero Trust account; list filtered by DB ownership (`tenant_device_metadata`) | `/api/devices` | ✅ ready |
@@ -393,7 +394,7 @@ page.tsx (RSC fetch via lib/services)
 | `/api/device-profiles/[id]/devices/[deviceId]` | DELETE | `removeDeviceFromProfile` | — | ✅ ready |
 | `/api/policy-assignments` | GET/POST | list / create assignment + Cloudflare sync | `{ policyId, targetType, targetId }` | ✅ ready |
 | `/api/policy-assignments/[id]` | DELETE | unassign + resync | — | ✅ ready |
-| `/api/policy-assignments/reconcile` | POST | `reconcilePolicyGatewayRules` | Compare Supabase vs CF rules | ✅ ready |
+| `/api/policy-assignments/reconcile` | POST | `reconcilePolicyGatewayRules` + `resyncAllAssignedPolicies` | Re-sync assigned policies; detect stale `dns.location` rules | ✅ ready |
 | `/api/devices/[deviceId]/effective-policy` | GET | `resolveEffectivePolicy` | device → profile → none | ✅ ready |
 | `/api/gateway-policies` | POST | `createGatewayPolicy` | `createGatewayPolicySchema` | ✅ ready |
 | `/api/gateway-policies/[policyId]` | GET | `getGatewayPolicyForEditor` | Auth; `{ data }` editor state | ✅ ready |
@@ -482,6 +483,8 @@ Requires `supabase login` + `supabase link` once per machine. Do not squash alre
 
 | Date | Change | Updated By |
 |------|--------|------------|
+| 2026-09-03 | Repair Gateway: drop orphan assignments to soft-deleted policies; show real sync errors (not generic token message); delete assignments when a policy is soft-deleted | Agent |
+| 2026-09-03 | Devices: **Repair Gateway** button + identity-only enforcement sync (no `dns.location` on assigned DNS rules); enable TCP/UDP Gateway proxy; Android DoH copy clarifies MDM | Agent |
 | 2026-09-02 | Content policies list: client React Query cache drives list (no blocking server fetch on navigate); create/update optimistically upserts list cache for instant back navigation | Agent |
 | 2026-09-02 | Policy editor modals: max-height `min(90svh,720px)` + scrollable body on pickers, Add Rule, Add address, schedule sheet | Agent |
 | 2026-09-02 | Policy editor schedules: restored calendar `ScheduleSheet` (grid UI); removed inline `schedule-list-editor`; Add/Edit opens sheet, day-grouped summary on page | Agent |

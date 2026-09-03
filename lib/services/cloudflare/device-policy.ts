@@ -71,6 +71,11 @@ export function readTrafficAndDnsProfileStatus(
 export async function ensureDefaultTrafficAndDnsProfile(
   accountId: string
 ): Promise<TrafficAndDnsProfileStatus> {
+  const { ensureGatewayProxyEnabled } = await import(
+    "@/lib/services/cloudflare/device-settings"
+  )
+  await ensureGatewayProxyEnabled(accountId)
+
   const current = await getDefaultDevicePolicy(accountId)
   const status = readTrafficAndDnsProfileStatus(current)
   if (status.trafficAndDns && status.disableAutoFallback === true) {
@@ -85,6 +90,7 @@ export async function ensureDefaultTrafficAndDnsProfile(
       service_mode_v2: { mode: "warp" },
       disable_auto_fallback: true,
       allow_mode_switch: false,
+      gateway: true,
     },
   })
 
