@@ -33,6 +33,7 @@ export default async function AdminCloudflarePage() {
       tokenConfigured: false,
       trafficAndDns: false,
       deviceProfile: null,
+      blockPage: null,
     },
   }))
 

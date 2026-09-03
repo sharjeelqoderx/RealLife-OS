@@ -20,6 +20,12 @@ type CloudflareStatus = {
       serviceMode: string | null
       disableAutoFallback: boolean | null
     } | null
+    blockPage: {
+      configured: boolean
+      targetUri: string | null
+      mode: string | null
+      includeContext: boolean | null
+    } | null
   }
 }
 
@@ -31,6 +37,10 @@ type SyncResponse = {
 type ProfileResponse = {
   success: true
   data: { trafficAndDns: boolean; serviceMode: string | null }
+}
+type BlockPageResponse = {
+  success: true
+  data: { updated: boolean; status: CloudflareStatus["cloudflare"]["blockPage"] }
 }
 
 export interface AdminCloudflarePanelProps {
@@ -64,6 +74,16 @@ export function AdminCloudflarePanel({
     },
   })
 
+  const blockPageMutation = useMutation({
+    mutationFn: () =>
+      apiClient<BlockPageResponse>("/api/admin/cloudflare/block-page", {
+        method: "POST",
+      }),
+    onSuccess: () => {
+      void statusQuery.refetch()
+    },
+  })
+
   const status = statusQuery.data?.data.cloudflare ?? initialStatus.cloudflare
 
   return (
@@ -88,6 +108,10 @@ export function AdminCloudflarePanel({
           label="Traffic and DNS mode"
           value={status.trafficAndDns}
         />
+        <StatusCard
+          label="Block page redirect"
+          value={status.blockPage?.configured === true}
+        />
       </div>
 
       {status.deviceProfile?.serviceMode ? (
@@ -105,11 +129,28 @@ export function AdminCloudflarePanel({
         </p>
       )}
 
+      {status.blockPage?.targetUri ? (
+        <p className="text-sm text-brand-text-muted">
+          Gateway block page redirect:{" "}
+          <strong>{status.blockPage.targetUri}</strong>
+          {status.blockPage.includeContext ? " · policy context enabled" : ""}
+        </p>
+      ) : (
+        <p className="text-sm text-brand-text-muted">
+          Gateway block page is not configured yet. Apply below or create a block
+          policy to set it automatically.
+        </p>
+      )}
+
       <div className="flex flex-wrap gap-3">
       <Button
         type="button"
         onClick={() => syncMutation.mutate()}
-        disabled={syncMutation.isPending || profileMutation.isPending}
+        disabled={
+          syncMutation.isPending ||
+          profileMutation.isPending ||
+          blockPageMutation.isPending
+        }
       >
         {syncMutation.isPending ? <CustomSpinner /> : null}
         Sync Cloudflare devices
@@ -118,12 +159,39 @@ export function AdminCloudflarePanel({
         type="button"
         variant="brandOutline"
         onClick={() => profileMutation.mutate()}
-        disabled={profileMutation.isPending || syncMutation.isPending}
+        disabled={
+          profileMutation.isPending ||
+          syncMutation.isPending ||
+          blockPageMutation.isPending
+        }
       >
         {profileMutation.isPending ? <CustomSpinner /> : null}
         Apply Traffic and DNS profile
       </Button>
+      <Button
+        type="button"
+        variant="brandOutline"
+        onClick={() => blockPageMutation.mutate()}
+        disabled={
+          blockPageMutation.isPending ||
+          syncMutation.isPending ||
+          profileMutation.isPending
+        }
+      >
+        {blockPageMutation.isPending ? <CustomSpinner /> : null}
+        Apply block page redirect
+      </Button>
       </div>
+
+      {blockPageMutation.isError ? (
+        <ErrorAlert
+          message={
+            blockPageMutation.error instanceof Error
+              ? blockPageMutation.error.message
+              : "Unable to apply Gateway block page"
+          }
+        />
+      ) : null}
 
       {profileMutation.isError ? (
         <ErrorAlert

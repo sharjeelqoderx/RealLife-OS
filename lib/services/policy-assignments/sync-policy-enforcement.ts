@@ -18,6 +18,10 @@ import {
   getOwnedGatewayPolicy,
 } from "@/lib/services/content-policies/policy-ownership"
 import {
+  buildGatewayBlockRuleSettings,
+  ensureGatewayBlockPageConfigured,
+} from "@/lib/services/cloudflare/gateway-block-page"
+import {
   getGatewayRule,
   listGatewayRules,
   updateGatewayRule,
@@ -67,10 +71,12 @@ export async function syncPolicyCloudflareEnforcement(
     if (!policyRow) throw new Error("Policy not found")
 
     const accountId = await getPolicyCloudflareAccountId(userId)
-    const { ensureGatewayProxyEnabled } = await import(
-      "@/lib/services/cloudflare/device-settings"
+    const { ensureDefaultTrafficAndDnsProfile } = await import(
+      "@/lib/services/cloudflare/device-policy"
     )
-    await ensureGatewayProxyEnabled(accountId)
+    // Same account prep Repair Gateway runs — required on first assign so users
+    // do not need a manual Repair after creating a profile + policy.
+    await ensureDefaultTrafficAndDnsProfile(accountId)
     await listLocationIdsForPolicy(userId, policyId)
     const hasAssignments = await hasAnyAssignment(userId, policyId)
     const hasDeviceAssignment = await policyHasDeviceAssignment(
@@ -127,7 +133,11 @@ export async function syncPolicyCloudflareEnforcement(
     const action = mapPolicyTypeToAction(parsed.data.type)
     const ruleEnabled = policyRow.enabled !== false
 
-    await updateGatewayRule(accountId, policyRow.cloudflare_rule_id, {
+    if (action === "block") {
+      await ensureGatewayBlockPageConfigured(accountId)
+    }
+
+    const dnsRulePayload = {
       name:
         existing.name?.trim() ||
         `RL policy ${policyRow.name}`.slice(0, 175),
@@ -142,7 +152,31 @@ export async function syncPolicyCloudflareEnforcement(
         parsed.data.timeZone
       ),
       precedence,
-    })
+      rule_settings: buildGatewayBlockRuleSettings({
+        action,
+        policyName: policyRow.name,
+        layer: "dns",
+      }),
+    }
+
+    await updateGatewayRule(
+      accountId,
+      policyRow.cloudflare_rule_id,
+      dnsRulePayload
+    )
+
+    // Confirm identity-only traffic stuck (stale dns.location silently no-ops WARP).
+    const verified = await getGatewayRule(
+      accountId,
+      policyRow.cloudflare_rule_id
+    )
+    if ((verified.traffic ?? "").includes("dns.location")) {
+      await updateGatewayRule(
+        accountId,
+        policyRow.cloudflare_rule_id,
+        dnsRulePayload
+      )
+    }
 
     const { listMappedGatewayRules } = await import(
       "@/lib/services/content-policies/policy-rule-mapping"
@@ -168,9 +202,10 @@ export async function syncPolicyCloudflareEnforcement(
             .map((rule) => rule.precedence)
             .filter((value): value is number => typeof value === "number")
         )
+        const httpAction = action === "allow" ? "allow" : "block"
         const httpRule = await createGatewayRule(accountId, {
           name: uniqueCloudflareGatewayRuleName(`${policyRow.name} · HTTP`),
-          action: action === "allow" ? "allow" : "block",
+          action: httpAction,
           description: parsed.data.description,
           enabled: ruleEnabled,
           filters: ["http"],
@@ -181,6 +216,11 @@ export async function syncPolicyCloudflareEnforcement(
             parsed.data.timeZone
           ),
           precedence: takeNextGatewayPrecedence(usedPrecedences, precedence + 1),
+          rule_settings: buildGatewayBlockRuleSettings({
+            action: httpAction,
+            policyName: policyRow.name,
+            layer: "http",
+          }),
         })
         if (httpRule.id) {
           await recordMappedGatewayRule({
@@ -196,9 +236,20 @@ export async function syncPolicyCloudflareEnforcement(
     }
     if (httpMapped && httpTraffic) {
       try {
+        const httpAction = action === "allow" ? "allow" : "block"
+        const liveRules = await listGatewayRules(accountId)
+        const usedPrecedences = new Set(
+          liveRules
+            .map((rule) => rule.precedence)
+            .filter((value): value is number => typeof value === "number")
+        )
+        usedPrecedences.delete(precedence)
+        const { takeNextGatewayPrecedence } = await import(
+          "@/lib/services/content-policies/gateway-policy-layers"
+        )
         await updateGatewayRule(accountId, httpMapped.cloudflareRuleId, {
           name: `RL HTTP ${policyRow.name}`.slice(0, 175),
-          action: action === "allow" ? "allow" : "block",
+          action: httpAction,
           description: parsed.data.description,
           enabled: ruleEnabled,
           filters: ["http"],
@@ -208,7 +259,12 @@ export async function syncPolicyCloudflareEnforcement(
             parsed.data.schedules,
             parsed.data.timeZone
           ),
-          precedence,
+          precedence: takeNextGatewayPrecedence(usedPrecedences, precedence + 1),
+          rule_settings: buildGatewayBlockRuleSettings({
+            action: httpAction,
+            policyName: policyRow.name,
+            layer: "http",
+          }),
         })
       } catch (httpError) {
         console.warn("HTTP Gateway layer sync skipped", httpError)
@@ -228,6 +284,10 @@ export async function syncPolicyCloudflareEnforcement(
       .from("tenant_gateway_policies")
       .update({
         precedence,
+        configuration_json: {
+          ...config,
+          locationIds: [],
+        } as Json,
         updated_at: new Date().toISOString(),
       })
       .eq("id", policyId)

@@ -2,8 +2,7 @@
 
 import Image from "next/image"
 import Link from "next/link"
-import { usePathname, useRouter } from "next/navigation"
-import { useMutation } from "@tanstack/react-query"
+import { usePathname } from "next/navigation"
 import type { User as AuthUser } from "@supabase/supabase-js"
 import { ChevronDown, HelpCircle, User } from "lucide-react"
 
@@ -29,9 +28,8 @@ import {
   SidebarRail,
   SidebarSeparator,
 } from "@/components/ui/sidebar"
-import { apiClient } from "@/lib/api/client"
 import { mainNavItems } from "@/lib/navigation/app-navigation"
-import type { LogoutResponse } from "@/schemas/auth/logout"
+import { useLogout } from "@/lib/query/hooks/use-logout"
 
 const activeItemClassName =
   "data-[active=true]:bg-brand-primary/10 data-[active=true]:font-semibold data-[active=true]:text-brand-primary"
@@ -42,17 +40,10 @@ interface AppSidebarProps {
 
 export function AppSidebar({ user }: AppSidebarProps) {
   const pathname = usePathname()
-  const router = useRouter()
   const name = user?.user_metadata?.full_name || user?.email || "User"
   const image = user?.user_metadata?.avatar_url || user?.user_metadata?.picture
 
-  const logoutMutation = useMutation({
-    mutationFn: () =>
-      apiClient<LogoutResponse>("/api/auth/logout", { method: "POST" }),
-    onSuccess: () => {
-      router.push("/login")
-    },
-  })
+  const logoutMutation = useLogout()
 
   return (
     <Sidebar collapsible="icon" className="border-sidebar-border bg-white">

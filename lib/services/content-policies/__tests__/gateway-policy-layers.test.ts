@@ -90,6 +90,35 @@ describe("Gateway policy layers", () => {
     ).toBeGreaterThan(40)
   })
 
+  it("gives hard block higher priority than YouTube Restricted / SafeSearch", () => {
+    expect(
+      assignmentPrecedenceBase({
+        action: "block",
+        hasDeviceAssignment: false,
+        hasAssignments: true,
+      })
+    ).toBeLessThan(
+      assignmentPrecedenceBase({
+        action: "ytrestricted",
+        hasDeviceAssignment: false,
+        hasAssignments: true,
+      })
+    )
+    expect(
+      assignmentPrecedenceBase({
+        action: "ytrestricted",
+        hasDeviceAssignment: false,
+        hasAssignments: true,
+      })
+    ).toBeLessThan(
+      assignmentPrecedenceBase({
+        action: "safesearch",
+        hasDeviceAssignment: false,
+        hasAssignments: true,
+      })
+    )
+  })
+
   it("skips occupied Cloudflare precedence numbers", () => {
     expect(nextAvailableGatewayPrecedence([1000, 1001], 1000)).toBe(1002)
     expect(takeNextGatewayPrecedence(new Set([40]), 40)).toBe(41)

@@ -193,21 +193,31 @@ function uniqueHostnames(values: readonly string[]): string[] {
   ]
 }
 
+/**
+ * Lower number = higher Cloudflare priority (first-match).
+ * Within an assignment tier: allow → block → ytrestricted → safesearch.
+ * Hard blocks must beat soft YouTube Restricted, or Restricted matches first
+ * and the block policy never runs (Repair alone cannot fix that).
+ */
 export function assignmentPrecedenceBase(input: {
   action: GatewayRuleAction
   hasDeviceAssignment: boolean
   hasAssignments: boolean
 }): number {
-  const isAllow = input.action === "allow"
-  if (input.hasDeviceAssignment) {
-    return isAllow ? DEVICE_ALLOW_PRECEDENCE_BASE : DEVICE_BLOCK_PRECEDENCE_BASE
+  if (input.action === "allow") {
+    if (input.hasDeviceAssignment) return DEVICE_ALLOW_PRECEDENCE_BASE
+    if (input.hasAssignments) return PROFILE_ALLOW_PRECEDENCE_BASE
+    return UNASSIGNED_ALLOW_PRECEDENCE_BASE
   }
-  if (input.hasAssignments) {
-    return isAllow ? PROFILE_ALLOW_PRECEDENCE_BASE : PROFILE_BLOCK_PRECEDENCE_BASE
-  }
-  return isAllow
-    ? UNASSIGNED_ALLOW_PRECEDENCE_BASE
-    : UNASSIGNED_BLOCK_PRECEDENCE_BASE
+
+  let band = UNASSIGNED_BLOCK_PRECEDENCE_BASE
+  if (input.hasDeviceAssignment) band = DEVICE_BLOCK_PRECEDENCE_BASE
+  else if (input.hasAssignments) band = PROFILE_BLOCK_PRECEDENCE_BASE
+
+  if (input.action === "block") return band
+  if (input.action === "ytrestricted") return band + 40
+  if (input.action === "safesearch") return band + 50
+  return band + 30
 }
 
 /** Cloudflare requires unique precedence on every Gateway rule in the account. */

@@ -25,7 +25,7 @@ import {
   type BillingPlanId,
   type PaidBillingPlanId,
 } from "@/lib/stripe/plans"
-import type { LogoutResponse } from "@/schemas/auth/logout"
+import { useLogout } from "@/lib/query/hooks/use-logout"
 import type {
   BillingStatusResponse,
   CreateCheckoutSessionResponse,
@@ -66,13 +66,7 @@ export function PaywallGate({ initialBillingStatus }: PaywallGateProps) {
     queryClient.setQueryData(queryKeys.billing.status(), initialBillingStatus)
   }, [initialBillingStatus, queryClient])
 
-  const logout = useMutation({
-    mutationFn: () =>
-      apiClient<LogoutResponse>("/api/auth/logout", { method: "POST" }),
-    onSuccess: () => {
-      router.push("/login")
-    },
-  })
+  const logout = useLogout()
 
   const trial = useMutation({
     mutationFn: (_planId: "free_trial") =>

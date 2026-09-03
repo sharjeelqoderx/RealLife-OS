@@ -7,6 +7,10 @@ import {
 } from "@/lib/services/cloudflare/categories"
 import { listGatewayLocations } from "@/lib/services/cloudflare/locations"
 import {
+  buildGatewayBlockRuleSettings,
+  ensureGatewayBlockPageConfigured,
+} from "@/lib/services/cloudflare/gateway-block-page"
+import {
   createGatewayRule,
   deleteGatewayRule,
   isMissingGatewayRuleError,
@@ -647,10 +651,10 @@ export async function createGatewayPolicy(
 
   await requirePolicyOwnershipStore()
   const accountId = await getPolicyCloudflareAccountId(user.id)
-  const { ensureGatewayProxyEnabled } = await import(
-    "@/lib/services/cloudflare/device-settings"
+  const { ensureDefaultTrafficAndDnsProfile } = await import(
+    "@/lib/services/cloudflare/device-policy"
   )
-  await ensureGatewayProxyEnabled(accountId)
+  await ensureDefaultTrafficAndDnsProfile(accountId)
   const action = mapPolicyTypeToAction(input.type)
   const enabled = input.enabled ?? true
   const createdRuleIds: string[] = []
@@ -687,9 +691,23 @@ export async function createGatewayPolicy(
   }
 
   try {
-    const { traffic, filters } = await buildTrafficExpression(accountId, input)
+    if (action === "block") {
+      await ensureGatewayBlockPageConfigured(accountId)
+    }
+
+    const { traffic, filters } = await buildTrafficExpression(accountId, {
+      ...input,
+      // Identity-only enforcement — never stamp dns.location on create.
+      // WARP clients use the org default location unless MDM sets gateway_unique_id.
+      locationIds: [],
+    })
     const schedule = buildGatewaySchedule(input.schedules, input.timeZone)
     const identity = buildIdentityExpression(user.email)
+    const dnsRuleSettings = buildGatewayBlockRuleSettings({
+      action,
+      policyName: input.name,
+      layer: "dns",
+    })
 
     const dnsRule = await createGatewayRule(accountId, {
       name: uniqueCloudflareGatewayRuleName(input.name),
@@ -701,6 +719,7 @@ export async function createGatewayPolicy(
       identity,
       schedule,
       precedence: dnsPrecedence,
+      rule_settings: dnsRuleSettings,
     })
 
     if (!dnsRule.id) {
@@ -721,12 +740,16 @@ export async function createGatewayPolicy(
       throw mappingError
     }
 
-    const httpTraffic = await buildHttpLayerTraffic(accountId, input)
+    const httpTraffic = await buildHttpLayerTraffic(accountId, {
+      ...input,
+      locationIds: [],
+    })
     if (shouldCreateHttpLayer(input.type, httpTraffic) && httpTraffic) {
       try {
+        const httpAction = action === "allow" ? "allow" : "block"
         const httpRule = await createGatewayRule(accountId, {
           name: uniqueCloudflareGatewayRuleName(`${input.name} · HTTP`),
-          action: action === "allow" ? "allow" : "block",
+          action: httpAction,
           description: input.description,
           enabled,
           filters: ["http"],
@@ -734,6 +757,11 @@ export async function createGatewayPolicy(
           identity,
           schedule,
           precedence: takeNextGatewayPrecedence(usedPrecedences, dnsPrecedence + 1),
+          rule_settings: buildGatewayBlockRuleSettings({
+            action: httpAction,
+            policyName: input.name,
+            layer: "http",
+          }),
         })
         if (httpRule.id) {
           createdRuleIds.push(httpRule.id)

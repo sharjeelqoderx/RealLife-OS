@@ -134,7 +134,10 @@ export async function createDeviceProfile(
   }
 
   try {
-    await addDeviceToProfile(data.id, input.deviceId)
+    // Membership must exist before assignment sync resolves profile devices /
+    // provisions DoH locations. createPolicyAssignment runs full Cloudflare
+    // enforcement (Traffic+DNS profile, proxy, identity-only rules) — same as Repair.
+    await addDeviceToProfile(data.id, input.deviceId, { skipSync: true })
     await createPolicyAssignment({
       policyId: input.policyId,
       targetType: "profile",
@@ -177,12 +180,38 @@ export async function updateDeviceProfile(
     throw error
   }
 
-  await addDeviceToProfile(profileId, input.deviceId)
+  const { data: previousMembership } = await admin
+    .from("tenant_device_profile_members")
+    .select("profile_id")
+    .eq("device_id", input.deviceId)
+    .maybeSingle()
+
+  await addDeviceToProfile(profileId, input.deviceId, { skipSync: true })
   await createPolicyAssignment({
     policyId: input.policyId,
     targetType: "profile",
     targetId: profileId,
   })
+
+  const previousProfileId = previousMembership?.profile_id
+  if (previousProfileId && previousProfileId !== profileId) {
+    const { data: previousAssignment } = await admin
+      .from("tenant_policy_assignments")
+      .select("policy_id")
+      .eq("user_id", userId)
+      .eq("target_type", "profile")
+      .eq("target_id", previousProfileId)
+      .maybeSingle()
+    if (
+      previousAssignment?.policy_id &&
+      previousAssignment.policy_id !== input.policyId
+    ) {
+      await syncPolicyCloudflareEnforcement(
+        userId,
+        previousAssignment.policy_id
+      )
+    }
+  }
 
   const profiles = await listDeviceProfiles()
   const updated = profiles.find((profile) => profile.id === profileId)
@@ -241,7 +270,8 @@ export async function deleteDeviceProfile(
 
 export async function addDeviceToProfile(
   profileId: string,
-  deviceId: string
+  deviceId: string,
+  options?: { skipSync?: boolean }
 ): Promise<void> {
   const userId = await requireAuthenticatedUserId()
   const admin = createAdminClient()
@@ -279,6 +309,8 @@ export async function addDeviceToProfile(
     device_id: deviceId,
   })
   if (error) throw error
+
+  if (options?.skipSync) return
 
   const policyIds = new Set<string>()
   for (const pid of [previousMembership?.profile_id, profileId]) {

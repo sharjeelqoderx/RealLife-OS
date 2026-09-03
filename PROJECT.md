@@ -80,7 +80,9 @@ reallife-os/
 │   │   ├── devices/                 # connected devices + setup wizards
 │   │   ├── admin/cloudflare/        # admin-only CF health / sync UI
 │   │   └── [slug]/                   # Unknown routes → under development
-│   ├── (public)/                    # Marketing / landing
+│   ├── (public)/                    # Marketing / landing + Gateway block page
+│   │   ├── page.tsx
+│   │   └── blocked/                 # Cloudflare redirect target (public)
 │   ├── api/                         # Thin route handlers → lib/services/*
 │   │   ├── auth/
 │   │   ├── me/
@@ -126,7 +128,7 @@ reallife-os/
 │   ├── cloudflare/                  # CF config + HTTP client + providers
 │   ├── content-policies/            # Policy UI helpers (if any)
 │   ├── navigation/                  # Sidebar / nav config
-│   ├── query/                       # queryKeys factory
+│   ├── query/                       # queryKeys factory + client hooks
 │   ├── services/                    # Business logic (verb-first)
 │   │   ├── admin/
 │   │   ├── auth/
@@ -204,6 +206,7 @@ page.tsx (RSC fetch via lib/services)
 | Route | Purpose | page.tsx | loading.tsx | _components | Status |
 |-------|---------|----------|-------------|-------------|--------|
 | `/` | Home / landing | `app/(public)/page.tsx` | `app/(public)/loading.tsx` | — | ✅ ready |
+| `/blocked` | RealLife OS branded Gateway block page (Cloudflare redirect + policy context) | `app/(public)/blocked/page.tsx` | `app/(public)/blocked/loading.tsx` | — | ✅ ready |
 | `/dashboard` | Protected dashboard | `app/(protected)/dashboard/page.tsx` | `app/(protected)/dashboard/loading.tsx` | `dashboard-content` | ✅ ready |
 | `/billing` | Subscription & payment management | `app/(protected)/billing/page.tsx` | `app/(protected)/billing/loading.tsx` | `billing-content` | ✅ ready |
 | `/login` | User login | `app/(auth)/login/page.tsx` | `app/(auth)/login/loading.tsx` | `login-form` | ✅ ready |
@@ -338,6 +341,7 @@ page.tsx (RSC fetch via lib/services)
 | listGatewayAudiencePickerGroups | `lib/services/cloudflare/audience-picker.ts` | All account Gateway locations → picker (admin/internal) | — | ✅ ready |
 | listGatewayPresets | `lib/services/content-policies/gateway-presets.ts` | Curated presets resolved against CF categories/apps | `/api/gateway-presets`, Create Rule Presets tab | ✅ ready |
 | createGatewayRule / listGatewayRules | `lib/services/cloudflare/rules.ts` | Low-level shared-account Gateway rules API | gateway-policies | ✅ ready |
+| ensureGatewayBlockPageConfigured / buildGatewayBlockRuleSettings | `lib/services/cloudflare/gateway-block-page.ts` | Account block-page redirect to `/blocked`; per-rule DNS/HTTP block settings | gateway-policies, sync-policy-enforcement, admin | ✅ ready |
 | createGatewayLocation | `lib/services/cloudflare/locations.ts` | Create a location in the shared Cloudflare account | Audience picker create | ✅ ready |
 | listPhysicalDevices / getPhysicalDevice / deletePhysicalDevice / revokePhysicalDevice / listRegistrations / getRegistration / revokeDeviceRegistrations / unrevokeRegistrations / getZeroTrustTeamName | `lib/services/cloudflare/devices.ts` | Cloudflare One physical devices + registrations (cursor pagination) | `/api/devices`, admin CF APIs | ✅ ready |
 | registerEnrollmentEmail | `lib/services/cloudflare/enrollment-access.ts` | Finds WARP app, enables OTP IdP, adds SaaS email to enrollment allow policy | `createDeviceEnrollment` | ✅ ready |
@@ -422,6 +426,7 @@ page.tsx (RSC fetch via lib/services)
 | `/api/admin/cloudflare/gateway-rules` | GET | live Gateway rules (admin) | admin emails | ✅ ready |
 | `/api/admin/cloudflare/sync` | POST | `syncCloudflareDevices` | admin emails | ✅ ready |
 | `/api/admin/cloudflare/device-profile` | POST | `ensureDefaultTrafficAndDnsProfile` | admin emails | ✅ ready |
+| `/api/admin/cloudflare/block-page` | POST | `ensureGatewayBlockPageConfigured` | admin emails | ✅ ready |
 | `/api/admin/audit-log` | GET | recent `audit_log` rows | admin emails | ✅ ready |
 
 ### Schemas (`schemas/`)
@@ -483,8 +488,11 @@ Requires `supabase login` + `supabase link` once per machine. Do not squash alre
 
 | Date | Change | Updated By |
 |------|--------|------------|
+| 2026-09-03 | First-time enforcement: profile/policy assign runs Traffic+DNS + identity-only sync (no manual Repair); create never stamps `dns.location`; hard `block` beats `ytrestricted`/`safesearch` precedence | Agent |
 | 2026-09-03 | Repair Gateway: drop orphan assignments to soft-deleted policies; show real sync errors (not generic token message); delete assignments when a policy is soft-deleted | Agent |
 | 2026-09-03 | Devices: **Repair Gateway** button + identity-only enforcement sync (no `dns.location` on assigned DNS rules); enable TCP/UDP Gateway proxy; Android DoH copy clarifies MDM | Agent |
+| 2026-09-02 | Logout clears all React Query cache via shared `useLogout` hook (`queryClient.clear()` before redirect) | Agent |
+| 2026-09-02 | Gateway block page: public `/blocked` (RealLife OS branding); account redirect via `ensureGatewayBlockPageConfigured`; block policies set DNS `block_page_enabled` + HTTP `block_page.target_uri`; admin Apply block page button | Agent |
 | 2026-09-02 | Content policies list: client React Query cache drives list (no blocking server fetch on navigate); create/update optimistically upserts list cache for instant back navigation | Agent |
 | 2026-09-02 | Policy editor modals: max-height `min(90svh,720px)` + scrollable body on pickers, Add Rule, Add address, schedule sheet | Agent |
 | 2026-09-02 | Policy editor schedules: restored calendar `ScheduleSheet` (grid UI); removed inline `schedule-list-editor`; Add/Edit opens sheet, day-grouped summary on page | Agent |
