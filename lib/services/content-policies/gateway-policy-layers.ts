@@ -220,6 +220,21 @@ export function assignmentPrecedenceBase(input: {
   return band + 30
 }
 
+/**
+ * Stable offset inside a precedence band so create/sync prefer the same slot
+ * for a given policy id (mod 40 keeps policies spread without huge gaps).
+ */
+export function policyStablePrecedenceOffset(
+  policyId: string,
+  mod = 40
+): number {
+  let hash = 0
+  for (let i = 0; i < policyId.length; i += 1) {
+    hash = (hash * 31 + policyId.charCodeAt(i)) >>> 0
+  }
+  return hash % mod
+}
+
 /** Cloudflare requires unique precedence on every Gateway rule in the account. */
 export function nextAvailableGatewayPrecedence(
   used: Iterable<number | null | undefined>,
@@ -236,6 +251,27 @@ export function nextAvailableGatewayPrecedence(
     candidate += 1
   }
   return candidate
+}
+
+/**
+ * Prefer `preferred`, skipping numbers already used by *other* rules.
+ * Pass `retainPrecedence` for the rule being updated so it may keep its slot.
+ */
+export function pickUniqueGatewayPrecedence(input: {
+  used: Iterable<number | null | undefined>
+  preferred: number
+  retainPrecedence?: number | null
+}): number {
+  const taken = new Set<number>()
+  for (const value of input.used) {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      taken.add(value)
+    }
+  }
+  if (typeof input.retainPrecedence === "number") {
+    taken.delete(input.retainPrecedence)
+  }
+  return nextAvailableGatewayPrecedence(taken, input.preferred)
 }
 
 export function takeNextGatewayPrecedence(

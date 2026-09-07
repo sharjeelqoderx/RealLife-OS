@@ -352,7 +352,7 @@ page.tsx (RSC fetch via lib/services)
 | getAdminCloudflareStatus | `lib/services/admin/cloudflare-status.ts` | Health probe for account/token/devices/gateway + Traffic and DNS profile | `/api/admin/cloudflare/status` | ✅ ready |
 | getDefaultDevicePolicy / ensureDefaultTrafficAndDnsProfile | `lib/services/cloudflare/device-policy.ts` | Default Cloudflare One profile (`service_mode_v2.mode=warp`) + `gateway: true` | enrollment + admin device-profile | ✅ ready |
 | ensureGatewayProxyEnabled | `lib/services/cloudflare/device-settings.ts` | Account-level TCP/UDP Gateway proxy for HTTP/L4 policies | policy sync + create + Repair Gateway | ✅ ready |
-| gateway policy layers | `lib/services/content-policies/gateway-policy-layers.ts` | DNS/HTTP/fallback-DNS expressions, YouTube coverage, precedence bands | gateway-policies | ✅ ready |
+| gateway policy layers | `lib/services/content-policies/gateway-policy-layers.ts` | DNS/HTTP/fallback-DNS expressions, YouTube coverage, precedence bands + unique precedence picker | gateway-policies, sync-policy-enforcement | ✅ ready |
 | policy rule mapping | `lib/services/content-policies/policy-rule-mapping.ts` | Multi-layer Cloudflare rule IDs + identity fallback DNS | create/update/delete policy | ✅ ready |
 | listConnectedDevices / renameConnectedDevice / removeConnectedDevice | `lib/services/devices/list-connected-devices.ts`, `rename-device.ts`, `remove-device.ts` | Shared Zero Trust account; list filtered by DB ownership (`tenant_device_metadata`) | `/api/devices` | ✅ ready |
 | getDeviceEnrollmentInfo | `lib/services/devices/get-enrollment-info.ts` | Team name, DNS profile, store/WARP URLs, enrolled count | `/api/devices/enrollment-info` | ✅ ready |
@@ -488,6 +488,7 @@ Requires `supabase login` + `supabase link` once per machine. Do not squash alre
 
 | Date | Change | Updated By |
 |------|--------|------------|
+| 2026-09-07 | Policy edit sync: pick a free Cloudflare Gateway precedence (skip collisions with HTTP/L4 siblings) so PUT no longer 500s with "precedence already exists" | Agent |
 | 2026-09-03 | Policy editor pickers (categories/apps/audience): tap selected item again to deselect | Agent |
 | 2026-09-03 | First-time enforcement: profile/policy assign runs Traffic+DNS + identity-only sync (no manual Repair); create never stamps `dns.location`; hard `block` beats `ytrestricted`/`safesearch` precedence | Agent |
 | 2026-09-03 | Repair Gateway: drop orphan assignments to soft-deleted policies; show real sync errors (not generic token message); delete assignments when a policy is soft-deleted | Agent |

@@ -45,12 +45,14 @@ import {
   assignmentPrecedenceBase,
   buildHttpTrafficExpression,
   expandAppIdsForPolicy,
+  policyStablePrecedenceOffset,
   shouldCreateFallbackDnsLayer,
   shouldCreateHttpLayer,
   takeNextGatewayPrecedence,
   youtubeDomainRootsForInput,
   youtubeNeedsExpandedCoverage,
 } from "@/lib/services/content-policies/gateway-policy-layers"
+import { createAdminClient } from "@/lib/supabase/admin"
 import {
   compensateCreatedCloudflareRules,
   deleteMappedCloudflareRules,
@@ -664,15 +666,11 @@ export async function createGatewayPolicy(
       .map((rule) => rule.precedence)
       .filter((value): value is number => typeof value === "number")
   )
-  const dnsPrecedence = takeNextGatewayPrecedence(
-    usedPrecedences,
-    input.precedence ??
-      assignmentPrecedenceBase({
-        action,
-        hasDeviceAssignment: false,
-        hasAssignments: false,
-      })
-  )
+  const bandBase = assignmentPrecedenceBase({
+    action,
+    hasDeviceAssignment: false,
+    hasAssignments: false,
+  })
 
   let localPolicyId: string
   try {
@@ -683,11 +681,28 @@ export async function createGatewayPolicy(
       type: input.type,
       action,
       enabled,
-      precedence: dnsPrecedence,
+      precedence: input.precedence ?? bandBase,
       configurationJson: JSON.parse(JSON.stringify(input)) as Json,
     })
   } catch (error) {
     throw error
+  }
+
+  // Same preferred slot as sync (band + stable policy offset), then skip collisions.
+  const dnsPrecedence = takeNextGatewayPrecedence(
+    usedPrecedences,
+    input.precedence ?? bandBase + policyStablePrecedenceOffset(localPolicyId)
+  )
+  if (dnsPrecedence !== (input.precedence ?? bandBase)) {
+    const { error: precedenceError } = await createAdminClient()
+      .from("tenant_gateway_policies")
+      .update({
+        precedence: dnsPrecedence,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", localPolicyId)
+      .eq("user_id", user.id)
+    if (precedenceError) throw precedenceError
   }
 
   try {

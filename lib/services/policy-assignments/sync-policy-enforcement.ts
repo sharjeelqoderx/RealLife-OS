@@ -9,8 +9,11 @@ import {
 } from "@/lib/services/content-policies/gateway-policies"
 import {
   assignmentPrecedenceBase,
+  pickUniqueGatewayPrecedence,
+  policyStablePrecedenceOffset,
   shouldCreateFallbackDnsLayer,
   shouldCreateHttpLayer,
+  takeNextGatewayPrecedence,
 } from "@/lib/services/content-policies/gateway-policy-layers"
 import { ensureIdentityFallbackDnsRule } from "@/lib/services/content-policies/policy-rule-mapping"
 import {
@@ -91,12 +94,34 @@ export async function syncPolicyCloudflareEnforcement(
     const draftAction = mapPolicyTypeToAction(
       (config.type ?? policyRow.type) as CreateGatewayPolicyInput["type"]
     )
-    const precedence =
+
+    if (!policyRow.cloudflare_rule_id) {
+      throw new Error("Cloudflare Gateway rule missing for policy")
+    }
+
+    const existing = await getGatewayRule(
+      accountId,
+      policyRow.cloudflare_rule_id
+    )
+    if (!existing?.id) {
+      throw new Error("Cloudflare Gateway rule missing for policy")
+    }
+
+    // Cloudflare rejects updates when precedence collides with another rule
+    // (including this policy's HTTP/L4 siblings). Free the DNS rule's current
+    // slot, then pick the next free number near the preferred band.
+    const liveRules = await listGatewayRules(accountId)
+    const preferredPrecedence =
       assignmentPrecedenceBase({
         action: draftAction,
         hasDeviceAssignment,
         hasAssignments,
-      }) + stableOffset(policyId, 40)
+      }) + policyStablePrecedenceOffset(policyId)
+    const precedence = pickUniqueGatewayPrecedence({
+      used: liveRules.map((rule) => rule.precedence),
+      preferred: preferredPrecedence,
+      retainPrecedence: existing.precedence,
+    })
 
     const draft = {
       ...config,
@@ -114,21 +139,10 @@ export async function syncPolicyCloudflareEnforcement(
       )
     }
 
-    if (!policyRow.cloudflare_rule_id) {
-      throw new Error("Cloudflare Gateway rule missing for policy")
-    }
-
     const { traffic, filters } = await buildTrafficExpression(
       accountId,
       parsed.data
     )
-    const existing = await getGatewayRule(
-      accountId,
-      policyRow.cloudflare_rule_id
-    )
-    if (!existing?.id) {
-      throw new Error("Cloudflare Gateway rule missing for policy")
-    }
 
     const action = mapPolicyTypeToAction(parsed.data.type)
     const ruleEnabled = policyRow.enabled !== false
@@ -193,12 +207,9 @@ export async function syncPolicyCloudflareEnforcement(
         const { recordMappedGatewayRule } = await import(
           "@/lib/services/content-policies/policy-rule-mapping"
         )
-        const { takeNextGatewayPrecedence } = await import(
-          "@/lib/services/content-policies/gateway-policy-layers"
-        )
-        const liveRules = await listGatewayRules(accountId)
+        const rulesAfterDns = await listGatewayRules(accountId)
         const usedPrecedences = new Set(
-          liveRules
+          rulesAfterDns
             .map((rule) => rule.precedence)
             .filter((value): value is number => typeof value === "number")
         )
@@ -237,16 +248,15 @@ export async function syncPolicyCloudflareEnforcement(
     if (httpMapped && httpTraffic) {
       try {
         const httpAction = action === "allow" ? "allow" : "block"
-        const liveRules = await listGatewayRules(accountId)
-        const usedPrecedences = new Set(
-          liveRules
-            .map((rule) => rule.precedence)
-            .filter((value): value is number => typeof value === "number")
+        const rulesAfterDns = await listGatewayRules(accountId)
+        const httpLive = rulesAfterDns.find(
+          (rule) => rule.id === httpMapped.cloudflareRuleId
         )
-        usedPrecedences.delete(precedence)
-        const { takeNextGatewayPrecedence } = await import(
-          "@/lib/services/content-policies/gateway-policy-layers"
-        )
+        const httpPrecedence = pickUniqueGatewayPrecedence({
+          used: rulesAfterDns.map((rule) => rule.precedence),
+          preferred: precedence + 1,
+          retainPrecedence: httpLive?.precedence,
+        })
         await updateGatewayRule(accountId, httpMapped.cloudflareRuleId, {
           name: `RL HTTP ${policyRow.name}`.slice(0, 175),
           action: httpAction,
@@ -259,7 +269,7 @@ export async function syncPolicyCloudflareEnforcement(
             parsed.data.schedules,
             parsed.data.timeZone
           ),
-          precedence: takeNextGatewayPrecedence(usedPrecedences, precedence + 1),
+          precedence: httpPrecedence,
           rule_settings: buildGatewayBlockRuleSettings({
             action: httpAction,
             policyName: policyRow.name,
@@ -435,14 +445,6 @@ async function hasAnyAssignment(
     .eq("policy_id", policyId)
     .limit(1)
   return (data?.length ?? 0) > 0
-}
-
-function stableOffset(id: string, mod: number): number {
-  let hash = 0
-  for (let i = 0; i < id.length; i += 1) {
-    hash = (hash * 31 + id.charCodeAt(i)) >>> 0
-  }
-  return hash % mod
 }
 
 function parseStoredConfig(value: Json | null): Record<string, unknown> {

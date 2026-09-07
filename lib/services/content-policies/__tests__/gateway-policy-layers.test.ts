@@ -6,6 +6,8 @@ import {
   buildHttpTrafficExpression,
   FALLBACK_DNS_RESOLVER_IPS,
   nextAvailableGatewayPrecedence,
+  pickUniqueGatewayPrecedence,
+  policyStablePrecedenceOffset,
   shouldCreateFallbackDnsLayer,
   shouldCreateHttpLayer,
   takeNextGatewayPrecedence,
@@ -122,5 +124,25 @@ describe("Gateway policy layers", () => {
   it("skips occupied Cloudflare precedence numbers", () => {
     expect(nextAvailableGatewayPrecedence([1000, 1001], 1000)).toBe(1002)
     expect(takeNextGatewayPrecedence(new Set([40]), 40)).toBe(41)
+  })
+
+  it("lets an updating rule keep its own precedence while skipping siblings", () => {
+    expect(
+      pickUniqueGatewayPrecedence({
+        used: [1000, 1001, 1026],
+        preferred: 1026,
+        retainPrecedence: 1000,
+      })
+    ).toBe(1027)
+    expect(
+      pickUniqueGatewayPrecedence({
+        used: [1000, 1001],
+        preferred: 1000,
+        retainPrecedence: 1000,
+      })
+    ).toBe(1000)
+    expect(
+      policyStablePrecedenceOffset("55de82df-ad49-4b81-affa-bfacdd5072bd")
+    ).toBe(26)
   })
 })
