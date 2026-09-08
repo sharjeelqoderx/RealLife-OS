@@ -26,6 +26,11 @@ export const queryKeys = {
     locations: () => [...queryKeys.gatewayPolicies.all, "locations"] as const,
     presets: () => [...queryKeys.gatewayPolicies.all, "presets"] as const,
   },
+  gatewayActivity: {
+    all: ["gateway-activity"] as const,
+    list: (cursor?: string | null) =>
+      [...queryKeys.gatewayActivity.all, "list", cursor ?? "head"] as const,
+  },
   tenants: {
     all: ["tenants"] as const,
     provision: () => [...queryKeys.tenants.all, "provision"] as const,

@@ -78,6 +78,7 @@ reallife-os/
 │   │   ├── billing/
 │   │   ├── content-policies/        # list + (editor) create/edit/view
 │   │   ├── devices/                 # connected devices + setup wizards
+│   │   ├── activities/              # Gateway DNS/HTTP activity logs
 │   │   ├── admin/cloudflare/        # admin-only CF health / sync UI
 │   │   └── [slug]/                   # Unknown routes → under development
 │   ├── (public)/                    # Marketing / landing + Gateway block page
@@ -95,6 +96,8 @@ reallife-os/
 │   │   ├── gateway-apps/
 │   │   ├── gateway-locations/
 │   │   ├── gateway-presets/
+│   │   ├── gateway-activity/
+│   │   ├── cloudflare/
 │   │   ├── devices/
 │   │   ├── admin/
 │   │   └── dns-profile/
@@ -120,7 +123,8 @@ reallife-os/
 │   ├── auth/
 │   ├── billing/
 │   ├── content-policies/
-│   └── devices/
+│   ├── devices/
+│   └── gateway-activity/
 │
 ├── lib/
 │   ├── api/                         # Client fetch helper (React Query)
@@ -135,7 +139,8 @@ reallife-os/
 │   │   ├── billing/                 # checkout, details, subscriptions, webhook/
 │   │   ├── cloudflare/              # categories, locations, rules, sync …
 │   │   ├── content-policies/
-│   │   └── devices/
+│   │   ├── devices/
+│   │   └── gateway-activity/
 │   ├── stripe/                      # Stripe SDK + plans
 │   ├── supabase/                    # server / admin / gotrue / stateless
 │   ├── env.ts
@@ -219,6 +224,7 @@ page.tsx (RSC fetch via lib/services)
 | `/content-policies/[policyId]/edit` | Edit Gateway policy — same form as create, prepopulated; Save enabled only when dirty → PUT update | `app/(protected)/content-policies/(editor)/[policyId]/edit/page.tsx` | `app/(protected)/content-policies/(editor)/[policyId]/edit/loading.tsx` | `policy-detail` | ✅ ready |
 | `/[slug]` (protected) | Unknown protected routes (devices, settings, …) → under development | `app/(protected)/[slug]/page.tsx` | `app/(protected)/[slug]/loading.tsx` | `under-development` | ✅ ready |
 | `/devices` | Connected devices list — Cloudflare WARP devices + rename/remove | `app/(protected)/devices/page.tsx` | `app/(protected)/devices/loading.tsx` | `connected-devices-view`, `connected-device-row`, `device-type-picker`, `device-profiles-panel` | ✅ ready |
+| `/activities` | Gateway DNS/HTTP activity for the signed-in user's devices | `app/(protected)/activities/page.tsx` | `app/(protected)/activities/loading.tsx` | `activities-view`, `activities-table` | ✅ ready |
 | `/devices/setup` | Device setup questionnaire — Android/iPhone conditional steps | `app/(protected)/devices/setup/page.tsx` | `app/(protected)/devices/setup/loading.tsx` | `device-setup-view` | ✅ ready |
 | `/devices/setup/cloudflare-one` | Cloudflare One 4-step wizard — team name, emails, DNS leak test, app prefs | `app/(protected)/devices/setup/cloudflare-one/page.tsx` | `app/(protected)/devices/setup/cloudflare-one/loading.tsx` | `cloudflare-one-wizard` | ✅ ready |
 | `/devices/setup/andoff` | iPhone supervised mode / WARP Enforcer guide (8 steps + Image slots) | `app/(protected)/devices/setup/andoff/page.tsx` | `app/(protected)/devices/setup/andoff/loading.tsx` | `andoff-guide-view` | ✅ ready (UI mock) |
@@ -278,7 +284,9 @@ page.tsx (RSC fetch via lib/services)
 | UnderDevelopment | `app/(protected)/[slug]/_components/under-development.tsx` | Placeholder for unimplemented protected nav routes | `/[slug]` catch-all | ✅ ready |
 | SetupGuideImage | `app/(protected)/devices/_components/setup-guide-image.tsx` | Shared `next/image` wrapper + `DEVICE_SETUP_IMAGES` paths under `public/devices/` | Device setup flows | ✅ ready |
 | DeviceEnrollmentChecker | `app/(protected)/devices/_components/device-enrollment-checker.tsx` | Starts pending enrollment + polls Cloudflare verification | Cloudflare One wizard | ✅ ready |
-| AdminCloudflarePanel | `app/(protected)/admin/cloudflare/_components/admin-cloudflare-panel.tsx` | Admin CF health cards + sync action | `/admin/cloudflare` | ✅ ready |
+| ActivitiesView | `app/(protected)/activities/_components/activities-view.tsx` | Infinite-query activity list (50/page) | `/activities` | ✅ ready |
+| ActivitiesTable | `app/(protected)/activities/_components/activities-table.tsx` | Device, time, DNS/HTTP, domain/URL, action, policy, app | `/activities` | ✅ ready |
+| AdminCloudflarePanel | `app/(protected)/admin/cloudflare/_components/admin-cloudflare-panel.tsx` | Admin CF health cards + sync + Logpush ensure | `/admin/cloudflare` | ✅ ready |
 | WarningAlert | `components/feedback/warning-alert.tsx` | Amber status/warning message | Devices quota, shared | ✅ ready |
 | ErrorAlert | `components/feedback/error-alert.tsx` | Generic error display | Policy delete confirm, shared | ✅ ready |
 
@@ -290,7 +298,7 @@ page.tsx (RSC fetch via lib/services)
 | Admin client | `lib/supabase/admin.ts` | Service role client (server only) | ✅ ready |
 | Stateless client | `lib/supabase/stateless.ts` | No-session client for one-off auth calls | ✅ ready |
 | GoTrue fetch | `lib/supabase/gotrue.ts` | Direct `/auth/v1/recover` with full error parsing | ✅ ready |
-| Env helpers | `lib/env.ts` | `SUPABASE_*`, Stripe env, `getSiteUrl`, confirm URLs | ✅ ready |
+| Env helpers | `lib/env.ts` | `SUPABASE_*`, Stripe env, `CLOUDFLARE_LOGPUSH_SECRET`, `getSiteUrl`, confirm URLs | ✅ ready |
 | Proxy | `proxy.ts` | Session refresh + auth route guards | ✅ ready |
 
 ### Stripe (`lib/stripe/`)
@@ -304,7 +312,7 @@ page.tsx (RSC fetch via lib/services)
 
 | Module | Path | Purpose | Status |
 |--------|------|---------|--------|
-| App nav config | `lib/navigation/app-navigation.ts` | Sidebar links | ✅ ready |
+| App nav config | `lib/navigation/app-navigation.ts` | Sidebar links (`/activities` for Activity Logs) | ✅ ready |
 
 ### Services (`lib/services/`)
 
@@ -358,7 +366,10 @@ page.tsx (RSC fetch via lib/services)
 | getDeviceEnrollmentInfo | `lib/services/devices/get-enrollment-info.ts` | Team name, DNS profile, store/WARP URLs, enrolled count | `/api/devices/enrollment-info` | ✅ ready |
 | getDeviceSetupSession / updateDeviceSetupSession | `lib/services/devices/setup-session.ts` | Persist questionnaire + wizard step | `/api/devices/setup-session` | ✅ ready |
 | getDeviceAppPreferences / updateDeviceAppPreferences | `lib/services/devices/app-preferences.ts` | Lock filter + prevent logout toggles | `/api/devices/app-preferences` | ✅ ready |
-| listDeviceProfiles / createDeviceProfile / addDeviceToProfile / deleteDeviceProfile | `lib/services/devices/device-profiles.ts` | App profiles; create attaches device + policy | `/api/device-profiles`, Devices page | ✅ ready |
+| listGatewayActivityLogs | `lib/services/gateway-activity/list-activity-logs.ts` | RLS-scoped Gateway logs, newest first, 50/page | `/activities`, `/api/gateway-activity` | ✅ ready |
+| ingestGatewayLogpushPayload | `lib/services/gateway-activity/ingest-logpush.ts` | Parse Logpush NDJSON, map DeviceID → `tenant_device_metadata`, upsert | `/api/cloudflare/logpush` | ✅ ready |
+| parseLogpushPayload | `lib/services/gateway-activity/parse-logpush.ts` | NDJSON/JSON + gzip decode + fingerprint | ingest | ✅ ready |
+| listGatewayLogpushJobs / ensureGatewayLogpushJobs | `lib/services/cloudflare/logpush.ts` | List/create `gateway_dns` + `gateway_http` HTTP Logpush jobs (403 if token lacks Logs Edit) | `/api/admin/cloudflare/logpush` | ✅ ready |
 
 ### Cloudflare (`lib/cloudflare/`)
 
@@ -427,6 +438,9 @@ page.tsx (RSC fetch via lib/services)
 | `/api/admin/cloudflare/sync` | POST | `syncCloudflareDevices` | admin emails | ✅ ready |
 | `/api/admin/cloudflare/device-profile` | POST | `ensureDefaultTrafficAndDnsProfile` | admin emails | ✅ ready |
 | `/api/admin/cloudflare/block-page` | POST | `ensureGatewayBlockPageConfigured` | admin emails | ✅ ready |
+| `/api/admin/cloudflare/logpush` | GET/POST | `listGatewayLogpushJobs` / `ensureGatewayLogpushJobs` | admin emails; 403 if token lacks Logpush | ✅ ready |
+| `/api/cloudflare/logpush` | POST | `ingestGatewayLogpushPayload` | `CLOUDFLARE_LOGPUSH_SECRET` (`X-Logpush-Secret`) | ✅ ready |
+| `/api/gateway-activity` | GET | `listGatewayActivityLogs` | Auth; `?cursor=` `?limit=` (max 100, default 50) | ✅ ready |
 | `/api/admin/audit-log` | GET | recent `audit_log` rows | admin emails | ✅ ready |
 
 ### Schemas (`schemas/`)
@@ -445,7 +459,7 @@ page.tsx (RSC fetch via lib/services)
 | `createGatewayLocationSchema` | `schemas/content-policies/gateway-location.ts` | Audience picker create + `/api/gateway-locations` POST | ✅ ready |
 | `connectedDeviceSchema` | `schemas/devices/device.ts` | Device platform, connected device, setup answers | `/devices`, `/devices/setup` | ✅ ready |
 | `deviceProfileCreateSchema` | `schemas/devices/profiles.ts` | Profile create: name + device + policy (form + `POST /api/device-profiles`) | `/devices` | ✅ ready |
-| `deviceEnrollmentInfoSchema` | `schemas/devices/api.ts` | Enrollment info + setup session + app preferences API | `/api/devices/*` | ✅ ready |
+| `gatewayActivityLogSchema` | `schemas/gateway-activity/activity-log.ts` | `/activities` + `/api/gateway-activity` | ✅ ready |
 
 ### DB migrations (`supabase/migrations/`)
 
@@ -471,6 +485,7 @@ Requires `supabase login` + `supabase link` once per machine. Do not squash alre
 | `20260816196000_fix_gateway_policy_types.sql` | Align `tenant_gateway_policies.type` with editor values (`allow`/`block`/`safesearch`/`ytrestricted`) | ✅ applied to Reallife-OS [Production] |
 | `20260820160000_device_profiles_and_policy_assignments.sql` | App profiles, policy assignments, per-device DNS locations, `tenant_policy_gateway_rules` | ✅ applied to Reallife-OS [Production] |
 | `20260827120000_device_enforcement_layers.sql` | Device enrollment fields; pending/configured policy status; nullable primary rule id; expanded Gateway layer roles | ✅ applied to Reallife-OS [Production] |
+| `20260907180000_gateway_activity_logs.sql` | `gateway_activity_logs` + RLS (own `user_id` SELECT) + DeviceID fingerprint unique | ✅ applied to Reallife-OS [Production] |
 
 ### Generic Validators (`schemas/generic/`)
 
@@ -488,7 +503,7 @@ Requires `supabase login` + `supabase link` once per machine. Do not squash alre
 
 | Date | Change | Updated By |
 |------|--------|------------|
-| 2026-09-07 | Policy edit sync: pick a free Cloudflare Gateway precedence (skip collisions with HTTP/L4 siblings) so PUT no longer 500s with "precedence already exists" | Agent |
+| 2026-09-07 | Gateway activity: Logpush ingest `POST /api/cloudflare/logpush`, `gateway_activity_logs`, `/activities` (own devices, paginated); admin Logpush job ensure | Agent |
 | 2026-09-03 | Policy editor pickers (categories/apps/audience): tap selected item again to deselect | Agent |
 | 2026-09-03 | First-time enforcement: profile/policy assign runs Traffic+DNS + identity-only sync (no manual Repair); create never stamps `dns.location`; hard `block` beats `ytrestricted`/`safesearch` precedence | Agent |
 | 2026-09-03 | Repair Gateway: drop orphan assignments to soft-deleted policies; show real sync errors (not generic token message); delete assignments when a policy is soft-deleted | Agent |

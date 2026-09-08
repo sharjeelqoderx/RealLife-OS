@@ -128,6 +128,71 @@ export type Database = {
         }
         Relationships: []
       }
+      gateway_activity_logs: {
+        Row: {
+          action: string | null
+          application_name: string | null
+          cloudflare_device_id: string
+          created_at: string
+          dataset: string
+          device_id: string | null
+          device_name: string | null
+          event_fingerprint: string
+          hostname: string | null
+          id: string
+          occurred_at: string
+          policy_id: string | null
+          policy_name: string | null
+          raw: Json
+          url: string | null
+          user_id: string
+        }
+        Insert: {
+          action?: string | null
+          application_name?: string | null
+          cloudflare_device_id: string
+          created_at?: string
+          dataset: string
+          device_id?: string | null
+          device_name?: string | null
+          event_fingerprint: string
+          hostname?: string | null
+          id?: string
+          occurred_at: string
+          policy_id?: string | null
+          policy_name?: string | null
+          raw?: Json
+          url?: string | null
+          user_id: string
+        }
+        Update: {
+          action?: string | null
+          application_name?: string | null
+          cloudflare_device_id?: string
+          created_at?: string
+          dataset?: string
+          device_id?: string | null
+          device_name?: string | null
+          event_fingerprint?: string
+          hostname?: string | null
+          id?: string
+          occurred_at?: string
+          policy_id?: string | null
+          policy_name?: string | null
+          raw?: Json
+          url?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gateway_activity_logs_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_device_metadata"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       schema_migrations: {
         Row: {
           applied_at: string
