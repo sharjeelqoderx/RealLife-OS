@@ -47,6 +47,15 @@ export function getStripeWebhookSecret(): string {
   return requireEnv("STRIPE_WEBHOOK_SECRET")
 }
 
+/** Shared secret Cloudflare Logpush sends as `X-Logpush-Secret`. */
+export function getCloudflareLogpushSecret(): string {
+  return requireEnv("CLOUDFLARE_LOGPUSH_SECRET")
+}
+
+export function tryGetCloudflareLogpushSecret(): string | undefined {
+  return process.env.CLOUDFLARE_LOGPUSH_SECRET || undefined
+}
+
 /** Focus tier monthly price. Falls back to legacy BASIC env name. */
 export function getStripePriceFocusMonthly(): string {
   return (

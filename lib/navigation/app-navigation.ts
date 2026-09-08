@@ -22,7 +22,7 @@ export const mainNavItems: AppNavItem[] = [
   { title: "Billing", href: "/billing", icon: CreditCard },
   { title: "Content Policies", href: "/content-policies", icon: Layers },
   { title: "Devices", href: "/devices", icon: Monitor },
-  { title: "Activity Logs", href: "/activity-logs", icon: Activity },
+  { title: "Activity Logs", href: "/activities", icon: Activity },
   { title: "Tools", href: "/tools", icon: Wrench },
   { title: "Config Generator", href: "/config-generator", icon: FileCode2 },
   { title: "Settings", href: "/settings", icon: Settings },

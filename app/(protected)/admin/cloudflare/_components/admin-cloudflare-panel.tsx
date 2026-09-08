@@ -84,6 +84,18 @@ export function AdminCloudflarePanel({
     },
   })
 
+  const logpushMutation = useMutation({
+    mutationFn: () =>
+      apiClient<{
+        success: true
+        data: {
+          created: string[]
+          existing: string[]
+          destinationHost: string
+        }
+      }>("/api/admin/cloudflare/logpush", { method: "POST" }),
+  })
+
   const status = statusQuery.data?.data.cloudflare ?? initialStatus.cloudflare
 
   return (
@@ -149,7 +161,8 @@ export function AdminCloudflarePanel({
         disabled={
           syncMutation.isPending ||
           profileMutation.isPending ||
-          blockPageMutation.isPending
+          blockPageMutation.isPending ||
+          logpushMutation.isPending
         }
       >
         {syncMutation.isPending ? <CustomSpinner /> : null}
@@ -162,7 +175,8 @@ export function AdminCloudflarePanel({
         disabled={
           profileMutation.isPending ||
           syncMutation.isPending ||
-          blockPageMutation.isPending
+          blockPageMutation.isPending ||
+          logpushMutation.isPending
         }
       >
         {profileMutation.isPending ? <CustomSpinner /> : null}
@@ -175,11 +189,26 @@ export function AdminCloudflarePanel({
         disabled={
           blockPageMutation.isPending ||
           syncMutation.isPending ||
-          profileMutation.isPending
+          profileMutation.isPending ||
+          logpushMutation.isPending
         }
       >
         {blockPageMutation.isPending ? <CustomSpinner /> : null}
         Apply block page redirect
+      </Button>
+      <Button
+        type="button"
+        variant="brandOutline"
+        onClick={() => logpushMutation.mutate()}
+        disabled={
+          logpushMutation.isPending ||
+          syncMutation.isPending ||
+          profileMutation.isPending ||
+          blockPageMutation.isPending
+        }
+      >
+        {logpushMutation.isPending ? <CustomSpinner /> : null}
+        Ensure Gateway Logpush jobs
       </Button>
       </div>
 
@@ -211,6 +240,24 @@ export function AdminCloudflarePanel({
               : "Sync failed"
           }
         />
+      ) : null}
+
+      {logpushMutation.isError ? (
+        <ErrorAlert
+          message={
+            logpushMutation.error instanceof Error
+              ? logpushMutation.error.message
+              : "Unable to create Logpush jobs. Token may lack Logs Edit."
+          }
+        />
+      ) : null}
+
+      {logpushMutation.data ? (
+        <p className="text-sm text-brand-text-muted">
+          Logpush destination host {logpushMutation.data.data.destinationHost} ·
+          created {logpushMutation.data.data.created.join(", ") || "none"} ·
+          existing {logpushMutation.data.data.existing.join(", ") || "none"}
+        </p>
       ) : null}
 
       {syncMutation.data ? (
