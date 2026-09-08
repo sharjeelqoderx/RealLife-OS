@@ -96,6 +96,14 @@ export function AdminCloudflarePanel({
           Administrator-only health checks for the shared Zero Trust account.
           API tokens are never shown here.
         </p>
+        <p className="mt-2 text-sm">
+          <a
+            href="/admin/users"
+            className="font-medium text-brand-primary underline-offset-4 hover:underline"
+          >
+            Manage user roles
+          </a>
+        </p>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">

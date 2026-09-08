@@ -79,6 +79,7 @@ reallife-os/
 │   │   ├── content-policies/        # list + (editor) create/edit/view
 │   │   ├── devices/                 # connected devices + setup wizards
 │   │   ├── admin/cloudflare/        # admin-only CF health / sync UI
+│   │   ├── admin/users/             # promote/demote USER ↔ ADMIN
 │   │   └── [slug]/                   # Unknown routes → under development
 │   ├── (public)/                    # Marketing / landing + Gateway block page
 │   │   ├── page.tsx
@@ -118,6 +119,7 @@ reallife-os/
 ├── schemas/                         # ALL Zod schemas (API + UI)
 │   ├── generic/                     # email, password, personName, …
 │   ├── auth/
+│   ├── admin/
 │   ├── billing/
 │   ├── content-policies/
 │   └── devices/
@@ -225,6 +227,7 @@ page.tsx (RSC fetch via lib/services)
 | `/devices/setup/install-certificate` | WARP Desktop certificate install guide — 8-step flow with Image placeholders | `app/(protected)/devices/setup/install-certificate/page.tsx` | `app/(protected)/devices/setup/install-certificate/loading.tsx` | `install-certificate-view`, `install-certificate-mockups` | ✅ ready (UI mock) |
 | `/devices/setup/apple-shortcuts` | iPhone Apple Shortcuts guide — auto-reconnect Cloudflare VPN | `app/(protected)/devices/setup/apple-shortcuts/page.tsx` | `app/(protected)/devices/setup/apple-shortcuts/loading.tsx` | `apple-shortcuts-view` | ✅ ready (UI mock) |
 | `/admin/cloudflare` | Admin-only Cloudflare health + manual device sync | `app/(protected)/admin/cloudflare/page.tsx` | `app/(protected)/admin/cloudflare/loading.tsx` | `admin-cloudflare-panel` | ✅ ready |
+| `/admin/users` | Promote/demote auth roles (`USER` ↔ `ADMIN`) | `app/(protected)/admin/users/page.tsx` | `app/(protected)/admin/users/loading.tsx` | `admin-users-panel` | ✅ ready |
 | `/[slug]` (protected) | Unknown protected routes (settings, …) → under development | `app/(protected)/[slug]/page.tsx` | `app/(protected)/[slug]/loading.tsx` | `under-development` | ✅ ready |
 
 ### Shared Components
@@ -244,7 +247,7 @@ page.tsx (RSC fetch via lib/services)
 | GlobalSpinner | `components/feedback/global-spinner.tsx` | Full-screen mutation loader | — | ⚪ unused |
 | QueryProvider | `components/providers/query-provider.tsx` | React Query context | root layout | ✅ ready |
 | DashboardShell | `components/layout/dashboard-shell.tsx` | Protected app shell (sidebar + navbar) | `(protected)/layout` | ✅ ready |
-| AppSidebar | `components/layout/app-sidebar.tsx` | Collapsible sidebar navigation; shows signed-in name, email, avatar | DashboardShell | ✅ ready |
+| AppSidebar | `components/layout/app-sidebar.tsx` | Collapsible sidebar; main nav + Admin group when `app_metadata.role=ADMIN` | DashboardShell | ✅ ready |
 | AppNavbar | `components/layout/app-navbar.tsx` | Top navbar with signed-in name, email, avatar | DashboardShell | ✅ ready |
 | Sidebar | `components/ui/sidebar.tsx` | shadcn collapsible sidebar primitive | AppSidebar | ✅ ready |
 | Sheet | `components/ui/sheet.tsx` | Mobile sidebar drawer | Sidebar | ✅ ready |
@@ -279,6 +282,7 @@ page.tsx (RSC fetch via lib/services)
 | SetupGuideImage | `app/(protected)/devices/_components/setup-guide-image.tsx` | Shared `next/image` wrapper + `DEVICE_SETUP_IMAGES` paths under `public/devices/` | Device setup flows | ✅ ready |
 | DeviceEnrollmentChecker | `app/(protected)/devices/_components/device-enrollment-checker.tsx` | Starts pending enrollment + polls Cloudflare verification | Cloudflare One wizard | ✅ ready |
 | AdminCloudflarePanel | `app/(protected)/admin/cloudflare/_components/admin-cloudflare-panel.tsx` | Admin CF health cards + sync action | `/admin/cloudflare` | ✅ ready |
+| AdminUsersPanel | `app/(protected)/admin/users/_components/admin-users-panel.tsx` | User list: last login + ADMIN toggle switch | `/admin/users` | ✅ ready |
 | WarningAlert | `components/feedback/warning-alert.tsx` | Amber status/warning message | Devices quota, shared | ✅ ready |
 | ErrorAlert | `components/feedback/error-alert.tsx` | Generic error display | Policy delete confirm, shared | ✅ ready |
 
@@ -304,14 +308,14 @@ page.tsx (RSC fetch via lib/services)
 
 | Module | Path | Purpose | Status |
 |--------|------|---------|--------|
-| App nav config | `lib/navigation/app-navigation.ts` | Sidebar links | ✅ ready |
+| App nav config | `lib/navigation/app-navigation.ts` | Sidebar links; `adminNavItems` (Users, Cloudflare) for ADMIN only | ✅ ready |
 
 ### Services (`lib/services/`)
 
 | Service | File | Purpose | Called From | Status |
 |---------|------|---------|-------------|--------|
 | loginUser | `lib/services/auth/login.ts` | Supabase `signInWithPassword` | `/api/auth/login` | ✅ ready |
-| signUpUser | `lib/services/auth/sign-up.ts` | Supabase `signUp` + email confirm | `/api/auth/sign-up` | ✅ ready |
+| signUpUser | `lib/services/auth/sign-up.ts` | Supabase `signUp` + email confirm; `user_metadata.role = USER` | `/api/auth/sign-up` | ✅ ready |
 | requestPasswordReset | `lib/services/auth/forget-password.ts` | User lookup + GoTrue recover | `/api/auth/forget-password` | ✅ ready |
 | getUserByEmail | `lib/services/auth/get-user-by-email.ts` | Admin API email lookup | forget-password | ✅ ready |
 | validateRecoverySession / changePassword | `lib/services/auth/change-password.ts` | Session validate + `updateUser` | change-password APIs | ✅ ready |
@@ -348,7 +352,9 @@ page.tsx (RSC fetch via lib/services)
 | syncCloudflareDevices | `lib/services/cloudflare/sync-devices.ts` | Reconcile owned devices vs Cloudflare inventory (no auto-claim) | `/api/admin/cloudflare/sync` | ✅ ready |
 | createDeviceEnrollment / getDeviceEnrollmentStatus | `lib/services/devices/enrollments.ts` | Pending enrollment + email/time-bound ownership claim | `/api/devices/enrollment*` | ✅ ready |
 | revokeConnectedDevice | `lib/services/devices/revoke-device.ts` | Ownership-checked physical-device revoke | `/api/devices/[id]/revoke` | ✅ ready |
-| requireAdminUser | `lib/services/admin/require-admin.ts` | Gate admin routes via `ADMIN_EMAILS` | `/api/admin/*`, `/admin/cloudflare` | ✅ ready |
+| requireAdminUser | `lib/services/admin/require-admin.ts` | Gate admin routes via `app_metadata.role=ADMIN` (bootstrap via `ADMIN_EMAILS`) | `/api/admin/*`, `/admin/*` | ✅ ready |
+| getAuthUserRole / AUTH_ROLES | `lib/auth/roles.ts` | `USER` \| `ADMIN`; ADMIN trusted only from `app_metadata` | signup + requireAdminUser | ✅ ready |
+| listAdminUsers / setAuthUserRole | `lib/services/admin/users.ts` | List auth users; promote/demote role | `/api/admin/users`, `/admin/users` | ✅ ready |
 | getAdminCloudflareStatus | `lib/services/admin/cloudflare-status.ts` | Health probe for account/token/devices/gateway + Traffic and DNS profile | `/api/admin/cloudflare/status` | ✅ ready |
 | getDefaultDevicePolicy / ensureDefaultTrafficAndDnsProfile | `lib/services/cloudflare/device-policy.ts` | Default Cloudflare One profile (`service_mode_v2.mode=warp`) + `gateway: true` | enrollment + admin device-profile | ✅ ready |
 | ensureGatewayProxyEnabled | `lib/services/cloudflare/device-settings.ts` | Account-level TCP/UDP Gateway proxy for HTTP/L4 policies | policy sync + create + Repair Gateway | ✅ ready |
@@ -428,13 +434,15 @@ page.tsx (RSC fetch via lib/services)
 | `/api/admin/cloudflare/device-profile` | POST | `ensureDefaultTrafficAndDnsProfile` | admin emails | ✅ ready |
 | `/api/admin/cloudflare/block-page` | POST | `ensureGatewayBlockPageConfigured` | admin emails | ✅ ready |
 | `/api/admin/audit-log` | GET | recent `audit_log` rows | admin emails | ✅ ready |
+| `/api/admin/users` | GET | `listAdminUsers` | ADMIN | ✅ ready |
+| `/api/admin/users/[userId]` | PATCH | `setAuthUserRole` | `{ role: USER\|ADMIN }` | ✅ ready |
 
 ### Schemas (`schemas/`)
 
 | Schema | File | Used In | Status |
 |--------|------|---------|--------|
 | `loginSchema` | `schemas/auth/login.ts` | Login form + `/api/auth/login` | ✅ ready |
-| `signUpSchema` | `schemas/auth/sign-up.ts` | Sign-up form + `/api/auth/sign-up` | ✅ ready |
+| `setAuthUserRoleSchema` | `schemas/admin/users.ts` | `PATCH /api/admin/users/[userId]` | ✅ ready |
 | `forgetPasswordSchema` | `schemas/auth/forget-password.ts` | Forget-password form + API | ✅ ready |
 | `changePasswordSchema` | `schemas/auth/change-password.ts` | Change-password form + API | ✅ ready |
 | `createCheckoutSessionSchema` | `schemas/billing/checkout.ts` | Checkout API + paywall | ✅ ready |
@@ -471,6 +479,7 @@ Requires `supabase login` + `supabase link` once per machine. Do not squash alre
 | `20260816196000_fix_gateway_policy_types.sql` | Align `tenant_gateway_policies.type` with editor values (`allow`/`block`/`safesearch`/`ytrestricted`) | ✅ applied to Reallife-OS [Production] |
 | `20260820160000_device_profiles_and_policy_assignments.sql` | App profiles, policy assignments, per-device DNS locations, `tenant_policy_gateway_rules` | ✅ applied to Reallife-OS [Production] |
 | `20260827120000_device_enforcement_layers.sql` | Device enrollment fields; pending/configured policy status; nullable primary rule id; expanded Gateway layer roles | ✅ applied to Reallife-OS [Production] |
+| `20260908120000_auth_user_default_role.sql` | Auth insert trigger forces `role=USER` (never ADMIN on signup); backfill missing roles | ✅ applied to Reallife-OS [Production] |
 
 ### Generic Validators (`schemas/generic/`)
 
@@ -488,6 +497,9 @@ Requires `supabase login` + `supabase link` once per machine. Do not squash alre
 
 | Date | Change | Updated By |
 |------|--------|------------|
+| 2026-09-08 | Sidebar: ADMIN-only section lists Users + Cloudflare | Agent |
+| 2026-09-08 | Admin users table: Role column removed; Last login + ADMIN↔USER switch | Agent |
+| 2026-09-08 | Auth roles: signup always USER; ADMIN only via app_metadata / admin panel (`/admin/users`); `ADMIN_EMAILS` bootstraps first admin | Agent |
 | 2026-09-07 | Policy edit sync: pick a free Cloudflare Gateway precedence (skip collisions with HTTP/L4 siblings) so PUT no longer 500s with "precedence already exists" | Agent |
 | 2026-09-03 | Policy editor pickers (categories/apps/audience): tap selected item again to deselect | Agent |
 | 2026-09-03 | First-time enforcement: profile/policy assign runs Traffic+DNS + identity-only sync (no manual Repair); create never stamps `dns.location`; hard `block` beats `ytrestricted`/`safesearch` precedence | Agent |

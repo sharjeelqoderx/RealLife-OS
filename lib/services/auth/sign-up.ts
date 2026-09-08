@@ -1,4 +1,5 @@
 import type { SignUpInput, SignUpResponse } from "@/schemas/auth/sign-up"
+import { AUTH_ROLES } from "@/lib/auth/roles"
 import { getAuthConfirmUrl } from "@/lib/env"
 import { createClient } from "@/lib/supabase/server"
 import { mapSupabaseAuthError, AuthServiceError } from "@/lib/services/auth/errors"
@@ -12,6 +13,7 @@ export async function signUpUser(input: SignUpInput): Promise<SignUpResponse> {
     options: {
       data: {
         full_name: input.fullName,
+        role: AUTH_ROLES.USER,
       },
       emailRedirectTo: getAuthConfirmUrl("/dashboard"),
     },

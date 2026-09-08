@@ -28,7 +28,8 @@ import {
   SidebarRail,
   SidebarSeparator,
 } from "@/components/ui/sidebar"
-import { mainNavItems } from "@/lib/navigation/app-navigation"
+import { getNavItemsForRole } from "@/lib/navigation/app-navigation"
+import { getAuthUserRole } from "@/lib/auth/roles"
 import { useLogout } from "@/lib/query/hooks/use-logout"
 
 const activeItemClassName =
@@ -42,6 +43,8 @@ export function AppSidebar({ user }: AppSidebarProps) {
   const pathname = usePathname()
   const name = user?.user_metadata?.full_name || user?.email || "User"
   const image = user?.user_metadata?.avatar_url || user?.user_metadata?.picture
+  const role = user ? getAuthUserRole(user) : "USER"
+  const { main, admin } = getNavItemsForRole(role)
 
   const logoutMutation = useLogout()
 
@@ -68,10 +71,9 @@ export function AppSidebar({ user }: AppSidebarProps) {
 
       <SidebarContent>
         <SidebarGroup>
-          {/* <SidebarGroupLabel>Navigation</SidebarGroupLabel> */}
           <SidebarGroupContent>
             <SidebarMenu>
-              {mainNavItems.map((item) => {
+              {main.map((item) => {
                 const isActive =
                   pathname === item.href ||
                   pathname.startsWith(`${item.href}/`)
@@ -95,6 +97,37 @@ export function AppSidebar({ user }: AppSidebarProps) {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {admin.length > 0 ? (
+          <SidebarGroup>
+            <SidebarGroupLabel>Admin</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {admin.map((item) => {
+                  const isActive =
+                    pathname === item.href ||
+                    pathname.startsWith(`${item.href}/`)
+
+                  return (
+                    <SidebarMenuItem key={item.href}>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={isActive}
+                        tooltip={item.title}
+                        className={activeItemClassName}
+                      >
+                        <Link href={item.href}>
+                          <item.icon aria-hidden />
+                          <span>{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  )
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ) : null}
       </SidebarContent>
 
       <SidebarFooter className="border-t border-sidebar-border">

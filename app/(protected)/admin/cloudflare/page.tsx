@@ -14,12 +14,18 @@ export default async function AdminCloudflarePage() {
           Administrator access required
         </h1>
         <p className="text-sm text-brand-text-muted">
-          This page is only available to emails listed in the private
-          `ADMIN_EMAILS` environment variable.
+          Only ADMIN accounts can open this page. Sign-up always creates USER.
+          Bootstrap the first ADMIN with `ADMIN_EMAILS`, then promote others
+          from `/admin/users`.
         </p>
-        <Link href="/dashboard" className="text-sm text-brand-primary underline">
-          Back to dashboard
-        </Link>
+        <div className="flex flex-wrap gap-4">
+          <Link href="/dashboard" className="text-sm text-brand-primary underline">
+            Back to dashboard
+          </Link>
+          <Link href="/admin/users" className="text-sm text-brand-primary underline">
+            Admin users
+          </Link>
+        </div>
       </div>
     )
   }
